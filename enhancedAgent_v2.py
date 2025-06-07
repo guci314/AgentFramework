@@ -5,7 +5,7 @@ from langchain_core.language_models import BaseChatModel
 from typing import Dict, List, Any, Optional
 import json
 from datetime import datetime as dt
-from mda.prompts import team_manager_system_message_share_state, team_manager_system_message_no_share_state
+from prompts import team_manager_system_message_share_state, team_manager_system_message_no_share_state
 import logging
 
 # 配置日志输出到控制台
@@ -1840,7 +1840,7 @@ print(x)
     实现上面的函数,可以使用langchain的库
     '''
     from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_deepseek,llm_deepseek_r1
-    from mda.prompts import information_task_evaluate_message
+    from prompts import information_task_evaluate_message
     llm=llm_deepseek_r1
     agent=Agent(llm=llm,evaluation_system_messages=[information_task_evaluate_message])
     agent.loadKnowledge('''
