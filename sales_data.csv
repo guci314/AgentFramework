@@ -1,0 +1,10 @@
+Date,Region,Product,Salesperson,Sales
+2023-01-05,North,A,Alice,250
+2023-01-06,South,B,Bob,450
+2023-01-07,North,A,Alice,300
+2023-01-08,East,C,Charlie,600
+2023-02-10,West,A,Dave,150
+2023-02-11,South,C,Bob,700
+2023-02-12,West,B,Eve,350
+2023-03-15,East,B,Charlie,550
+2023-03-16,North,C,Alice,400

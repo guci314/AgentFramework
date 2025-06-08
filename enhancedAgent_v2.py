@@ -375,31 +375,9 @@ while true {{
 - 步骤中的instruction不要使用三个双引号包裹
 """
 
+        # 尝试使用更兼容的response_format（移除schema字段）
         response_format = {
-            "type": "json_object",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "steps": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string"},
-                                "name": {"type": "string"},
-                                "instruction": {"type": "string"},
-                                "agent_name": {"type": "string"},
-                                "instruction_type": {"type": "string", "enum": ["execute", "think"]},
-                                "expected_output": {"type": "string"},
-                                "phase": {"type": "string", "enum": ["information", "execution", "verification"]},
-                                "dependencies": {"type": "array", "items": {"type": "string"}}
-                            },
-                            "required": ["id", "name", "instruction", "agent_name", "phase"]
-                        }
-                    }
-                },
-                "required": ["steps"]
-            }
+            "type": "json_object"
         }
 
         try:
@@ -439,8 +417,10 @@ while true {{
             # 处理两种可能的格式：直接步骤数组或包含steps字段的对象
             if isinstance(plan_data, list):
                 plan = plan_data  # 直接是步骤数组
+                logger.debug(f"解析到步骤数组，共 {len(plan)} 个步骤")
             else:
                 plan = plan_data.get("steps", [])  # 从对象中获取steps
+                logger.debug(f"从对象中解析到步骤，共 {len(plan)} 个步骤")
         except Exception as e:
             logger.warning(f"计划生成第一次尝试失败: {e}")
             # 回退到普通方式再试一次
@@ -501,39 +481,49 @@ while true {{
         
         # 确保 plan 是列表且有内容
         if not isinstance(plan, list) or not plan:
+            logger.warning("计划生成失败，使用单步回退计划")
             plan = [{
-                "id": "fallback",
-                "name": "执行指令",
+                "id": "fallback_step",
+                "name": "执行完整任务",
                 "instruction": main_instruction,
-                "agent_name": self.agent_specs[0].name if self.agent_specs else "coder",
+                "agent_name": self.agent_specs[0].name if self.agent_specs else "general_agent",
                 "phase": "execution",
+                "instruction_type": "execute",
+                "expected_output": "任务完成结果",
                 "dependencies": []
             }]
         
         # 验证每个步骤的必要字段
         for i, step in enumerate(plan):
             if not isinstance(step, dict):
+                logger.warning(f"步骤 {i} 不是字典格式，将被替换为默认步骤")
                 plan[i] = {
                     "id": f"auto_{i}",
                     "name": f"自动步骤{i}",
-                    "instruction": main_instruction,
-                    "agent_name": self.agent_specs[0].name if self.agent_specs else "coder",
+                    "instruction": f"执行任务的第{i+1}部分",  # 避免直接使用原始指令
+                    "agent_name": self.agent_specs[0].name if self.agent_specs else "general_agent",
                     "phase": "execution",
+                    "instruction_type": "execute",
+                    "expected_output": f"第{i+1}部分的执行结果",
                     "dependencies": []
                 }
                 continue
                 
             # 确保必要字段存在
             if "id" not in step:
-                step["id"] = f"step_{i}"
+                step["id"] = f"step_{i+1}"
             if "name" not in step:
-                step["name"] = f"步骤{i}"
+                step["name"] = f"步骤{i+1}"
             if "instruction" not in step:
-                step["instruction"] = main_instruction
+                step["instruction"] = f"执行任务的第{i+1}部分"  # 避免直接使用原始指令
             if "agent_name" not in step:
-                step["agent_name"] = self.agent_specs[0].name if self.agent_specs else "coder"
+                step["agent_name"] = self.agent_specs[0].name if self.agent_specs else "general_agent"
             if "phase" not in step:
                 step["phase"] = "execution"
+            if "instruction_type" not in step:
+                step["instruction_type"] = "execute"
+            if "expected_output" not in step:
+                step["expected_output"] = f"第{i+1}步的执行结果"
             if "dependencies" not in step:
                 step["dependencies"] = []
                 
@@ -589,6 +579,20 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         """跳转到指定步骤"""
         target_index = self.find_step_index_by_id(target_step_id)
         if target_index >= 0:
+            # 获取当前计划
+            plan = self.get_plan()
+            
+            # 将当前步骤到目标步骤之间的所有步骤标记为已跳过(跳过依赖关系问题)
+            current_index = self.workflow_state.current_step_index
+            for i in range(current_index, target_index):
+                if i < len(plan) and plan[i].get('status') not in ('completed', 'skipped'):
+                    plan[i]['status'] = 'skipped'
+                    logger.debug(f"跳过步骤 {i}: {plan[i].get('name', plan[i].get('id'))}")
+            
+            # 更新计划
+            self.device.set_variable("current_plan", plan)
+            
+            # 设置当前步骤索引
             self.workflow_state.current_step_index = target_index
             logger.debug(f"跳转到步骤: {target_step_id} (索引: {target_index})")
         else:
@@ -750,7 +754,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                 deps_met = True
                 for dep_id in dependencies:
                     dep_step = next((s for s in plan if s["id"] == dep_id), None)
-                    if not dep_step or dep_step.get("status") != "completed":
+                    # 修改依赖检查逻辑：已完成或已跳过的步骤都视为依赖已满足
+                    if not dep_step or dep_step.get("status") not in ("completed", "skipped"):
                         deps_met = False
                         break
                 
@@ -767,7 +772,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                         step_deps_met = True
                         for dep_id in step_deps:
                             dep_step = next((s for s in plan if s["id"] == dep_id), None)
-                            if not dep_step or dep_step.get("status") != "completed":
+                            # 修改依赖检查逻辑：已完成或已跳过的步骤都视为依赖已满足
+                            if not dep_step or dep_step.get("status") not in ("completed", "skipped"):
                                 step_deps_met = False
                                 break
                         
@@ -781,6 +787,26 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
             pending_steps = [s for s in plan if s.get("status") not in ("completed", "skipped")]
             if not current_step and pending_steps:
                 logger.warning("没有找到可执行步骤，但仍有未完成任务，可能存在依赖问题")
+                
+                # 添加详细的调试信息
+                logger.debug(f"待处理步骤详情:")
+                for i, step in enumerate(pending_steps):
+                    step_id = step.get('id', f'step_{i}')
+                    step_name = step.get('name', '未命名步骤')
+                    step_status = step.get('status', 'unknown')
+                    step_deps = step.get('dependencies', [])
+                    logger.debug(f"  步骤 {step_id}({step_name}): 状态={step_status}, 依赖={step_deps}")
+                    
+                    # 检查依赖状态
+                    if step_deps:
+                        for dep_id in step_deps:
+                            dep_step = next((s for s in plan if s["id"] == dep_id), None)
+                            if dep_step:
+                                dep_status = dep_step.get('status', 'unknown')
+                                logger.debug(f"    依赖 {dep_id}: 状态={dep_status}")
+                            else:
+                                logger.debug(f"    依赖 {dep_id}: 未找到")
+                
                 summary += "\n执行计划依赖关系问题，无法继续执行。"
                 break
                 
@@ -898,6 +924,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     if target_step_id:
                         self.jump_to_step(target_step_id)
                         summary += f"\n跳转到步骤: {target_step_id}"
+                        # 跳转后继续循环，不要break，让下一次循环处理跳转的目标步骤
+                        continue
                     else:
                         logger.warning("jump_to决策缺少target_step_id")
                 
@@ -906,6 +934,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     if target_step_id:
                         if self.loop_back_to_step(target_step_id):
                             summary += f"\n循环回到步骤: {target_step_id}"
+                            # 循环后继续执行新的目标步骤
+                            continue
                         else:
                             summary += f"\n循环回步骤失败，继续执行"
                     else:
@@ -1352,14 +1382,19 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
 #%%
 # ====== 示例 main 代码块 ======
 if __name__ == "__main__":
-    import os
-    os.environ["AGENT_MAX_TOKENS"] = "1000000"
+    # 设置代理服务器
+    # import os
+    # os.environ['http_proxy'] = 'http://127.0.0.1:7890'
+    # os.environ['https_proxy'] = 'http://127.0.0.1:7890'
+    
+    # os.environ["AGENT_MAX_TOKENS"] = "1000000"
     from pythonTask import *
     from knowledge_agent import promgraming_knowledge
      
-    # llm=llm_llama_4_maverick_openrouter
-    llm=llm_deepseek
     
+    # llm=llm_claude_sonnet_4
+    # llm=llm_gemini_2_5_pro_preview_06_05_google
+    llm=llm_deepseek
     
     # 实例化 MultiStepAgent_v2 时不传入 agent_specs
     multi_agent = MultiStepAgent_v2(llm=llm)
@@ -1390,7 +1425,7 @@ if __name__ == "__main__":
     
     # 销售数据分析任务
 
-/home/guci/myModule/AiResearch/sales_data.csv是销售数据文件，请使用此文件进行数据分析。
+sales_data.csv是销售数据文件，请使用此文件进行数据分析。
 
 # 规则
 1. 不要生成图表
@@ -2098,9 +2133,11 @@ if __name__ == "__main__":
 
 #%%
 if __name__ == "__main__":
-    from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_deepseek,llm_claude_37_sonnet,llm_deepseek_r1
-
+    from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_gemini_2_5_pro_preview_06_05_google,llm_deepseek,llm_claude_37_sonnet,llm_deepseek_r1
+    
     # llm=llm_gemini_2_5_pro_preview_05_06_google
+
+    # llm=llm_gemini_2_5_pro_preview_06_05_google
     llm=llm_deepseek
     # 创建 MultiStepAgent_v2 实例，使用工作流风格的提示词模板
     workflow_agent = MultiStepAgent_v2(
@@ -2131,20 +2168,12 @@ if __name__ == "__main__":
         instance=test_agent
     )
 
-    # # 执行任务
-    # result = workflow_agent.execute_multi_step("""
-    # 1. 创建一个新的Python文件,文件名是/home/guci/myModule/AiResearch/simple_calculator.py
-    # 2. 实现一个简单的计算器类
-    # 3. 添加单元测试
-    # 4. 运行测试并验证结果
-    # """)
-
     # 执行任务
     result = workflow_agent.execute_multi_step("""
     1. coder: 实现一个简单的计算器类，包含加减乘除功能和完整单元测试
-    2. coder: 把代码保存到/home/guci/myModule/AiResearch/simple_calculator.py
-    3. tester: 运行/home/guci/myModule/AiResearch/simple_calculator.py，执行所有测试
-    4. decision_maker: 分析测试结果，测试通过则完成工作流，测试失败则生成修复任务并循环回到步骤3
+    2. coder: 把代码保存到simple_calculator.py
+    3. tester: 运行simple_calculator.py，获得输出结果。
+    4. decision_maker: 分析输出结果，测试通过则完成工作流，测试失败则生成修复任务并循环回到步骤3
     """)
 
 # %%

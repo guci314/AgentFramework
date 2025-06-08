@@ -132,6 +132,14 @@ llm_gemini_2_5_pro_preview_05_06_google=ChatOpenAI(
     http_client=http_client
 )
 
+llm_gemini_2_5_pro_preview_06_05_google=ChatOpenAI(
+    temperature=0,
+    model="gemini-2.5-pro-preview-06-05", 
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    api_key=os.getenv('GEMINI_API_KEY'),
+    http_client=http_client
+)
+
 
 llm_gemini_2_flash_google=ChatOpenAI(
     temperature=0,
@@ -311,6 +319,13 @@ llm_claude_35_sonnet = ChatOpenAI(
 llm_claude_37_sonnet = ChatOpenAI(
     temperature=0,
     model="anthropic/claude-3.7-sonnet", 
+    base_url='https://openrouter.ai/api/v1',
+    api_key=os.getenv('OPENROUTER_API_KEY'),
+)
+
+llm_claude_sonnet_4 = ChatOpenAI(
+    temperature=0,
+    model="anthropic/claude-sonnet-4:beta", 
     base_url='https://openrouter.ai/api/v1',
     api_key=os.getenv('OPENROUTER_API_KEY'),
 )

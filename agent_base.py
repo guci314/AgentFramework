@@ -325,13 +325,17 @@ def reduce_memory_decorator_compress(func=None, *, max_tokens=None):
         # 3. 计算可用于普通消息的token数
         available_tokens = max_tokens_limit - protected_tokens
         
+        print(f"\n🔄 开始消息压缩...")
+        print(f"📊 原始消息统计: 总消息 {len(agent.memory)} 条 (保护消息 {len(protected_messages)} 条, 普通消息 {len(regular_messages)} 条)")
+        print(f"🎯 Token限制: {max_tokens_limit}, 保护消息占用: {protected_tokens}, 普通消息可用: {available_tokens}")
+        
         # 4. 处理普通消息
         try:
             # 直接调用compress_messages，它会自动处理保留最后10条消息的逻辑
             final_regular_messages = compress_messages(regular_messages)
         except Exception as e:
             # 如果压缩失败，fallback到原有的token限制策略
-            print(f"压缩失败，使用fallback策略: {e}")
+            print(f"❌ 压缩失败，使用fallback策略: {e}")
             final_regular_messages = _fallback_token_strategy(regular_messages, available_tokens, encoding)
         
         # 5. 检查最终结果是否符合token限制
@@ -339,6 +343,7 @@ def reduce_memory_decorator_compress(func=None, *, max_tokens=None):
         
         # 如果仍然超过限制，使用fallback策略
         if final_regular_tokens > available_tokens:
+            print(f"⚠️  压缩后仍超过限制，使用fallback策略进一步优化")
             final_regular_messages = _fallback_token_strategy(final_regular_messages, available_tokens, encoding)
         
         # 6. 组合最终的memory
@@ -349,12 +354,14 @@ def reduce_memory_decorator_compress(func=None, *, max_tokens=None):
         if len(new_memory) < original_length:
             agent.memory = new_memory
             agent.memory_overloaded = True # 标记发生了缩减
-            print(f"Memory compressed. Original: {original_length} messages, New: {len(new_memory)} messages")
+            print(f"✅ Memory压缩完成! 原始: {original_length} 条消息 → 压缩后: {len(new_memory)} 条消息")
+            print(f"📈 最终构成: 保护消息 {len(protected_messages)} 条 + 普通消息 {len(final_regular_messages)} 条\n")
         else:
             # 如果没有消息被移除，检查是否需要重置标志
             total_tokens = protected_tokens + final_regular_tokens
             if total_tokens <= max_tokens_limit:
                 agent.memory_overloaded = False
+                print(f"✅ Memory在限制范围内，无需压缩\n")
 
     def _fallback_token_strategy(messages, available_tokens, encoding):
         """Fallback策略：基于token限制选择消息"""
