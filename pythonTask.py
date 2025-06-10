@@ -325,7 +325,7 @@ llm_claude_37_sonnet = ChatOpenAI(
 
 llm_claude_sonnet_4 = ChatOpenAI(
     temperature=0,
-    model="anthropic/claude-sonnet-4:beta", 
+    model="anthropic/claude-sonnet-4", 
     base_url='https://openrouter.ai/api/v1',
     api_key=os.getenv('OPENROUTER_API_KEY'),
 )

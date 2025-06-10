@@ -2,7 +2,7 @@
 from agent_base import Result
 from pythonTask import StatefulExecutor, Agent
 from langchain_core.language_models import BaseChatModel
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import json
 from datetime import datetime as dt
 from prompts import team_manager_system_message_share_state, team_manager_system_message_no_share_state
@@ -123,19 +123,24 @@ class MultiStepAgent_v2(Agent):
 2. name: 简短的步骤名称
 3. instruction: 详细的执行指令，需要清晰明确
 4. agent_name: 执行该步骤的智能体名称，必须从以下列表中选择: {available_agent_names}
-5. instruction_type: 指令类型(execute/think) - 见下方说明
+5. instruction_type: 指令类型(execution/information) - 见下方说明
 6. phase: 步骤所属阶段(information/execution/verification)
 7. expected_output: 预期输出，明确该步骤应该产生什么结果
-8. dependencies: 前置依赖步骤的ID列表，如无依赖则为空数组[]
+8. prerequisites: 执行此步骤需要满足的先决条件(自然语言描述)，如无要求则为"无"
+
+# 智能体构成说明
+每个智能体由两部分组成：
+1. 记忆：存储对话历史、知识和状态信息
+2. 有状态的jupyter notebook kernel：用于执行代码和与外部环境交互
 
 # 指令类型说明
-- execute: 执行任务，会改变智能体的记忆和外部环境（如执行代码、打印输出等）
-- think: 思考任务，只改变智能体的记忆，不改变外部环境（如分析数据、理解内容等）
+- execution: 执行性任务，会调用jupyter notebook执行代码对外部世界产生行为或观察，同时改变智能体的记忆（如执行代码、文件操作、数据写入等）
+- information: 信息性任务，只是对智能体记忆的查询或修改，不会调用jupyter notebook（如查询数据、告知状态等）
 
 # 规划规则
 1. 分析任务特点，合理拆分步骤
 2. 根据每个智能体的专长分配任务
-3. 确保步骤间的依赖关系正确
+3. 用自然语言描述每个步骤的先决条件，而非硬编码依赖关系
 4. 为每个步骤提供足够详细的指令
 5. 信息收集阶段应彻底，确保执行阶段有足够输入数据
 6. 执行阶段应明确如何使用前面步骤收集的信息
@@ -165,14 +170,19 @@ class MultiStepAgent_v2(Agent):
 2. name: 基于用户步骤内容的简短名称
 3. instruction: 用户原始步骤的详细描述，保持原意不变
 4. agent_name: 最适合执行该步骤的智能体名称，必须从以下列表中选择: {available_agent_names}
-5. instruction_type: 指令类型(execute/think) - 见下方说明
+5. instruction_type: 指令类型(execution/information) - 见下方说明
 6. phase: 步骤类型(information/execution/verification)
 7. expected_output: 基于步骤内容推断的预期输出
-8. dependencies: 前置依赖步骤的ID列表，按步骤顺序推断依赖关系
+8. prerequisites: 执行此步骤需要满足的先决条件(自然语言描述)，如无要求则为"无"
+
+# 智能体构成说明
+每个智能体由两部分组成：
+1. 记忆：存储对话历史、知识和状态信息
+2. 有状态的jupyter notebook kernel：用于执行代码和与外部环境交互
 
 # 指令类型说明
-- execute: 执行任务，会改变智能体的记忆和外部环境（如执行代码、打印输出等）
-- think: 思考任务，只改变智能体的记忆，不改变外部环境（如分析数据、理解内容等）
+- execution: 执行性任务，会调用jupyter notebook执行代码对外部世界产生行为或观察，同时改变智能体的记忆（如执行代码、文件操作、数据写入等）
+- information: 信息性任务，只是对智能体记忆的查询或修改，不会调用jupyter notebook（如查询数据、告知状态等）
 
 # 控制流处理原则
 - **while循环**: 将循环体内的步骤提取为普通步骤，循环控制由决策者处理
@@ -185,13 +195,13 @@ class MultiStepAgent_v2(Agent):
 3. **保持每个步骤的核心意图和主要内容**
 4. 根据步骤内容选择最合适的智能体
 5. 根据步骤性质判断instruction_type和phase
-6. 基于步骤顺序和内容设置合理的依赖关系
+6. 用自然语言描述每个步骤的先决条件，而非硬编码依赖关系
 7. **对于缺失字段的推测原则**：
    - agent_name: 根据步骤内容推测最适合的智能体
-   - instruction_type: 根据步骤性质推测(涉及代码执行、文件操作等选execute，纯思考分析选think)
+   - instruction_type: 根据步骤性质推测(需要调用jupyter notebook执行代码、文件操作、数据写入等选execution，仅需查询或修改智能体记忆选information)
    - phase: 根据步骤在整体流程中的作用推测(收集信息选information，具体实施选execution，检查验证选verification)
    - expected_output: 根据步骤描述推测可能的输出结果
-   - dependencies: 根据步骤间的逻辑关系推测依赖
+   - prerequisites: 根据步骤间的逻辑关系描述先决条件
 8. **对于instruction字段的处理**：保持用户原始描述，必要时可适当补充执行细节以确保可操作性
 
 # 示例翻译
@@ -216,40 +226,40 @@ while true {{
       "name": "实现计算器",
       "instruction": "调用coder实现一个简单的计算器类，要包含单元测试",
       "agent_name": "coder",
-      "instruction_type": "execute",
+      "instruction_type": "execution",
       "phase": "execution",
       "expected_output": "计算器类代码",
-      "dependencies": []
+      "prerequisites": "无"
     }},
     {{
       "id": "step2", 
       "name": "保存代码",
       "instruction": "调用coder把代码保存到文件",
       "agent_name": "coder",
-      "instruction_type": "execute",
+      "instruction_type": "execution",
       "phase": "execution",
       "expected_output": "代码文件",
-      "dependencies": ["step1"]
+      "prerequisites": "计算器代码已实现"
     }},
     {{
       "id": "step3",
       "name": "运行测试",
       "instruction": "调用tester运行测试，检查代码是否正确",
       "agent_name": "tester",
-      "instruction_type": "execute", 
+      "instruction_type": "execution", 
       "phase": "verification",
       "expected_output": "测试结果",
-      "dependencies": ["step2"]
+      "prerequisites": "代码文件已保存"
     }},
     {{
       "id": "step4",
       "name": "分析测试结果并决策",
       "instruction": "分析测试结果，如果测试通过则完成工作流，如果测试失败则生成修复任务并循环回到测试步骤",
       "agent_name": "decision_maker",
-      "instruction_type": "think",
+      "instruction_type": "information",
       "phase": "verification", 
       "expected_output": "决策结果",
-      "dependencies": ["step3"]
+      "prerequisites": "测试已完成并有结果"
     }}
   ]
 }}
@@ -360,7 +370,7 @@ while true {{
       "name": "步骤名称",
       "instruction": "详细的执行指令...",
       "agent_name": "{first_agent_name}",
-      "instruction_type": "execute",
+      "instruction_type": "execution",
       "expected_output": "预期输出",
       "dependencies": []
     }}
@@ -488,12 +498,12 @@ while true {{
                 "instruction": main_instruction,
                 "agent_name": self.agent_specs[0].name if self.agent_specs else "general_agent",
                 "phase": "execution",
-                "instruction_type": "execute",
+                "instruction_type": "execution",
                 "expected_output": "任务完成结果",
-                "dependencies": []
+                "prerequisites": "无"
             }]
         
-        # 验证每个步骤的必要字段
+        # 确保所有步骤都有必要的字段
         for i, step in enumerate(plan):
             if not isinstance(step, dict):
                 logger.warning(f"步骤 {i} 不是字典格式，将被替换为默认步骤")
@@ -503,9 +513,10 @@ while true {{
                     "instruction": f"执行任务的第{i+1}部分",  # 避免直接使用原始指令
                     "agent_name": self.agent_specs[0].name if self.agent_specs else "general_agent",
                     "phase": "execution",
-                    "instruction_type": "execute",
+                    "instruction_type": "execution",
                     "expected_output": f"第{i+1}部分的执行结果",
-                    "dependencies": []
+                    "prerequisites": "无",
+                    "status": "pending"
                 }
                 continue
                 
@@ -521,17 +532,188 @@ while true {{
             if "phase" not in step:
                 step["phase"] = "execution"
             if "instruction_type" not in step:
-                step["instruction_type"] = "execute"
+                step["instruction_type"] = "execution"
+            # 设置默认状态
+            if "status" not in step:
+                step["status"] = "pending"
             if "expected_output" not in step:
                 step["expected_output"] = f"第{i+1}步的执行结果"
-            if "dependencies" not in step:
-                step["dependencies"] = []
-                
+            # 向后兼容：将旧的dependencies转换为新的prerequisites
+            if "dependencies" in step and not step.get("prerequisites"):
+                deps = step["dependencies"]
+                if deps:
+                    step["prerequisites"] = f"需要完成步骤: {', '.join(deps)}"
+                else:
+                    step["prerequisites"] = "无"
+                del step["dependencies"]
+            elif "prerequisites" not in step:
+                step["prerequisites"] = "无"
+        
         self.device.set_variable("current_plan", plan)
         logger.debug(f"生成计划: {plan}")
         # 添加直接打印到控制台
         print(f"\n当前执行计划:\n{json.dumps(plan, ensure_ascii=False, indent=2)}\n")
         return plan
+
+    # ====== 智能调度相关方法 ======
+    
+    def can_execute_step(self, step: Dict) -> Tuple[bool, str]:
+        """基于Agent记忆和系统状态判断步骤可执行性"""
+        
+        step_id = step.get('id')
+        step_name = step.get('name')
+        prerequisites = step.get('prerequisites', '无')
+        instruction = step.get('instruction', '')
+        
+        # 如果先决条件为"无"，直接可执行
+        if prerequisites in ['无', '']:
+            return True, "无先决条件限制"
+        
+        # 构造判断提示
+        check_prompt = f"""
+根据当前状态判断步骤是否可以执行：
+
+步骤ID: {step_id}
+步骤名称: {step_name}
+先决条件: {prerequisites}
+指令概要: {instruction[:100]}...
+
+请检查：
+1. 当前系统状态是否满足先决条件
+2. 所需文件/数据是否已准备好  
+3. 前置步骤是否已完成
+
+返回格式：
+可执行: true/false
+原因: 具体说明
+"""
+        
+        try:
+            # 使用Agent的记忆进行判断
+            response = self.chat_sync(check_prompt)
+            response_text = response.return_value if response.return_value else response.stdout
+            
+            # 解析响应
+            response_lower = response_text.lower()
+            # 处理各种可能的格式：可执行: true, **可执行**: true, 可执行:true 等
+            executable = (
+                "可执行: true" in response_lower or 
+                "可执行:true" in response_lower or
+                "**可执行**: true" in response_lower or
+                "**可执行**:true" in response_lower or
+                "可执行**:" in response_lower and "true" in response_lower or
+                "executable: true" in response_lower
+            )
+            
+            # 提取原因
+            reason_start = response_text.find("原因:")
+            if reason_start != -1:
+                reason = response_text[reason_start + 3:].strip()
+            else:
+                reason = response_text
+            
+            return executable, reason
+            
+        except Exception as e:
+            logger.warning(f"判断步骤可执行性时出错: {e}")
+            # 默认可执行，让Agent自己判断
+            return True, "无法判断，默认可执行"
+    
+    def select_next_executable_step(self, plan: List[Dict]) -> Optional[Tuple[int, Dict]]:
+        """智能选择下一个可执行步骤"""
+        
+        # 获取所有待执行步骤
+        pending_steps = []
+        for i, step in enumerate(plan):
+            step_status = step.get('status')
+            
+            if step_status not in ('completed', 'skipped', 'running'):
+                pending_steps.append((i, step))
+        
+        if not pending_steps:
+            return None
+        
+        # 如果只有一个待执行步骤，直接返回
+        if len(pending_steps) == 1:
+            return pending_steps[0]
+        
+        # 筛选出可执行的步骤
+        executable_steps = []
+        for i, step in pending_steps:
+            can_exec, reason = self.can_execute_step(step)
+            if can_exec:
+                executable_steps.append((i, step, reason))
+        
+        # 如果没有可执行步骤，返回None
+        if not executable_steps:
+            return None
+        
+        # 如果只有一个可执行步骤，直接返回
+        if len(executable_steps) == 1:
+            return executable_steps[0][:2]
+        
+        # 多个可执行步骤时，使用Agent记忆进行智能选择
+        step_descriptions = []
+        for i, (idx, step, reason) in enumerate(executable_steps):
+            step_descriptions.append(f"{i+1}. 步骤{step.get('id')}: {step.get('name')} - {reason}")
+        
+        selection_prompt = f"""
+当前有多个可执行步骤，请根据执行逻辑和当前状态选择最合适的下一步：
+
+可执行步骤：
+{chr(10).join(step_descriptions)}
+
+选择标准：
+1. 执行的逻辑顺序和优先级
+2. 当前系统状态和资源情况
+3. 任务的整体进度和目标
+
+请选择一个步骤编号 (1-{len(executable_steps)})
+返回格式: 选择: 数字
+"""
+        
+        try:
+            response = self.chat_sync(selection_prompt)
+            response_text = response.return_value if response.return_value else response.stdout
+            
+            # 提取选择的数字
+            import re
+            match = re.search(r'选择[:：]\s*(\d+)', response_text)
+            if match:
+                selected_num = int(match.group(1))
+                if 1 <= selected_num <= len(executable_steps):
+                    selected_idx = selected_num - 1
+                    return executable_steps[selected_idx][:2]
+            
+            # 解析失败，返回第一个
+            logger.warning(f"解析步骤选择失败，默认选择第一个: {response_text}")
+            return executable_steps[0][:2]
+            
+        except Exception as e:
+            logger.warning(f"智能选择步骤时出错: {e}")
+            # 出错时返回第一个可执行步骤
+            return executable_steps[0][:2]
+    
+    def _add_new_tasks(self, new_tasks: List[Dict]):
+        """添加新任务到计划中"""
+        if not new_tasks:
+            return
+            
+        plan = self.get_plan()
+        for new_task in new_tasks:
+            # 确保新任务有必要的字段
+            new_task_id = new_task.get('id', f"dynamic_{len(plan)}")
+            new_task['id'] = new_task_id
+            if 'status' not in new_task:
+                new_task['status'] = 'pending'
+            if 'prerequisites' not in new_task:
+                new_task['prerequisites'] = '无'
+            
+            plan.append(new_task)
+        
+        # 更新计划
+        self.device.set_variable("current_plan", plan)
+        logger.debug(f"添加了 {len(new_tasks)} 个新任务")
 
     def get_plan(self) -> List[Dict[str, Any]]:
         """从 StatefulExecutor 获取当前计划。"""
@@ -639,10 +821,10 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
             "name": "代码修复",
             "instruction": decision.get('fix_instruction', '修复代码中的问题'),
             "agent_name": decision.get('fix_agent', 'coder'),
-            "instruction_type": "execute",
+            "instruction_type": "execution",
             "phase": "execution",
             "expected_output": "修复后的代码",
-            "dependencies": [],
+            "prerequisites": "检测到需要修复的问题",
             "status": "pending"
         }
         
@@ -665,13 +847,13 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         
         return True
 
-    #TODO: 是否区分执行和思考?
+    #TODO: 是否区分执行性和信息性任务?
     def execute_single_step(self, step: Dict[str, Any]) -> Optional[Result]:
         """执行计划中的单个步骤。"""
         
         agent_name = step.get("agent_name")
         instruction = step.get("instruction")
-        instruction_type = step.get("instruction_type")
+        instruction_type = step.get("instruction_type", "execution")  # 默认为execution类型
         if not agent_name or not instruction:
             return Result(False, "", "", "步骤缺少 agent_name 或 instruction")
 
@@ -695,22 +877,37 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
 
 
 """
-            response=self.execute_stream(prompt)
+            # 根据指令类型选择执行方式
+            if instruction_type == "information":
+                # information类型任务使用chat_stream - 只改变智能体记忆，不对外部环境产生行为
+                response = self.chat_stream(prompt)
+            else:
+                # execution类型任务使用execute_stream - 会改变智能体记忆和外部环境
+                response = self.execute_stream(prompt)
+                
+            # 处理响应流并收集结果
+            response_text = ""
             for chunk in response:
                 result=chunk
                 if isinstance(chunk, str):
                     print(chunk,end="",flush=True)
+                    response_text += chunk
                     
-            # 解析 Result
-            if isinstance(result, Result):
-                return result
-            elif hasattr(result, "return_value") and isinstance(result.return_value, Result):
-                return result.return_value
+            # 根据指令类型解析结果
+            if instruction_type == "information":
+                # information类型任务：chat_stream返回字符串，构造成功的Result
+                return Result(True, instruction, response_text, "", response_text)
             else:
-                # 如果返回的不是 Result，尝试构造一个失败的 Result
-                stdout = getattr(result, "stdout", str(result))
-                stderr = getattr(result, "stderr", None)
-                return Result(False, instruction, stdout, stderr, None)
+                # execution类型任务：解析execute_stream返回的Result
+                if isinstance(result, Result):
+                    return result
+                elif hasattr(result, "return_value") and isinstance(result.return_value, Result):
+                    return result.return_value
+                else:
+                    # 如果返回的不是 Result，尝试构造一个失败的 Result
+                    stdout = getattr(result, "stdout", str(result))
+                    stderr = getattr(result, "stderr", None)
+                    return Result(False, instruction, stdout, stderr, None)
         except Exception as e:
             return Result(False, instruction, "", str(e), None)
 
@@ -741,77 +938,11 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
             workflow_iterations += 1
             plan = self.get_plan()
             
-            # 使用工作流状态来确定当前步骤 (方案2改进)
-            current_idx = self.workflow_state.current_step_index
-            current_step = None
+            # 使用智能调度选择下一个可执行步骤
+            next_step_info = self.select_next_executable_step(plan)
             
-            # 检查是否有可执行的步骤
-            if current_idx < len(plan):
-                current_step = plan[current_idx]
-                
-                # 检查依赖是否完成
-                dependencies = current_step.get("dependencies") or []
-                deps_met = True
-                for dep_id in dependencies:
-                    dep_step = next((s for s in plan if s["id"] == dep_id), None)
-                    # 修改依赖检查逻辑：已完成或已跳过的步骤都视为依赖已满足
-                    if not dep_step or dep_step.get("status") not in ("completed", "skipped"):
-                        deps_met = False
-                        break
-                
-                # 如果依赖未满足，寻找下一个可执行步骤
-                if not deps_met:
-                    current_step = None
-                    for idx in range(current_idx + 1, len(plan)):
-                        step = plan[idx]
-                        if step.get("status") in ("completed", "skipped"):
-                            continue
-                        
-                        # 检查依赖
-                        step_deps = step.get("dependencies") or []
-                        step_deps_met = True
-                        for dep_id in step_deps:
-                            dep_step = next((s for s in plan if s["id"] == dep_id), None)
-                            # 修改依赖检查逻辑：已完成或已跳过的步骤都视为依赖已满足
-                            if not dep_step or dep_step.get("status") not in ("completed", "skipped"):
-                                step_deps_met = False
-                                break
-                        
-                        if step_deps_met:
-                            current_step = step
-                            current_idx = idx
-                            self.workflow_state.current_step_index = idx
-                            break
-            
-            # 如果没有找到可执行步骤但仍有未完成步骤，说明依赖关系可能存在问题
-            pending_steps = [s for s in plan if s.get("status") not in ("completed", "skipped")]
-            if not current_step and pending_steps:
-                logger.warning("没有找到可执行步骤，但仍有未完成任务，可能存在依赖问题")
-                
-                # 添加详细的调试信息
-                logger.debug(f"待处理步骤详情:")
-                for i, step in enumerate(pending_steps):
-                    step_id = step.get('id', f'step_{i}')
-                    step_name = step.get('name', '未命名步骤')
-                    step_status = step.get('status', 'unknown')
-                    step_deps = step.get('dependencies', [])
-                    logger.debug(f"  步骤 {step_id}({step_name}): 状态={step_status}, 依赖={step_deps}")
-                    
-                    # 检查依赖状态
-                    if step_deps:
-                        for dep_id in step_deps:
-                            dep_step = next((s for s in plan if s["id"] == dep_id), None)
-                            if dep_step:
-                                dep_status = dep_step.get('status', 'unknown')
-                                logger.debug(f"    依赖 {dep_id}: 状态={dep_status}")
-                            else:
-                                logger.debug(f"    依赖 {dep_id}: 未找到")
-                
-                summary += "\n执行计划依赖关系问题，无法继续执行。"
-                break
-                
-            # 如果没有更多步骤需要执行
-            if not current_step:
+            # 如果没有更多可执行步骤
+            if not next_step_info:
                 # 决策：是否真的全部完成了？
                 last_result = None
                 if task_history:
@@ -840,25 +971,16 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                 # 如果决策是生成新任务
                 elif decision['action'] == 'generate_new_task' and decision.get('new_tasks'):
                     summary += "\n添加新任务并继续执行。"
-                    # 添加新任务到计划
-                    for new_task in decision.get('new_tasks', []):
-                        # 确保新任务有必要的字段
-                        new_task_id = new_task.get('id', f"dynamic_{len(plan)}")
-                        new_task['id'] = new_task_id
-                        if 'status' not in new_task:
-                            new_task['status'] = 'pending'
-                        
-                        # 添加到计划中
-                        plan.append(new_task)
-                    
-                    # 更新计划
-                    self.device.set_variable("current_plan", plan)
-                    print(f"\n更新执行计划:\n{json.dumps(plan, ensure_ascii=False, indent=2)}\n")
+                    self._add_new_tasks(decision.get('new_tasks', []))
+                    plan = self.get_plan()
                     continue
                 else:
                     # 如果决策是继续但没有更多步骤，或者是其他决策
                     summary += f"\n所有步骤已处理，决策为: {decision['action']}。"
                     break
+            
+            # 获取选择的步骤
+            current_idx, current_step = next_step_info
             
             # 执行当前步骤
             print(f"\n执行步骤 {current_idx+1}/{len(plan)}: {current_step.get('name')}")
@@ -880,8 +1002,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
             if exec_result and exec_result.success:
                 self.update_step_status(current_idx, "completed", exec_result)
                 
-                # 移动到下一步 (方案2: 更新工作流状态)
-                self.workflow_state.current_step_index = current_idx + 1
+                # 注释掉自动递增逻辑，因为智能调度会直接选择下一个步骤
+                # self.workflow_state.current_step_index = current_idx + 1
                 
                 # 执行成功后，使用make_decision决定下一步
                 decision = self.make_decision(
@@ -905,6 +1027,12 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                             logger.warning(f"清除失败记录时出错: {e}")
                     break
                 
+                elif decision['action'] == 'continue':
+                    # 继续执行下一个步骤，什么都不需要做，让循环继续
+                    summary += "\n继续执行下一个步骤。"
+                    # continue 语句会让执行循环继续到下一轮，选择下一个可执行步骤
+                    continue
+                
                 elif decision['action'] == 'generate_new_task' and decision.get('new_tasks'):
                     # 添加新任务到计划
                     for new_task in decision.get('new_tasks', []):
@@ -918,6 +1046,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     # 更新计划
                     self.device.set_variable("current_plan", plan)
                     print(f"\n更新执行计划:\n{json.dumps(plan, ensure_ascii=False, indent=2)}\n")
+                    summary += "\n添加新任务并继续执行。"
+                    continue
                 
                 elif decision['action'] == 'jump_to':
                     target_step_id = decision.get('target_step_id')
@@ -979,9 +1109,14 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                         if loop_target:
                             if self.loop_back_to_step(loop_target):
                                 summary += f"\n生成修复任务并循环回到: {loop_target}"
+                                # 继续执行循环目标步骤，不要break
+                                continue
                             else:
                                 summary += f"\n修复任务已达最大重试次数"
                                 break
+                        else:
+                            # 如果没有循环目标，继续正常执行流程
+                            continue
                     else:
                         summary += "\n修复任务生成失败或达到最大重试次数"
                         break
@@ -1004,6 +1139,11 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     # 将当前步骤状态重置为未执行
                     self.update_step_status(current_idx, "pending")
                     summary += "\n将重试当前步骤。"
+                    continue
+                elif decision['action'] == 'continue':
+                    # 继续执行下一个步骤
+                    summary += "\n继续执行下一个步骤。"
+                    continue
                 elif decision['action'] == 'generate_new_task' and decision.get('new_tasks'):
                     # 添加新任务（可能是替代方案或修复任务）
                     for new_task in decision.get('new_tasks', []):
@@ -1017,7 +1157,9 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     self.device.set_variable("current_plan", plan)
                     print(f"\n更新执行计划:\n{json.dumps(plan, ensure_ascii=False, indent=2)}\n")
                     summary += "\n添加替代任务并继续执行。"
+                    continue
                 else:
+                    # 处理其他决策类型或默认行为
                     # 记录失败的步骤信息，准备下一次重试整个计划
                     failures = [
                         {"id": step.get("id"), "name": step.get("name"), "error": step.get("result", {}).get("stderr", "")}
@@ -1037,10 +1179,11 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     retries += 1
                     if retries <= self.max_retries:
                         summary += f"\n第{retries}次重试。"
+                        # 重试时继续循环
+                        continue
                     else:
                         summary += "\n已达最大重试次数。"
                         break
-                    
             # 如果是交互模式，等待用户输入
             if interactive:
                 user_input = input("\n按Enter继续，输入'q'退出: ")
@@ -1116,8 +1259,7 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         """
         # 获取当前计划和状态
         plan = self.get_plan()
-        current_step_index = self.workflow_state.current_step_index
-        current_step = plan[current_step_index] if current_step_index < len(plan) else None
+        # 不再使用固定的current_step_index，而是基于任务历史确定当前状态
         
         # 获取可用智能体列表
         available_agents = "\n".join([
@@ -1160,10 +1302,13 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
             f"- {step.get('id')}: {step.get('name')}" for step in pending_steps
         ]) if pending_steps else "无剩余步骤"
         
-        # 工作流状态信息
+        # 工作流状态信息  
+        last_executed_step = None
+        if task_history:
+            last_executed_step = task_history[-1].get('task', {}).get('name', '无')
+        
         workflow_state_str = f"""
-当前步骤索引: {current_step_index}
-当前步骤: {current_step.get('name') if current_step else '无'}
+最后执行步骤: {last_executed_step or '无'}
 循环计数器: {self.workflow_state.loop_counters}
 修复任务计数: {self.workflow_state.fix_counter}
 """
@@ -1255,7 +1400,7 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
       "instruction": "详细指令",
       "agent_name": "执行智能体名称",
       "phase": "information|execution|verification",
-      "dependencies": []
+      "prerequisites": "先决条件描述"
     }}
   ]
 }}
