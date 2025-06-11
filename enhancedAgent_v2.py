@@ -7,15 +7,18 @@ import json
 from datetime import datetime as dt
 from prompts import team_manager_system_message_share_state, team_manager_system_message_no_share_state
 import logging
+import sys
 
-# 配置日志输出到控制台
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
+# 配置日志输出到控制台 - 只在没有配置过时才配置
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler()]
+    )
 
 logger = logging.getLogger(__name__)
+# 只设置当前模块的日志级别，不影响全局配置
 logger.setLevel(logging.DEBUG)
 
 class AgentSpecification:
@@ -2241,40 +2244,7 @@ if __name__ == "__main__":
     main_instruction = "请用python写一个hello world程序"
     multi_agent_autonomous.execute_multi_step(main_instruction)
 
-if __name__ == "__main__":
-    # 示例2：翻译模式（方案2）
-    llm = llm_deepseek
 
-    # 创建翻译模式的多步骤智能体（方案2：支持控制流）
-    workflow_agent = MultiStepAgent_v2(llm=llm, use_autonomous_planning=False)
-
-    # 注册智能体
-    coder_agent = Agent(llm=llm)
-    coder_agent.api_specification = '''
-    通用编程智能体,擅长编写python代码
-    '''
-    workflow_agent.register_agent(
-        name="coder",
-        instance=coder_agent
-    )
-
-    test_agent = Agent(llm=llm)
-    test_agent.api_specification = '''
-    软件测试智能体,擅长运行和测试python代码
-    '''
-    workflow_agent.register_agent(
-        name="tester",
-        instance=test_agent
-    )
-
-    # 翻译模式 - 用户提供详细步骤，AI翻译为JSON计划并执行
-    print("=== 翻译模式示例（方案2：动态控制流）===")
-    result = workflow_agent.execute_multi_step("""
-    1. coder: 实现一个简单的计算器类，包含加减乘除功能和完整单元测试
-    2. coder: 把代码保存到/home/guci/myModule/AiResearch/simple_calculator.py
-    3. tester: 运行/home/guci/myModule/AiResearch/simple_calculator.py，执行所有测试
-    4. decision_maker: 分析测试结果，测试通过则完成工作流，测试失败则生成修复任务并循环回到步骤3
-    """)
 
 #%%
 if __name__ == "__main__":

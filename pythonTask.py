@@ -33,18 +33,17 @@ from functools import wraps  # 确保这行存在于导入部分
 import sys
 import logging
 
-# 配置标准日志库
-logging.basicConfig(
-    level=logging.INFO,  # 设置级别为INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout) # 输出到控制台
-    ]
-)
-logger = logging.getLogger("pythonTask") 
+# 配置日志 - 只在没有配置过时才配置
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,  # 设置级别为INFO
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout) # 输出到控制台
+        ]
+    )
 
-# 如果需要在代码中其他位置重新设置日志级别为INFO
-# logging.getLogger().setLevel(logging.INFO)
+logger = logging.getLogger("pythonTask") 
 
 # 辅助函数，用于映射旧的日志级别到标准库级别
 def _map_log_level(custom_level_int):
@@ -831,17 +830,12 @@ class Thinker(AgentBase):
                     continue
 
                 self.current_code = extracted[0][1]
-                # self.current_code=''
-                # for language,code in extracted:
-                #     if language=='python':
-                #         self.current_code+='\n'+code
             except Exception as e:
                 error_msg = f"代码提取失败：{str(e)}"
                 current_instruction = error_msg
                 yield Result(False, '', '', '', error_msg)
                 continue
             #endregion
-            
             
             try:
                 #region 执行代码
@@ -886,619 +880,10 @@ class Thinker(AgentBase):
                 current_instruction = error_msg
                 continue
                 #endregion
-            
-            
         
         # 达到最大尝试次数
         yield Result(False, self.current_code,None,None,"超过最大尝试次数，编程失败。")
 
-    @reduce_memory_decorator_compress
-    def chat_sync(self, message: str, response_format: Optional[Dict] = None) -> Result:
-        """
-        与 LLM 进行同步对话
-        Args:
-            message: 用户输入的消息
-            response_format: 可选参数，指定返回格式的字典。例如 {"type": "json_object"}
-        Returns:
-            Result: 模型的响应结果，格式由response_format参数决定
-        """
-        # 保存原始系统消息
-        original_system = None
-        if len(self.memory) > 0 and isinstance(self.memory[0], SystemMessage):
-            original_system = self.memory[0]
-            self.memory.remove(original_system)
-            
-        try:
-            # 临时替换系统消息为聊天模式
-            self.memory.insert(0, SystemMessage(self.thinker_chat_system_message))
-            
-            # 添加用户消息
-            self.memory.append(HumanMessage(message))
-            
-            # 根据是否提供response_format决定调用方式
-            if response_format is not None:
-                # 直接传递response_format字典
-                response = self.llm.invoke(self.memory, response_format=response_format).content
-            else:
-                # 普通文本响应
-                response = self.llm.invoke(self.memory).content
-            
-            # 添加AI消息到记忆
-            self.memory.append(AIMessage(response))
-        finally:
-            # 移除临时的聊天模式系统消息
-            self.memory.remove(self.memory[0])
-            
-            # 还原原始系统消息
-            if original_system:
-                self.memory.insert(0, original_system)
-                
-            # 检查thinker.memory最后一条是否为HumanMessage，如果是则删除
-            last_msg = self.memory[-1]
-            if isinstance(last_msg, HumanMessage):
-                self.memory.pop()
-            
-        return Result(True, "", "", None, response)
-
-
-class Evaluator:
-    '''行为评估器'''
-    def __init__(self,llm:BaseChatModel,systemMessage:str,thinker:Thinker=None):
-        self.llm=llm
-        self.knowledges=[]
-        self.thinker=thinker
-        self.system_message=systemMessage
-        if self.system_message is None:
-            self.system_message=default_evaluate_message
-
-    def loadKnowledge(self,knowledge:str):
-        self.knowledges.append(knowledge)
-        
-    def evaluate(self,instruction:str,result:Result)->Tuple[bool,str]:
-        '''
-        评估任务是否完成.
-        返回值：是否完成，原因
-        '''
-        # 导入需要的模块
-        import re
-        import json
-        
-        # 安全处理结果中可能的None值
-        code = result.code or ""
-        stdout = result.stdout or ""
-        stderr = result.stderr or ""
-        # return_value = result.return_value or ""
-        
-        # 检查是否有明显错误
-        if stderr and ("Error" in stderr or "Exception" in stderr):
-            return False, f"代码执行出错: {stderr}"
-        
-        # 使用系统消息模板格式化提示
-        try:
-            prompt=PromptTemplate.from_template(self.system_message).format(
-                instruction=instruction,
-                result=result,
-                knowledges=self.knowledges,
-            )
-            logging.debug("打印评估器提示模板:")
-            logging.debug(f"系统消息长度: {len(self.system_message)} 字符")
-            logging.debug(f"系统消息前100字符: {self.system_message[:100]}...")
-        except Exception as e:
-            logging.error(f"模板格式化错误: {str(e)}")
-            return False, f"评估模板格式化失败: {str(e)}"
-        
-        # 尝试使用LLM进行评估
-        counter=0
-        while counter<3:
-            try:
-                logging.debug(f"尝试LLM评估 (第{counter+1}次)")
-                x=self.llm.invoke(prompt)
-                content = x.content
-                logging.debug(f"LLM评估响应长度: {len(content)} 字符")
-                logging.debug(f"LLM评估响应前200字符:\n{content[:200]}...")
-                
-                # 尝试从内容中提取代码块
-                extracted = extract_code(content)
-                if not extracted or len(extracted) == 0:
-                    logging.debug("未从响应中提取到代码块，尝试直接解析JSON")
-                    # 如果没有提取到代码块，尝试直接从内容中解析JSON
-                    try:
-                        # 尝试从文本中找到JSON格式的内容
-                        json_pattern = r'(\{.*"taskIsComplete"\s*:\s*(true|false).*\})'
-                        match = re.search(json_pattern, content, re.DOTALL)
-                        
-                        if match:
-                            json_str = match.group(1)
-                            logging.debug(f"找到JSON字符串: {json_str}")
-                            j = json.loads(json_str)
-                        else:
-                            # 尝试查找任何花括号包围的内容
-                            braces_pattern = r'(\{.*\})'
-                            match = re.search(braces_pattern, content, re.DOTALL)
-                            if match:
-                                json_str = match.group(1)
-                                logging.debug(f"找到可能的JSON字符串: {json_str}")
-                                try:
-                                    j = json.loads(json_str)
-                                except:
-                                    logging.debug("发现花括号内容，但非有效JSON")
-                                    # 作为最后尝试，尝试提取true/false和原因
-                                    is_complete = "true" in content.lower() and "false" not in content.lower()
-                                    reason = "无法解析评估结果，基于文本判断"
-                                    return is_complete, reason
-                            else:
-                                # 作为后备，尝试提取true/false和原因
-                                logging.debug("未找到JSON格式内容，尝试基于文本判断")
-                                is_complete = "true" in content.lower() and "false" not in content.lower()
-                                reason = "无法解析评估结果，基于文本判断"
-                                return is_complete, reason
-                    except Exception as e:
-                        logging.error(f"JSON解析尝试失败: {str(e)}")
-                        counter += 1
-                        continue
-                else:
-                    logging.debug(f"从响应中提取到代码块，语言: {extracted[0][0]}")
-                    # 正常从代码块中提取JSON
-                    try:
-                        j = json.loads(extracted[0][1])
-                    except:
-                        logging.debug("代码块不是有效的JSON，尝试清理后重新解析")
-                        # 如果代码块不是有效的JSON，尝试清理并重新解析
-                        try:
-                            cleaned_json = extracted[0][1].strip().replace("```", "").strip()
-                            logging.debug(f"清理后的JSON字符串: {cleaned_json[:100]}...")
-                            j = json.loads(cleaned_json)
-                        except Exception as e:
-                            logging.error(f"清理后JSON解析失败: {str(e)}")
-                            counter += 1
-                            continue
-                
-                # 提取任务完成状态和原因
-                taskIsComplete = j.get('taskIsComplete', False)
-                reason = j.get('reason', '未提供评估原因')
-                
-                # 处理可能的字符串类型的布尔值
-                if isinstance(taskIsComplete, str):
-                    logging.debug(f"任务完成状态是字符串类型: '{taskIsComplete}'")
-                    taskIsComplete = taskIsComplete.lower() == 'true'
-                
-                logging.debug(f"任务是否完成：{taskIsComplete}")
-                logging.debug(f"原因：{reason}")
-                return taskIsComplete, reason
-                
-            except Exception as e:
-                logging.error(f"评估过程出错: {str(e)}")
-                counter += 1
-        
-        # 如果LLM评估失败，作为兜底使用简单的规则
-        logging.info("三次LLM评估尝试均失败，使用兜底规则")
-        # 通用任务成功判断（作为兜底）
-        if "任务完成" in stdout and not stderr:
-            logging.info("LLM评估失败，使用兜底判断：检测到'任务完成'")
-            return True, "任务执行成功并输出了完成标记（兜底判断）"
-        
-        # 检查代码中是否包含断言（作为兜底）
-        if "assert" in code and "任务完成" in stdout:
-            logging.info("LLM评估失败，使用兜底判断：检测到断言验证并成功")
-            return True, "代码包含断言验证并成功执行（兜底判断）"
-        
-        # 超过最大尝试次数，但看起来是一个成功的执行
-        if result.success and stdout and not stderr:
-            logging.info("评估失败，但代码执行成功，默认通过")
-            return True, "代码执行成功，无法进行详细评估"
-        
-        # 超过最大尝试次数，返回默认值
-        logging.info("评估失败，返回默认值")
-        return False, "评估过程出错，无法判断任务是否完成"
-
-class Agent(AgentBase):
-    '''
-    智能体
-    run方法：输入自然语言，翻译成Python代码，执行代码，评估代码执行结果，生成最终结果
-    chat方法：输入自然语言，输出自然语言，无副作用
-    '''
-    def __init__(self, llm:BaseChatModel,stateful:bool=True,evaluate_llm:BaseChatModel=None, max_retries:int=10,
-                 skip_evaluation:bool=False,
-                 skip_generation:bool=False,
-                 thinker_system_message:str=None,
-                 evaluation_system_messages:List[str]=None,
-                 thinker_chat_system_message:str=None):
-        self.llm = llm
-        self.name=''
-        if not evaluate_llm:
-            self.evaluate_llm=self.llm
-        else:
-            self.evaluate_llm=evaluate_llm
-        self.max_retries = max_retries
-        self.skip_evaluation = skip_evaluation # 是否跳过评估
-        self.skip_generation = skip_generation
-        self.device=Device() if not stateful else StatefulExecutor() 
-        self.thinker = Thinker(llm=self.llm, 
-                                      max_retries=max_retries,
-                                      thinker_system_message=thinker_system_message,
-                                      thinker_chat_system_message=thinker_chat_system_message,
-                                      device=self.device)
-        
-        # 初始化多个评估器
-        self.evaluators = []
-        if evaluation_system_messages:
-            for system_message in evaluation_system_messages:
-                evaluator = Evaluator(llm=self.evaluate_llm, systemMessage=system_message,thinker=self.thinker)
-                self.evaluators.append(evaluator)
-        else:
-            # 如果没有提供评估消息，至少创建一个默认评估器
-            self.evaluators.append(Evaluator(llm=self.evaluate_llm, systemMessage=default_evaluate_message,thinker=self.thinker))
-
-    # @log_expert_execution()
-    # @reduce_memory_decorator    
-    def chat_stream(self,message:str,response_format:Optional[Dict]=None)->Iterator[object]:
-        '''
-        与LLM进行对话
-        '''
-        content = ""
-        for chunk in self.thinker.chat_stream(message, response_format):
-            if isinstance(chunk, str):
-                content += chunk
-                yield chunk
-            elif isinstance(chunk, Result):
-                yield chunk
-            else:
-                try:
-                    chunk_str = str(chunk)
-                    content += chunk_str
-                    yield chunk_str
-                except:
-                    pass
-        yield Result(True, "", "", None, content)
-    
-    # @log_expert_execution()    
-    # @reduce_memory_decorator    
-    def chat_sync(self,message:str,response_format:Optional[Dict]=None)->Result:
-        '''
-        与LLM进行同步对话
-        '''
-        return self.thinker.chat_sync(message,response_format)
-    
-    def loadEvaluationSystemMessage(self,evaluationSystemMessage:str):
-        '''
-        添加新的评估系统消息。
-        这个方法会创建一个新的评估器并添加到现有评估器列表中，而不会清除现有评估器。
-        如果需要清除现有评估器，请使用resetEvaluators方法。
-        
-        参数:
-        evaluationSystemMessage (str): 评估器使用的系统消息
-        
-        返回:
-        int: 当前评估器数量
-        '''
-        # 添加新的评估器，保留现有评估器
-        new_evaluator = Evaluator(llm=self.evaluate_llm, systemMessage=evaluationSystemMessage, thinker=self.thinker)
-        self.evaluators.append(new_evaluator)
-        logging.info(f"已添加新的评估系统消息，当前评估器数量: {len(self.evaluators)}")
-        return len(self.evaluators)
-
-    def loadKnowledge(self, knowledge:str):
-        '''
-        加载知识
-        '''
-        self.thinker.loadKnowledge(knowledge)
-        for evaluator in self.evaluators:
-            evaluator.loadKnowledge(knowledge)
-
-    def loadPythonModules(self,pythonModules:List[str]):
-        '''
-        加载python模块
-        '''
-        knowledge=""
-        for module_name in pythonModules:
-            module = import_module(module_name)
-            knowledge+=f'以下python模块已经导入：{module_name}\n'
-            knowledge+=f'模块源码如下：\n{inspect.getsource(module)}\n\n'
-        self.loadKnowledge(knowledge)
-        for module_name in pythonModules:
-            if isinstance(self.device,StatefulExecutor):
-                self.device.execute_code(f'import importlib\nimport {module_name}\nimportlib.reload({module_name})')   
-        
-    def evaluate_all(self, result:Result, instruction:str=None) -> Tuple[bool, List[str]]:
-        '''
-        使用所有评估器进行评估。如果任何一个评估器失败，立即返回失败结果。
-        
-        参数:
-        result (Result): 代码执行结果
-        instruction (str, optional): 用户的原始指令，用于评估。默认为None时使用"执行任务"作为占位符。
-        
-        返回值：(是否所有评估都通过, 评估原因列表)
-        '''
-        logging.info('=== 开始评估 ===')
-        
-        # 如果没有提供instruction，使用默认值
-        if instruction is None:
-            instruction = "执行任务"
-        
-        # 安全处理可能的None值
-        stdout = result.stdout or ""
-        
-        
-        # 打印执行结果的最后5000个字符
-        last_5000_chars = stdout[-5000:] if len(stdout) > 5000 else stdout
-        logging.debug(f'执行结果最后5000个字符:\n{last_5000_chars}')
-        
-        # 为了评估使用较短的输出
-        result_for_eval = Result(
-            result.success,
-            result.code,
-            last_5000_chars,
-            result.stderr,
-            result.return_value
-        )
-
-        reasons = []
-        failures = []  # 收集失败的评估结果
-        
-        # 执行所有评估器的评估
-        if self.evaluators:
-            logging.info(f"使用 {len(self.evaluators)} 个评估器进行评估...")
-            for i, evaluator in enumerate(self.evaluators):
-                try:
-                    logging.info(f"执行评估器 #{i+1}:")
-                    # 传递用户的instruction，而不是固定的占位符
-                    is_complete, reason = evaluator.evaluate(instruction, result_for_eval)
-                    
-                    if is_complete:
-                        logging.info(f"评估器 #{i+1} 评估结果: 成功")
-                        reasons.append(reason)
-                    else:
-                        logging.info(f"评估器 #{i+1} 评估结果: 失败 - {reason}")
-                        failures.append(reason)
-                        # 任何一个评估器失败，立即返回失败结果
-                        logging.info("=== 评估总结 ===")
-                        logging.info(f"至少一个评估器失败，整体评估结果: 失败")
-                        logging.info(f"失败原因: {reason}")
-                        return False, failures + reasons  # 将失败原因放在前面
-                    
-                except Exception as e:
-                    error_msg = f"评估器 #{i+1} 异常: {str(e)}"
-                    logging.error(error_msg)
-                    reasons.append(error_msg)
-                    # 继续下一个评估器，而不是立即失败
-        
-        # 如果有评估结果并且都通过了（没有提前返回False），则认为任务完成
-        if reasons:
-            logging.info("=== 评估总结 ===")
-            logging.info(f"所有评估器都通过，整体评估结果: 成功")
-            for i, reason in enumerate(reasons):
-                logging.info(f"成功原因 #{i+1}: {reason}")
-            return True, reasons
-        
-        # 兜底逻辑 - 如果没有评估结果，使用通用成功判断作为兜底
-        logging.info("没有评估器返回结果，使用兜底逻辑...")
-        
-        # 通用成功判断 - 如果程序输出中包含"任务完成"并且没有错误
-        if "任务完成" in last_5000_chars and not result.stderr:
-            logging.info('检测到任务完成标记，评估通过（兜底逻辑）')
-            return True, ["任务执行成功并输出了完成标记（通用判断）"]
-        
-        # 如果有断言和成功标记，也认为成功
-        if "assert" in result.code and "任务完成" in last_5000_chars:
-            logging.info('检测到断言验证并成功执行（兜底逻辑）')
-            return True, ["代码包含断言验证并成功执行（通用判断）"]
-        
-        # 如果没有评估器结果，且通用判断也没通过，根据代码执行结果返回
-        logging.info("=== 评估总结（兜底结果）===")
-        if result.success:
-            logging.info(f"代码执行成功，默认评估结果: 成功")
-            return True, ["代码执行成功，无明确评估结果"]
-        else:
-            logging.info(f"代码执行失败，默认评估结果: 失败")
-            return False, ["代码执行失败，无明确评估结果"]
-
-    # @log_expert_execution()
-    # @reduce_memory_decorator    
-    def execute_sync(self, instruction:str) -> Result:
-        # 首先判断指令是否为动作类型
-        is_action = self.thinker.classify_instruction(instruction)
-        if not is_action:
-            # 如果不是动作类型，则调用chat_sync方法
-            response = self.thinker.chat_sync(instruction)
-            return Result(True, "", response, None, response)
-            
-        current_instruction = instruction
-        
-        # region 跳过评估循环
-        if self.skip_evaluation:
-            if self.skip_generation:
-                return self.thinker.execute_sync(current_instruction)
-            else:
-                result = self.thinker.execute_sync(current_instruction)
-                if isinstance(result, Result):
-                    finalResult = self.generateResult_sync(instruction, result)
-                    return Result(result.success, result.code, result.stdout,result.stderr,finalResult)
-            return
-        #endregion
-        
-        # region 评估循环
-        for i in range(self.max_retries):
-            # region 执行代码
-            result = self.thinker.execute_sync(current_instruction)
-            #endregion
-            
-            if result.success:
-                # region 如果执行成功，执行评估，如果评估成功，生成最终结果，如果评估失败，使用失败原因作为下一次尝试的指令
-                taskIsComplete, reasons = self.evaluate_all(result, instruction)
-                
-                
-                if taskIsComplete:
-                    if not self.skip_generation:
-                        finalResult = self.generateResult_sync(instruction, result)
-                        return Result(True, result.code, result.stdout,result.stderr,finalResult)
-                    else:
-                        return Result(True, result.code, result.stdout,result.stderr,result.return_value)
-                else:
-                    # 使用失败的原因作为下一次尝试的指令
-                    # 失败的原因总是在返回的reasons列表的前面
-                    failure_reason = reasons[0] if reasons else "未提供具体原因"
-                    current_instruction = f"评估失败，请修改代码。原因：{failure_reason}\n当前代码输出：{result.stdout}\n当前代码错误：{result.stderr}\n当前代码返回值：{result.return_value}"
-                    
-                #endregion
-            else:
-                # region 如果执行失败，生成最终结果
-                if not self.skip_generation:
-                    finalResult = self.generateResult_sync(instruction, result)
-                    return Result(False, result.code, result.stdout,result.stderr,finalResult)
-                else:
-                    return Result(False, result.code, result.stdout,result.stderr,result.return_value)
-                #endregion
-        #endregion
-        
-        print('超过最大尝试次数，编程失败。')
-        return Result(False, '', '', '', '超过最大尝试次数，编程失败。')
-
-    # @log_expert_execution()    
-    # @reduce_memory_decorator    
-    def execute_stream(self, instruction:str) -> Iterator[object]:
-        '''
-        执行指令，返回一个迭代器，迭代器每次返回一个字符串或Result对象
-        '''
-        # 如果不是动作类型，则调用chat_stream方法
-        if not self.classify_instruction(instruction):
-            logger.debug("指令类型：思维")
-            yield from self.thinker.chat_stream(instruction)
-            # content = ""
-            # for chunk in self.thinker.chat_stream(instruction):
-            #     if isinstance(chunk, str):
-            #         content += chunk
-            #         yield chunk
-            #     elif isinstance(chunk, Result):
-            #         yield chunk
-            #     else:
-            #         try:
-            #             chunk_str = str(chunk)
-            #             content += chunk_str
-            #             yield chunk_str
-            #         except:
-            #             pass
-            # yield Result(True, "", "", None, content)
-            # return
-            
-        current_instruction = instruction
-        
-        # region 跳过评估循环
-        if self.skip_evaluation:
-            if self.skip_generation:
-                last_result = None
-                for r in self.thinker.execute_stream(current_instruction):
-                    yield r
-                    if isinstance(r, Result):
-                        last_result = r
-                if last_result is None:
-                    yield Result(False, '', '', '', '未能获取到有效的执行结果')
-            else:
-                result = None
-                # 保存最后一个结果用于生成最终输出
-                for r in self.thinker.execute_stream(current_instruction):
-                    yield r
-                    if isinstance(r, Result):
-                        result = r
-                # 生成最终结果
-                if isinstance(result, Result):
-                    finalResult = ''
-                    for chunk in self.generateResult_stream(instruction, result):
-                        finalResult += chunk
-                        yield chunk
-                    yield Result(result.success, result.code, result.stdout, result.stderr, finalResult)
-                else:
-                    yield Result(False, '', '', '', '未能获取到有效的执行结果')
-            return
-        #endregion
-        
-        # region 评估循环
-        for i in range(self.max_retries):
-            result = None
-            # 保存最后一个结果用于评估和生成
-            for r in self.thinker.execute_stream(current_instruction):
-                yield r
-                # 只有当r是Result对象时才更新result
-                if isinstance(r, Result):
-                    result = r
-            
-            # 确保我们有一个有效的Result对象
-            if not isinstance(result, Result):
-                yield Result(False, '', '', '', '未能获取到有效的执行结果')
-                continue
-            #endregion
-            
-            try:
-                if result.success:
-                    # 编程成功，做评估循环
-                    taskIsComplete, reasons = self.evaluate_all(result, instruction)
-                    yield f"评估结果：\n是否成功：{taskIsComplete}\n理由:{reasons}"
-                    if taskIsComplete:
-                        # 评估成功
-                        if not self.skip_generation:
-                            # 如果需要生成，生成最终结果
-                            finalResult = ''
-                            for chunk in self.generateResult_stream(instruction, result):
-                                finalResult += chunk
-                                yield chunk
-                            yield Result(True, result.code, result.stdout, result.stderr, finalResult)
-                        else:
-                            # 如果不需要生成，返回执行结果
-                            yield Result(True, result.code, result.stdout, result.stderr, result.return_value)
-                        return
-                    else:
-                        # 至少有一个评估失败，使用失败原因作为下一次尝试的指令
-                        # 安全处理可能的None值
-                        stdout = result.stdout or ""
-                        stderr = result.stderr or ""
-                        return_value = result.return_value or ""
-                        
-                        # 失败的原因总是在返回的reasons列表的前面
-                        failure_reason = reasons[0] if reasons else "未提供具体原因"
-                        current_instruction = f"评估失败，请修改代码。原因：{failure_reason}\n当前代码输出：{stdout}\n当前代码错误：{stderr}\n当前代码返回值：{return_value}"
-                else:
-                    # 编程失败，无需评估循环
-                    if not self.skip_generation:
-                        # 如果需要生成，生成最终结果
-                        finalResult = ''
-                        for chunk in self.generateResult_stream(instruction, result):
-                            finalResult += chunk
-                            yield chunk
-                        yield Result(False, result.code, result.stdout, result.stderr, finalResult)
-                    else:
-                        # 如果不需要生成，返回执行结果
-                        yield Result(False, result.code, result.stdout, result.stderr, result.return_value)
-                    return
-            except Exception as e:
-                # 处理评估过程中的异常
-                error_msg = f"评估或结果处理过程中出现错误: {str(e)}"
-                logging.error(error_msg)
-                yield error_msg
-                
-                # 跳过评估，直接使用结果
-                if not self.skip_generation:
-                    # 如果需要生成，生成最终结果
-                    try:
-                        finalResult = ''
-                        for chunk in self.generateResult_stream(instruction, result):
-                            finalResult += chunk
-                            yield chunk
-                        yield Result(result.success, result.code, result.stdout, result.stderr, finalResult)
-                    except Exception as gen_error:
-                        # 如果生成过程也失败，返回原始结果
-                        yield f"生成最终响应时出错: {str(gen_error)}"
-                        yield Result(result.success, result.code, result.stdout, result.stderr, str(gen_error))
-                else:
-                    # 如果不需要生成，返回执行结果
-                    yield Result(result.success, result.code, result.stdout, result.stderr, result.return_value)
-                return
-            #endregion
-            
-        logging.info('超过最大尝试次数，编程失败。')
-        yield Result(False, '', '', '', '超过最大尝试次数，编程失败。')
-        yield '以下是重现错误的代码'
-        prompt = '''把上一步的出现错误的代码输出出来，以供调试'''
-        yield from self.chat_stream(prompt)
-    
     def generateResult_sync(self, instruction:str, result:Result) -> str:
         '''
         生成最终结果
@@ -1611,11 +996,761 @@ class Agent(AgentBase):
         
         # 如果提供了评估系统消息，则添加一个新的评估器
         if evaluationSystemMessage is not None:
-            self.evaluators.append(Evaluator(llm=self.evaluate_llm, systemMessage=evaluationSystemMessage, thinker=self.thinker))
+            self.evaluators.append(Evaluator(llm=self.llm, systemMessage=evaluationSystemMessage, thinker=self.thinker))
             logging.info(f"已创建新评估器，当前评估器数量: {len(self.evaluators)}")
         else:
             # 如果没有提供评估消息，添加一个默认评估器
-            self.evaluators.append(Evaluator(llm=self.evaluate_llm, systemMessage=default_evaluate_message, thinker=self.thinker))
+            self.evaluators.append(Evaluator(llm=self.llm, systemMessage=default_evaluate_message, thinker=self.thinker))
+            logging.info(f"已创建默认评估器，当前评估器数量: {len(self.evaluators)}")
+
+
+
+# %%
+# if __name__ == '__main__':
+#     llm = llm_gemini_2_flash_lite_google
+#     agent = Agent(llm=llm,stateful=True)
+#     instruction = "写个hello world程序"
+#     result=None
+#     for chunk in agent.execute_stream(instruction):
+#         print(chunk,end='',flush=True)
+#         result=chunk
+        
+# %%
+
+   
+# %%
+# if __name__ == '__main__':
+#     custom_evaluate_message = '''
+#     请判断是否完成了任务。请返回json格式的结果。
+#     json有两个字段，taskIsComplete，值为true或false，reason字段，字符串类型，判断的理由。
+
+#     # 判断规则：
+#         hello world必须是中文的：你好，世界
+        
+#     # 知识：
+#     {knowledges}
+
+#     # 任务：
+
+#     {instruction}
+
+
+#     # 代码执行结果：
+
+#     {result}
+
+#     '''
+#     llm = llm_gemini_2_flash_google
+#     agent = Agent(llm=llm,stateful=True,max_retries=3)
+#     agent.loadEvaluationSystemMessage(custom_evaluate_message)
+#     instruction = "写个hello world程序"
+#     result=None
+#     for chunk in agent.execute_stream(instruction):
+#         print(chunk,end='',flush=True)
+#         result=chunk
+        
+#     print('*'*100)
+#     # 注释掉有问题的print语句，这个result可能只在某些上下文中可用
+#     # %%
+#     print(result)
+#     # %%
+#     print(agent.device.get_variable('return_value'))
+# %%
+if __name__ == '__main__':
+    # 创建有状态执行器示例
+    executor = StatefulExecutor()
+    
+    # 示例1: 定义变量并使用
+    code1 = """
+x = 100
+y = 200
+result = x + y
+print(f'计算结果: {result}')
+return_value = 123
+"""
+    result1 = executor.execute_code(code1)
+    print("\n示例1执行结果:")
+    print(f"执行成功: {result1.success}")
+    print(f"输出:\n{result1.stdout}")
+
+    # 示例2: 使用之前定义的变量
+    code2 = """
+# 可以访问之前定义的变量
+z = result * 2
+print(f'之前的结果: {result}')
+print(f'新的计算结果: {z}')
+return_value = z
+"""
+    result2 = executor.execute_code(code2)
+    print("\n示例2执行结果:")
+    print(f"执行成功: {result2.success}")
+    print(f"输出:\n{result2.stdout}")
+    print(f"返回值:\n{result2.return_value}")
+
+    # 示例3: 导入模块并进行计算
+    code3 = """
+import numpy as np
+
+# 创建数组并计算
+arr = np.array([1, 2, 3, 4, 5])
+mean_value = np.mean(arr)
+print(f'数组平均值: {mean_value}')
+return_value = mean_value
+"""
+    result3 = executor.execute_code(code3)
+    print("\n示例3执行结果:")
+    print(f"执行成功: {result3.success}")
+    print(f"输出:\n{result3.stdout}")
+    print(f"返回值:\n{result3.return_value}")
+
+
+class Evaluator:
+    '''行为评估器'''
+    def __init__(self,llm:BaseChatModel,systemMessage:str,thinker:Thinker=None):
+        self.llm=llm
+        self.knowledges=[]
+        self.thinker=thinker
+        self.system_message=systemMessage
+        if self.system_message is None:
+            self.system_message=default_evaluate_message
+
+    def loadKnowledge(self,knowledge:str):
+        self.knowledges.append(knowledge)
+        
+    def evaluate(self,instruction:str,result:Result)->Tuple[bool,str]:
+        '''
+        评估任务是否完成.
+        返回值：是否完成，原因
+        '''
+        # 导入需要的模块
+        import re
+        import json
+        
+        # 安全处理结果中可能的None值
+        code = result.code or ""
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        
+        # 检查是否有明显错误
+        if stderr and ("Error" in stderr or "Exception" in stderr):
+            return False, f"代码执行出错: {stderr}"
+        
+        # 使用系统消息模板格式化提示
+        try:
+            prompt=PromptTemplate.from_template(self.system_message).format(
+                instruction=instruction,
+                result=result,
+                knowledges=self.knowledges,
+            )
+            logging.debug("打印评估器提示模板:")
+            logging.debug(f"系统消息长度: {len(self.system_message)} 字符")
+            logging.debug(f"系统消息前100字符: {self.system_message[:100]}...")
+        except Exception as e:
+            logging.error(f"模板格式化错误: {str(e)}")
+            return False, f"评估模板格式化失败: {str(e)}"
+        
+        # 尝试使用LLM进行评估
+        counter=0
+        while counter<3:
+            try:
+                logging.debug(f"尝试LLM评估 (第{counter+1}次)")
+                x=self.llm.invoke(prompt)
+                content = x.content
+                logging.debug(f"LLM评估响应长度: {len(content)} 字符")
+                logging.debug(f"LLM评估响应前200字符:\n{content[:200]}...")
+                
+                # 尝试从内容中提取代码块
+                extracted = extract_code(content)
+                if not extracted or len(extracted) == 0:
+                    logging.debug("未从响应中提取到代码块，尝试直接解析JSON")
+                    # 如果没有提取到代码块，尝试直接从内容中解析JSON
+                    try:
+                        # 尝试从文本中找到JSON格式的内容
+                        json_pattern = r'(\{.*"taskIsComplete"\s*:\s*(true|false).*\})'
+                        match = re.search(json_pattern, content, re.DOTALL)
+                        
+                        if match:
+                            json_str = match.group(1)
+                            logging.debug(f"找到JSON字符串: {json_str}")
+                            j = json.loads(json_str)
+                        else:
+                            # 尝试查找任何花括号包围的内容
+                            braces_pattern = r'(\{.*\})'
+                            match = re.search(braces_pattern, content, re.DOTALL)
+                            if match:
+                                json_str = match.group(1)
+                                logging.debug(f"找到可能的JSON字符串: {json_str}")
+                                try:
+                                    j = json.loads(json_str)
+                                except:
+                                    logging.debug("发现花括号内容，但非有效JSON")
+                                    # 作为最后尝试，尝试提取true/false和原因
+                                    is_complete = "true" in content.lower() and "false" not in content.lower()
+                                    reason = "无法解析评估结果，基于文本判断"
+                                    return is_complete, reason
+                            else:
+                                # 作为后备，尝试提取true/false和原因
+                                logging.debug("未找到JSON格式内容，尝试基于文本判断")
+                                is_complete = "true" in content.lower() and "false" not in content.lower()
+                                reason = "无法解析评估结果，基于文本判断"
+                                return is_complete, reason
+                    except Exception as e:
+                        logging.error(f"JSON解析失败(直接): {str(e)}")
+                        counter += 1
+                        continue
+                else:
+                    logging.debug(f"从响应中提取到代码块，语言: {extracted[0][0]}")
+                    # 正常从代码块中提取JSON
+                    try:
+                        j = json.loads(extracted[0][1])
+                    except:
+                        logging.debug("代码块不是有效的JSON，尝试清理后重新解析")
+                        # 如果代码块不是有效的JSON，尝试清理并重新解析
+                        try:
+                            cleaned_json = extracted[0][1].strip().replace("```", "").strip()
+                            logging.debug(f"清理后的JSON字符串: {cleaned_json[:100]}...")
+                            j = json.loads(cleaned_json)
+                        except Exception as e:
+                            logging.error(f"JSON解析失败(清理后): {str(e)}")
+                            counter += 1
+                            continue
+                
+                # 提取任务完成状态和原因
+                taskIsComplete = j.get('taskIsComplete', False)
+                reason = j.get('reason', '未提供评估原因')
+                
+                # 处理可能的字符串类型的布尔值
+                if isinstance(taskIsComplete, str):
+                    logging.debug(f"任务完成状态是字符串类型: '{taskIsComplete}'")
+                    taskIsComplete = taskIsComplete.lower() == 'true'
+                
+                logging.debug(f"任务是否完成：{taskIsComplete}")
+                logging.debug(f"原因：{reason}")
+                return taskIsComplete, reason
+                
+            except Exception as e:
+                logging.error(f"评估过程出错: {str(e)}")
+                counter += 1
+        
+        # 如果LLM评估失败，作为兜底使用简单的规则
+        logging.info("LLM评估尝试均失败，使用兜底规则")
+        
+        # 统一的兜底判断逻辑
+        if "任务完成" in stdout and not stderr:
+            logging.info("兜底判断: 检测到任务完成标记且无错误")
+            return True, "任务执行成功并输出了完成标记（兜底判断）"
+        elif "assert" in code and "任务完成" in stdout:
+            logging.info("兜底判断: 检测到断言验证且任务完成")
+            return True, "代码包含断言验证并成功执行（兜底判断）"
+        elif result.success and stdout and not stderr:
+            logging.info("兜底判断: 代码执行成功")
+            return True, "代码执行成功，无法进行详细评估"
+        else:
+            logging.info("兜底判断: 评估失败")
+            return False, "评估过程出错，无法判断任务是否完成"
+
+
+class Agent(AgentBase):
+    '''
+    智能体
+    run方法：输入自然语言，翻译成Python代码，执行代码，评估代码执行结果，生成最终结果
+    chat方法：输入自然语言，输出自然语言，无副作用
+    '''
+    def __init__(self, llm:BaseChatModel,stateful:bool=True,evaluate_llm:BaseChatModel=None, max_retries:int=10,
+                 skip_evaluation:bool=False,
+                 skip_generation:bool=False,
+                 thinker_system_message:str=None,
+                 evaluation_system_messages:List[str]=None,
+                 thinker_chat_system_message:str=None):
+        self.llm = llm
+        self.name=''
+        if not evaluate_llm:
+            self.evaluate_llm=self.llm
+        else:
+            self.evaluate_llm=evaluate_llm
+        self.max_retries = max_retries
+        self.skip_evaluation = skip_evaluation # 是否跳过评估
+        self.skip_generation = skip_generation
+        self.device=Device() if not stateful else StatefulExecutor() 
+        self.thinker = Thinker(llm=self.llm, 
+                                      max_retries=max_retries,
+                                      thinker_system_message=thinker_system_message,
+                                      thinker_chat_system_message=thinker_chat_system_message,
+                                      device=self.device)
+        
+        # 初始化多个评估器
+        self.evaluators = []
+        if evaluation_system_messages:
+            for system_message in evaluation_system_messages:
+                evaluator = Evaluator(llm=self.evaluate_llm, systemMessage=system_message,thinker=self.thinker)
+                self.evaluators.append(evaluator)
+        else:
+            # 如果没有提供评估消息，至少创建一个默认评估器
+            self.evaluators.append(Evaluator(llm=self.evaluate_llm, systemMessage=default_evaluate_message,thinker=self.thinker))
+
+    def chat_stream(self,message:str,response_format:Optional[Dict]=None)->Iterator[object]:
+        '''
+        与LLM进行对话
+        '''
+        content = ""
+        for chunk in self.thinker.chat_stream(message, response_format):
+            if isinstance(chunk, str):
+                content += chunk
+                yield chunk
+            elif isinstance(chunk, Result):
+                yield chunk
+            else:
+                try:
+                    chunk_str = str(chunk)
+                    content += chunk_str
+                    yield chunk_str
+                except:
+                    pass
+        yield Result(True, "", "", None, content)
+    
+    def chat_sync(self,message:str,response_format:Optional[Dict]=None)->Result:
+        '''
+        与LLM进行同步对话
+        '''
+        return self.thinker.chat_sync(message,response_format)
+    
+    def loadEvaluationSystemMessage(self,evaluationSystemMessage:str):
+        '''
+        添加新的评估系统消息。
+        这个方法会创建一个新的评估器并添加到现有评估器列表中，而不会清除现有评估器。
+        如果需要清除现有评估器，请使用resetEvaluators方法。
+        
+        参数:
+        evaluationSystemMessage (str): 评估器使用的系统消息
+        
+        返回:
+        int: 当前评估器数量
+        '''
+        # 添加新的评估器，保留现有评估器
+        new_evaluator = Evaluator(llm=self.evaluate_llm, systemMessage=evaluationSystemMessage, thinker=self.thinker)
+        self.evaluators.append(new_evaluator)
+        logging.info(f"已添加新的评估系统消息，当前评估器数量: {len(self.evaluators)}")
+        return len(self.evaluators)
+
+    def loadKnowledge(self, knowledge:str):
+        '''
+        加载知识
+        '''
+        # self.thinker.loadKnowledge(knowledge)
+        for evaluator in self.evaluators:
+            evaluator.loadKnowledge(knowledge)
+
+    def loadPythonModules(self,pythonModules:List[str]):
+        '''
+        加载python模块
+        '''
+        knowledge=""
+        for module_name in pythonModules:
+            module = import_module(module_name)
+            knowledge+=f'以下python模块已经导入：{module_name}\n'
+            knowledge+=f'模块源码如下：\n{inspect.getsource(module)}\n\n'
+        self.loadKnowledge(knowledge)
+        for module_name in pythonModules:
+            if isinstance(self.device,StatefulExecutor):
+                self.device.execute_code(f'import importlib\nimport {module_name}\nimportlib.reload({module_name})')   
+        
+    def evaluate_all(self, result:Result, instruction:str=None) -> Tuple[bool, List[str]]:
+        '''
+        使用所有评估器进行评估。如果任何一个评估器失败，立即返回失败结果。
+        
+        参数:
+        result (Result): 代码执行结果
+        instruction (str, optional): 用户的原始指令，用于评估。默认为None时使用"执行任务"作为占位符。
+        
+        返回值：(是否所有评估都通过, 评估原因列表)
+        '''
+        logging.info('=== 开始评估 ===')
+        
+        # 如果没有提供instruction，使用默认值
+        if instruction is None:
+            instruction = "执行任务"
+        
+        # 安全处理可能的None值
+        stdout = result.stdout or ""
+        
+        # 打印执行结果的最后5000个字符
+        last_5000_chars = stdout[-5000:] if len(stdout) > 5000 else stdout
+        logging.debug(f'执行结果最后5000个字符:\n{last_5000_chars}')
+        
+        # 为了评估使用较短的输出
+        result_for_eval = Result(
+            result.success,
+            result.code,
+            last_5000_chars,
+            result.stderr,
+            result.return_value
+        )
+
+        reasons = []
+        failures = []  # 收集失败的评估结果
+        
+        # 执行所有评估器的评估
+        if self.evaluators:
+            logging.info(f"使用 {len(self.evaluators)} 个评估器进行评估...")
+            for i, evaluator in enumerate(self.evaluators):
+                try:
+                    logging.info(f"执行评估器 #{i+1}:")
+                    # 传递用户的instruction，而不是固定的占位符
+                    is_complete, reason = evaluator.evaluate(instruction, result_for_eval)
+                    
+                    if is_complete:
+                        logging.info(f"评估器 #{i+1} 评估结果: 成功")
+                        reasons.append(reason)
+                    else:
+                        logging.info(f"评估器 #{i+1} 评估结果: 失败 - {reason}")
+                        failures.append(reason)
+                        # 任何一个评估器失败，立即返回失败结果
+                        self._log_evaluation_summary("失败", f"评估器 #{i+1} 失败: {reason}")
+                        return False, failures + reasons  # 将失败原因放在前面
+                    
+                except Exception as e:
+                    error_msg = f"评估器 #{i+1} 异常: {str(e)}"
+                    logging.error(error_msg)
+                    reasons.append(error_msg)
+                    # 继续下一个评估器，而不是立即失败
+        
+        # 如果有评估结果并且都通过了（没有提前返回False），则认为任务完成
+        if reasons:
+            success_reasons = "\n".join([f"#{i+1}: {reason}" for i, reason in enumerate(reasons)])
+            self._log_evaluation_summary("成功", f"所有评估器都通过\n{success_reasons}")
+            return True, reasons
+        
+        # 兜底逻辑 - 如果没有评估结果，使用通用成功判断作为兜底
+        logging.info("没有评估器返回结果，使用兜底逻辑...")
+        return self._apply_fallback_logic(result, last_5000_chars)
+    
+    def _log_evaluation_summary(self, status: str, details: str):
+        """统一的评估总结日志输出"""
+        logging.info("=== 评估总结 ===")
+        logging.info(f"整体评估结果: {status}")
+        logging.info(f"详细信息: {details}")
+    
+    def _apply_fallback_logic(self, result: Result, last_5000_chars: str) -> Tuple[bool, List[str]]:
+        """应用兜底逻辑进行评估"""
+        # 通用成功判断 - 如果程序输出中包含"任务完成"并且没有错误
+        if "任务完成" in last_5000_chars and not result.stderr:
+            logging.info('兜底判断: 检测到任务完成标记')
+            return True, ["任务执行成功并输出了完成标记（兜底判断）"]
+        
+        # 如果有断言和成功标记，也认为成功
+        if "assert" in result.code and "任务完成" in last_5000_chars:
+            logging.info('兜底判断: 检测到断言验证并成功执行')
+            return True, ["代码包含断言验证并成功执行（兜底判断）"]
+        
+        # 根据代码执行结果返回
+        if result.success:
+            self._log_evaluation_summary("成功(兜底)", "代码执行成功，无明确评估结果")
+            return True, ["代码执行成功，无明确评估结果"]
+        else:
+            self._log_evaluation_summary("失败(兜底)", "代码执行失败，无明确评估结果")
+            return False, ["代码执行失败，无明确评估结果"]
+
+    def execute_sync(self, instruction:str) -> Result:
+        # 首先判断指令是否为动作类型
+        # is_action = self.thinker.classify_instruction(instruction)
+        # if not is_action:
+        #     # 如果不是动作类型，则调用chat_sync方法
+        #     response = self.thinker.chat_sync(instruction)
+        #     return Result(True, "", response, None, response)
+            
+        current_instruction = instruction
+        
+        # region 跳过评估循环
+        if self.skip_evaluation:
+            if self.skip_generation:
+                return self.thinker.execute_sync(current_instruction)
+            else:
+                result = self.thinker.execute_sync(current_instruction)
+                if isinstance(result, Result):
+                    finalResult = self.generateResult_sync(instruction, result)
+                    return Result(result.success, result.code, result.stdout,result.stderr,finalResult)
+            return
+        #endregion
+        
+        # region 评估循环
+        for i in range(self.max_retries):
+            # region 执行代码
+            result = self.thinker.execute_sync(current_instruction)
+            #endregion
+            
+            if result.success:
+                # region 如果执行成功，执行评估，如果评估成功，生成最终结果，如果评估失败，使用失败原因作为下一次尝试的指令
+                taskIsComplete, reasons = self.evaluate_all(result, instruction)
+                
+                if taskIsComplete:
+                    if not self.skip_generation:
+                        finalResult = self.generateResult_sync(instruction, result)
+                        return Result(True, result.code, result.stdout,result.stderr,finalResult)
+                    else:
+                        return Result(True, result.code, result.stdout,result.stderr,result.return_value)
+                else:
+                    # 使用失败的原因作为下一次尝试的指令
+                    # 失败的原因总是在返回的reasons列表的前面
+                    failure_reason = reasons[0] if reasons else "未提供具体原因"
+                    current_instruction = f"评估失败，请修改代码。原因：{failure_reason}\n当前代码输出：{result.stdout}\n当前代码错误：{result.stderr}\n当前代码返回值：{result.return_value}"
+                    
+                #endregion
+            else:
+                # region 如果执行失败，生成最终结果
+                if not self.skip_generation:
+                    finalResult = self.generateResult_sync(instruction, result)
+                    return Result(False, result.code, result.stdout,result.stderr,finalResult)
+                else:
+                    return Result(False, result.code, result.stdout,result.stderr,result.return_value)
+                #endregion
+        #endregion
+        
+        print('超过最大尝试次数，编程失败。')
+        return Result(False, '', '', '', '超过最大尝试次数，编程失败。')
+
+    def execute_stream(self, instruction:str) -> Iterator[object]:
+        '''
+        执行指令，返回一个迭代器，迭代器每次返回一个字符串或Result对象
+        '''
+        # 如果不是动作类型，则调用chat_stream方法
+        # if not self.classify_instruction(instruction):
+        #     logger.debug("指令类型：思维")
+        #     yield from self.thinker.chat_stream(instruction)
+        #     return
+            
+        current_instruction = instruction
+        
+        # region 跳过评估循环
+        if self.skip_evaluation:
+            if self.skip_generation:
+                last_result = None
+                for r in self.thinker.execute_stream(current_instruction):
+                    yield r
+                    if isinstance(r, Result):
+                        last_result = r
+                if last_result is None:
+                    yield Result(False, '', '', '', '未能获取到有效的执行结果')
+            else:
+                result = None
+                # 保存最后一个结果用于生成最终输出
+                for r in self.thinker.execute_stream(current_instruction):
+                    yield r
+                    if isinstance(r, Result):
+                        result = r
+                # 生成最终结果
+                if isinstance(result, Result):
+                    finalResult = ''
+                    for chunk in self.generateResult_stream(instruction, result):
+                        finalResult += chunk
+                        yield chunk
+                    yield Result(result.success, result.code, result.stdout, result.stderr, finalResult)
+                else:
+                    yield Result(False, '', '', '', '未能获取到有效的执行结果')
+            return
+        #endregion
+        
+        # region 评估循环
+        for i in range(self.max_retries):
+            result = None
+            # 保存最后一个结果用于评估和生成
+            for r in self.thinker.execute_stream(current_instruction):
+                yield r
+                # 只有当r是Result对象时才更新result
+                if isinstance(r, Result):
+                    result = r
+            
+            # 确保我们有一个有效的Result对象
+            if not isinstance(result, Result):
+                yield Result(False, '', '', '', '未能获取到有效的执行结果')
+                continue
+            #endregion
+            
+            try:
+                if result.success:
+                    # 编程成功，做评估循环
+                    taskIsComplete, reasons = self.evaluate_all(result, instruction)
+                    # 移除重复的评估结果输出，因为evaluate_all已经有详细的日志输出
+                    if taskIsComplete:
+                        # 评估成功
+                        if not self.skip_generation:
+                            # 如果需要生成，生成最终结果
+                            finalResult = ''
+                            for chunk in self.generateResult_stream(instruction, result):
+                                finalResult += chunk
+                                yield chunk
+                            yield Result(True, result.code, result.stdout, result.stderr, finalResult)
+                        else:
+                            # 如果不需要生成，返回执行结果
+                            yield Result(True, result.code, result.stdout, result.stderr, result.return_value)
+                        return
+                    else:
+                        # 至少有一个评估失败，使用失败原因作为下一次尝试的指令
+                        # 安全处理可能的None值
+                        stdout = result.stdout or ""
+                        stderr = result.stderr or ""
+                        return_value = result.return_value or ""
+                        
+                        # 失败的原因总是在返回的reasons列表的前面
+                        failure_reason = reasons[0] if reasons else "未提供具体原因"
+                        current_instruction = f"评估失败，请修改代码。原因：{failure_reason}\n当前代码输出：{stdout}\n当前代码错误：{stderr}\n当前代码返回值：{return_value}"
+                else:
+                    # 编程失败，无需评估循环
+                    if not self.skip_generation:
+                        # 如果需要生成，生成最终结果
+                        finalResult = ''
+                        for chunk in self.generateResult_stream(instruction, result):
+                            finalResult += chunk
+                            yield chunk
+                        yield Result(False, result.code, result.stdout, result.stderr, finalResult)
+                    else:
+                        # 如果不需要生成，返回执行结果
+                        yield Result(False, result.code, result.stdout, result.stderr, result.return_value)
+                    return
+            except Exception as e:
+                # 处理评估过程中的异常
+                error_msg = f"评估或结果处理过程中出现错误: {str(e)}"
+                logging.error(error_msg)
+                yield error_msg
+                
+                # 跳过评估，直接使用结果
+                if not self.skip_generation:
+                    # 如果需要生成，生成最终结果
+                    try:
+                        finalResult = ''
+                        for chunk in self.generateResult_stream(instruction, result):
+                            finalResult += chunk
+                            yield chunk
+                        yield Result(result.success, result.code, result.stdout, result.stderr, finalResult)
+                    except Exception as gen_error:
+                        # 如果生成过程也失败，返回原始结果
+                        yield f"生成最终响应时出错: {str(gen_error)}"
+                        yield Result(result.success, result.code, result.stdout, result.stderr, str(gen_error))
+                else:
+                    # 如果不需要生成，返回执行结果
+                    yield Result(result.success, result.code, result.stdout, result.stderr, result.return_value)
+                return
+            #endregion
+            
+        logging.info('超过最大尝试次数，编程失败。')
+        yield Result(False, '', '', '', '超过最大尝试次数，编程失败。')
+        yield '以下是重现错误的代码'
+        prompt = '''把上一步的出现错误的代码输出出来，以供调试'''
+        yield from self.chat_stream(prompt)
+    
+    def generateResult_sync(self, instruction:str, result:Result) -> str:
+        '''
+        生成最终结果
+        '''
+        logger.info('开始生成指令最终结果')
+        logger.info(f'result.success: {result.success}')
+        logger.info(f'result.code: {result.code}')
+        logger.info(f'result.stdout: {result.stdout}')
+        logger.info(f'result.stderr: {result.stderr}')
+        logger.info(f'result.return_value: {result.return_value}')
+        
+        # 安全处理可能的None值
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        return_value = result.return_value or ""
+        code = result.code or ""
+        
+        last_5000_chars = stdout[-5000:] if len(stdout) > 5000 else stdout
+        
+        generate_result_prompt = f'''
+        我是个语言模型，根据用户的指令，我生成了Python代码，并执行了代码。
+        请根据用户指令给用户生成回复。
+
+        # 用户指令：
+        
+        {instruction}
+
+        # 任务是否执行成功：
+        {result.success}
+
+        # 代码：
+        {code}
+
+        # 代码执行的标准输出：
+
+        {last_5000_chars}
+
+        # 代码执行的标准错误：
+
+        {stderr}
+
+        # 代码执行的返回值：
+
+        {return_value}
+        '''
+        content = self.llm.invoke(generate_result_prompt).content
+        return content
+    
+    def generateResult_stream(self, instruction:str, result:Result) -> Iterator[str]:
+        logger.info('开始生成指令最终结果')
+        logger.info(f'result.success: {result.success}')
+        logger.info(f'result.code: {result.code}')
+        logger.info(f'result.stdout: {result.stdout}')
+        logger.info(f'result.stderr: {result.stderr}')
+        logger.info(f'result.return_value: {result.return_value}')
+        
+        # 安全处理可能的None值
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        return_value = result.return_value or ""
+        code = result.code or ""
+        
+        last_5000_chars = stdout[-5000:] if len(stdout) > 5000 else stdout
+        
+        generate_result_prompt = f'''
+        我是个语言模型，根据用户的指令，我生成了Python代码，并执行了代码。
+        请根据用户指令给用户生成回复。
+
+        # 用户指令：
+        
+        {instruction}
+
+        # 任务是否执行成功：
+        {result.success}
+
+        # 代码：
+        {code}
+
+        # 代码执行的标准输出：
+
+        {last_5000_chars}
+
+        # 代码执行的标准错误：
+
+        {stderr}
+
+        # 代码执行的返回值：
+
+        {return_value}
+        
+        '''
+        
+        for chunk in self.llm.stream(generate_result_prompt):
+            yield chunk.content
+
+    def resetEvaluators(self, evaluationSystemMessage: str = None):
+        '''
+        重置所有评估器。
+        可以选择性地添加一个新的评估器。
+        
+        参数:
+        evaluationSystemMessage (str, optional): 评估器使用的系统消息。如果提供，将创建一个新的评估器。
+        '''
+        # 清除所有现有评估器
+        self.evaluators = []
+        logging.info("已清除所有评估器")
+        
+        # 如果提供了评估系统消息，则添加一个新的评估器
+        if evaluationSystemMessage is not None:
+            self.evaluators.append(Evaluator(llm=self.llm, systemMessage=evaluationSystemMessage, thinker=self.thinker))
+            logging.info(f"已创建新评估器，当前评估器数量: {len(self.evaluators)}")
+        else:
+            # 如果没有提供评估消息，添加一个默认评估器
+            self.evaluators.append(Evaluator(llm=self.llm, systemMessage=default_evaluate_message, thinker=self.thinker))
             logging.info(f"已创建默认评估器，当前评估器数量: {len(self.evaluators)}")
 
 
