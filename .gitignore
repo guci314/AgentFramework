@@ -16,3 +16,4 @@ __pycache__/
 # Database files
 .langchain.db
 *.db
+.aider*

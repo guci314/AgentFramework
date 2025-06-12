@@ -561,17 +561,16 @@ while true {{
     # ====== 智能调度相关方法 ======
     
     def can_execute_step(self, step: Dict) -> Tuple[bool, str]:
-        """基于Agent记忆和系统状态判断步骤可执行性"""
-        
+        """基于Agent记忆和系统状态判断步骤可执行性（新版：要求LLM返回JSON）"""
         step_id = step.get('id')
         step_name = step.get('name')
         prerequisites = step.get('prerequisites', '无')
         instruction = step.get('instruction', '')
-        
+
         # 如果先决条件为"无"，直接可执行
         if prerequisites in ['无', '']:
             return True, "无先决条件限制"
-        
+
         # 构造判断提示
         check_prompt = f"""
 根据当前状态判断步骤是否可以执行：
@@ -586,40 +585,31 @@ while true {{
 2. 所需文件/数据是否已准备好  
 3. 前置步骤是否已完成
 
-返回格式：
-可执行: true/false
-原因: 具体说明
+请严格按照如下JSON格式返回：
+{{
+  "executable": true/false,  // 是否可执行
+  "reason": "具体说明"
+}}
 """
-        
+        response_format = {"type": "json_object"}
         try:
-            # 使用Agent的记忆进行判断
-            response = self.chat_sync(check_prompt)
+            response = self.chat_sync(check_prompt, response_format=response_format)
             response_text = response.return_value if response.return_value else response.stdout
-            
-            # 解析响应
-            response_lower = response_text.lower()
-            # 处理各种可能的格式：可执行: true, **可执行**: true, 可执行:true 等
-            executable = (
-                "可执行: true" in response_lower or 
-                "可执行:true" in response_lower or
-                "**可执行**: true" in response_lower or
-                "**可执行**:true" in response_lower or
-                "可执行**:" in response_lower and "true" in response_lower or
-                "executable: true" in response_lower
-            )
-            
-            # 提取原因
-            reason_start = response_text.find("原因:")
-            if reason_start != -1:
-                reason = response_text[reason_start + 3:].strip()
-            else:
-                reason = response_text
-            
+            import json
+            # 兼容：有时LLM会返回代码块
+            if isinstance(response_text, str):
+                response_text = response_text.strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[len("```json"):].strip()
+                    if response_text.endswith("```"):
+                        response_text = response_text[:-3].strip()
+            result = json.loads(response_text)
+            executable = bool(result.get("executable", False))
+            reason = result.get("reason", "无理由")
             return executable, reason
-            
         except Exception as e:
-            logger.warning(f"判断步骤可执行性时出错: {e}")
-            # 默认可执行，让Agent自己判断
+            import logging
+            logging.warning(f"判断步骤可执行性时出错: {e}")
             return True, "无法判断，默认可执行"
     
     def select_next_executable_step(self, plan: List[Dict]) -> Optional[Tuple[int, Dict]]:

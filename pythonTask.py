@@ -94,18 +94,18 @@ max_messages=50
 
 # from cross_process_log_manager import log, log_expert_execution
 
-llm_cohere = ChatCohere(
-    cohere_api_key=os.getenv('COHERE_API_KEY'), 
-    model="command-a-03-2025"
-)
+# llm_cohere = ChatCohere(
+#     cohere_api_key=os.getenv('COHERE_API_KEY'), 
+#     model="command-a-03-2025"
+# )
 
-llm_glm4=ChatOpenAI(
-    temperature=0,
-    model="GLM-4-Plus",  
-    base_url="https://open.bigmodel.cn/api/paas/v4/",
-    api_key=os.getenv('ZHIPU_API_KEY'),
-    max_tokens=8192,
-)
+# llm_glm4=ChatOpenAI(
+#     temperature=0,
+#     model="GLM-4-Plus",  
+#     base_url="https://open.bigmodel.cn/api/paas/v4/",
+#     api_key=os.getenv('ZHIPU_API_KEY'),
+#     max_tokens=8192,
+# )
 
 llm_gemini_2_flash_lite_google=ChatOpenAI(
     temperature=0,
@@ -238,12 +238,12 @@ llm_deepseek_r1=ChatOpenAI(
     max_tokens=8192
 )
 
-llm_gemini_25_pro_requesty=ChatOpenAI(
-    temperature=0,
-    model="google/gemini-2.5-pro-exp-03-25",  
-    base_url="https://router.requesty.ai/v1",
-    api_key=os.getenv('REQUESTY_API_KEY'),
-)
+# llm_gemini_25_pro_requesty=ChatOpenAI(
+#     temperature=0,
+#     model="google/gemini-2.5-pro-exp-03-25",  
+#     base_url="https://router.requesty.ai/v1",
+#     api_key=os.getenv('REQUESTY_API_KEY'),
+# )
 
 llm_qwen_2_5_72b_instruct = ChatOpenAI(
     temperature=0,

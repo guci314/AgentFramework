@@ -1,53 +1,57 @@
+import unittest
+
 class SimpleCalculator:
-    def __init__(self):
-        self.last_result = None
+    '''简单的计算器类，支持加减乘除运算'''
     
     def add(self, a, b):
-        """加法运算"""
-        self.last_result = a + b
-        return self.last_result
+        '''加法运算'''
+        return a + b
     
     def subtract(self, a, b):
-        """减法运算"""
-        self.last_result = a - b
-        return self.last_result
+        '''减法运算'''
+        return a - b
     
     def multiply(self, a, b):
-        """乘法运算"""
-        self.last_result = a * b
-        return self.last_result
+        '''乘法运算'''
+        return a * b
     
     def divide(self, a, b):
-        """除法运算"""
+        '''除法运算'''
         if b == 0:
             raise ValueError("除数不能为零")
-        self.last_result = a / b
-        return self.last_result
+        return a / b
 
-def test_calculator():
-    calc = SimpleCalculator()
+class TestSimpleCalculator(unittest.TestCase):
+    '''计算器单元测试类'''
     
-    # 测试加法
-    assert calc.add(2, 3) == 5, "加法测试失败"
-    assert calc.last_result == 5, "加法结果存储失败"
+    def setUp(self):
+        self.calc = SimpleCalculator()
     
-    # 测试减法
-    assert calc.subtract(5, 2) == 3, "减法测试失败"
-    assert calc.last_result == 3, "减法结果存储失败"
+    def test_add(self):
+        '''测试加法'''
+        self.assertEqual(self.calc.add(2, 3), 5)
+        self.assertEqual(self.calc.add(-1, 1), 0)
+        self.assertEqual(self.calc.add(0, 0), 0)
     
-    # 测试乘法
-    assert calc.multiply(3, 4) == 12, "乘法测试失败"
-    assert calc.last_result == 12, "乘法结果存储失败"
+    def test_subtract(self):
+        '''测试减法'''
+        self.assertEqual(self.calc.subtract(5, 3), 2)
+        self.assertEqual(self.calc.subtract(-1, -1), 0)
+        self.assertEqual(self.calc.subtract(0, 0), 0)
     
-    # 测试除法
-    assert calc.divide(10, 2) == 5, "除法测试失败"
-    assert calc.last_result == 5, "除法结果存储失败"
+    def test_multiply(self):
+        '''测试乘法'''
+        self.assertEqual(self.calc.multiply(2, 3), 6)
+        self.assertEqual(self.calc.multiply(-1, 1), -1)
+        self.assertEqual(self.calc.multiply(0, 5), 0)
     
-    # 测试除零异常
-    try:
-        calc.divide(5, 0)
-        assert False, "除零异常未触发"
-    except ValueError as e:
-        assert str(e) == "除数不能为零", "异常消息不正确"
-    
-    print("所有单元测试通过")
+    def test_divide(self):
+        '''测试除法'''
+        self.assertEqual(self.calc.divide(6, 3), 2)
+        self.assertEqual(self.calc.divide(5, 2), 2.5)
+        self.assertEqual(self.calc.divide(-4, 2), -2)
+        with self.assertRaises(ValueError):
+            self.calc.divide(1, 0)
+
+if __name__ == '__main__':
+    unittest.main()
