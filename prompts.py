@@ -1,3 +1,5 @@
+import os
+
 META_PROMPT_CHINESE = """
 将给定的任务描述或现有提示转换为详细的系统提示，以有效地指导语言模型完成任务。
 
@@ -117,8 +119,7 @@ llm_gemini_2_flash_openrouter = ChatOpenAI(
     temperature=0,
     model="google/gemini-2.0-flash-001", 
     base_url='https://openrouter.ai/api/v1',
-    api_key='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'
-,
+    api_key=os.getenv('OPENROUTER_API_KEY'),
 
     response_format={"type": "text"})
 x=llm_gemini_2_flash_openrouter.invoke('请判断context是否包含关键词"gemini"，请输出json，json的格式为{"contains_gemini":true或false}\ncontext:你好,谷歌',response_format={
@@ -803,9 +804,8 @@ llm_deepseek=ChatOpenAI(
     temperature=0,
     model="deepseek-coder",  
     base_url="https://api.deepseek.com/beta",
-    api_key='sk-50e482848a7243c5a29693202ab4489a',
-    max_tokens=8192
-,
+    api_key=os.getenv('DEEPSEEK_API_KEY'),
+    max_tokens=8192,
 
     response_format={"type": "text"})
 

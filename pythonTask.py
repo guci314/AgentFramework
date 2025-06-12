@@ -95,7 +95,7 @@ max_messages=50
 # from cross_process_log_manager import log, log_expert_execution
 
 llm_cohere = ChatCohere(
-    cohere_api_key="yh0ImXh0u6VOqyAr9dsUfDIxoPg14n9Zu7MqbOU3", 
+    cohere_api_key=os.getenv('COHERE_API_KEY'), 
     model="command-a-03-2025"
 )
 
@@ -103,7 +103,7 @@ llm_glm4=ChatOpenAI(
     temperature=0,
     model="GLM-4-Plus",  
     base_url="https://open.bigmodel.cn/api/paas/v4/",
-    api_key="80bd464cdc10aa945760271173356885.VFVifqEfSV6syJia",
+    api_key=os.getenv('ZHIPU_API_KEY'),
     max_tokens=8192,
 )
 
@@ -242,7 +242,7 @@ llm_gemini_25_pro_requesty=ChatOpenAI(
     temperature=0,
     model="google/gemini-2.5-pro-exp-03-25",  
     base_url="https://router.requesty.ai/v1",
-    api_key='sk-a/b8oqq7QwqCuuFfx8j08zN3UiCoJSyx3vhFIe43p18Q/EGBPTToBQlb4YwgfnRwEofZ/ZHNynUizkNpPCiFVMBPnZ612dVAtpR6KqfjXg4=',
+    api_key=os.getenv('REQUESTY_API_KEY'),
 )
 
 llm_qwen_2_5_72b_instruct = ChatOpenAI(
