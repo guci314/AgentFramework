@@ -307,6 +307,7 @@ def reduce_memory_decorator_compress(func=None, *, max_tokens=None):
         """
         # 动态导入解决路径问题
         from message_compress import compress_messages
+        print(f"✅ 成功导入 compress_messages: {compress_messages.__module__}")
         
         # 1. 分离protected消息和普通消息
         protected_messages = []
