@@ -48,16 +48,19 @@ def demo_compression():
     
     # 创建演示Agent
     try:
-        # 尝试使用实际的LLM（如果有API key）
+        api_key = os.getenv('OPENROUTER_API_KEY')
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY环境变量未设置")
+        
         llm = ChatOpenAI(
             temperature=0,
             model="google/gemini-2.0-flash-001", 
             base_url='https://openrouter.ai/api/v1',
-            api_key=os.getenv('OPENROUTER_API_KEY')
+            api_key=api_key
         )
         print("✅ 成功连接到语言模型")
     except Exception as e:
-        print(f"⚠️  无法连接到语言模型，使用模拟模式: {e}")
+        print(f"⚠️  无法连接到语言模型，使用模拟模式: {str(e)}")
         llm = None
     
     # 初始化Agent
