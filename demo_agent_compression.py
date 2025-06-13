@@ -22,20 +22,25 @@ class DemoAgent(AgentBase):
         # 添加用户消息到记忆中
         self.memory.append(HumanMessage(content=message))
         
+        # 生成模拟回复（当LLM不可用时）
+        if not self.llm:
+            # 创建足够长的回复以触发压缩机制
+            long_reply = (
+                f"收到消息: {message}. 当前处于模拟模式，API连接失败。"
+                "此回复设计为足够长以触发消息压缩机制。" * 30
+            )
+            self.memory.append(AIMessage(content=long_reply))
+            return long_reply
+        
         # 调用LLM生成回复
-        if self.llm:
-            try:
-                response = self.llm.invoke(self.memory)
-                self.memory.append(AIMessage(content=response.content))
-                return response.content
-            except Exception as e:
-                error_msg = f"生成回复时出错: {e}"
-                self.memory.append(AIMessage(content=error_msg))
-                return error_msg
-        else:
-            simple_response = f"收到消息: {message}"
-            self.memory.append(AIMessage(content=simple_response))
-            return simple_response
+        try:
+            response = self.llm.invoke(self.memory)
+            self.memory.append(AIMessage(content=response.content))
+            return response.content
+        except Exception as e:
+            error_msg = f"生成回复时出错: {str(e)}"
+            self.memory.append(AIMessage(content=error_msg))
+            return error_msg
 
 def demo_compression():
     """演示压缩功能"""
