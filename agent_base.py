@@ -239,9 +239,6 @@ def reduce_memory_decorator_compress(func=None, *, max_tokens=None):
     2. 环境变量: AGENT_MAX_TOKENS
     3. 全局常量: MAX_TOKENS
     """
-    # 导入compress_messages函数
-    from message_compress import compress_messages
-    
     # 1. 确定最终生效的 max_tokens 值
     effective_max_tokens = MAX_TOKENS # 默认使用全局常量
     try:
@@ -308,6 +305,9 @@ def reduce_memory_decorator_compress(func=None, *, max_tokens=None):
         """使用压缩策略减少 agent 的 memory 以满足 max_tokens_limit 限制。
         策略：保留 protected 消息和最后10条消息，压缩中间的消息。
         """
+        # 动态导入解决路径问题
+        from message_compress import compress_messages
+        
         # 1. 分离protected消息和普通消息
         protected_messages = []
         regular_messages = []
