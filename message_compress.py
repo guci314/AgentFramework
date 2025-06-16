@@ -8,23 +8,40 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 初始化语言模型
-llm_gemini_2_flash_openrouter = ChatOpenAI(
+llm_gemini_25_flash_openrouter = ChatOpenAI(
     temperature=0,
-    model="google/gemini-2.0-flash-001", 
+    model="google/gemini-2.5-flash-preview-05-20", 
     base_url='https://openrouter.ai/api/v1',
     api_key=os.getenv('OPENROUTER_API_KEY')
 )
 
-def compress_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
+# DeepSeek模型配置
+llm_deepseek = ChatOpenAI(
+    temperature=0,
+    model="deepseek-chat",  
+    base_url="https://api.deepseek.com",
+    api_key=os.getenv('DEEPSEEK_API_KEY'),
+    max_tokens=8192
+)
+
+def compress_messages(messages: List[BaseMessage], use_deepseek: bool = False) -> List[BaseMessage]:
     '''
     压缩对话消息列表，保留最后10条消息不变，压缩前面的消息为一条人类消息和一条AI消息
     
     参数:
         messages: 消息列表，HumanMessage和AIMessage交替出现
+        use_deepseek: 是否使用DeepSeek模型，默认False
         
     返回:
         压缩后的消息列表
     '''
+    # 输入验证
+    if not isinstance(messages, list):
+        raise TypeError(f"messages必须是列表类型，当前类型: {type(messages)}")
+    
+    if messages is None:
+        raise TypeError("messages不能为None")
+    
     # 边界处理：消息总数≤10，直接返回原消息列表
     if len(messages) <= 10:
         print("消息总数≤10，无需压缩")
@@ -81,8 +98,9 @@ def compress_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
 
 {conversation_text}"""
     
-    # 调用语言模型生成摘要
-    summary = llm_gemini_2_flash_openrouter.invoke(prompt).content
+    # 选择语言模型并调用生成摘要
+    selected_llm = llm_deepseek if use_deepseek else llm_gemini_25_flash_openrouter
+    summary = selected_llm.invoke(prompt).content
     
     # 更清晰地打印摘要内容
     print("\n" + "="*80)

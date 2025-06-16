@@ -1,9 +1,0 @@
-{
-  "field_mapping": {
-    "region": "地区",
-    "product": "产品",
-    "salesperson": "销售人员",
-    "sales_amount": "销售额"
-  },
-  "bom_handling": "使用encoding='utf-8-sig'选项处理CSV文件"
-}

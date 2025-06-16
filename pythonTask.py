@@ -21,7 +21,7 @@ import time
 import inspect
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 from IPython.utils.capture import capture_output
-import mda.prompts
+import prompts
 # from jupyterNotebookAutomation import CodeTracker,create_ipython_wrapper,get_functions,get_user_variables
 import tempfile
 from dotenv import load_dotenv
@@ -64,9 +64,9 @@ def _map_log_level(custom_level_int):
 load_dotenv()  # 加载 .env 文件中的环境变量
 max_turn = 10
 import importlib
-import mda.prompts
-importlib.reload(mda.prompts)
-from mda.prompts import default_evaluate_message
+# import mda.prompts
+# importlib.reload(mda.prompts)
+from prompts import default_evaluate_message
 
 # 导入AgentBase和Result
 from agent_base import AgentBase, Result,reduce_memory_decorator,reduce_memory_decorator_compress
@@ -417,11 +417,11 @@ class Device:
             result = subprocess.run(["python", temp_file_path], capture_output=True, text=True)
             
             if result.returncode == 0:
-                return Result(True, code, result.stdout, result.stderr, result.returncode)
+                return Result(True, code, result.stdout, result.stderr, None)
             else:
-                return Result(False, code, result.stdout, result.stderr, result.returncode)
+                return Result(False, code, result.stdout, result.stderr, None)
         except Exception as e:
-            return Result(False, code, str(e), str(e), -1)
+            return Result(False, code, str(e), str(e), None)
         finally:
             # 确保临时文件被删除，即使发生异常
             if temp_file_path and os.path.exists(temp_file_path):
@@ -636,10 +636,10 @@ class Thinker(AgentBase):
         self.device=device
         self.max_retries=max_retries
         if self.thinker_system_message is None:
-            self.thinker_system_message=mda.prompts.thinker_system_message
+            self.thinker_system_message=prompts.thinker_system_message
             
         if self.thinker_chat_system_message is None:
-            self.thinker_chat_system_message=mda.prompts.thinker_chat_system_message
+            self.thinker_chat_system_message=prompts.thinker_chat_system_message
         
         self.memory=[]
         # 如果系统消息不为空，则将其添加到记忆中
@@ -1336,7 +1336,7 @@ class Agent(AgentBase):
         '''
         加载知识
         '''
-        # self.thinker.loadKnowledge(knowledge)
+        self.thinker.loadKnowledge(knowledge)
         for evaluator in self.evaluators:
             evaluator.loadKnowledge(knowledge)
 

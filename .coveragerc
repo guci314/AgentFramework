@@ -1,0 +1,27 @@
+[run]
+source = enhancedAgent_v2
+omit = 
+    tests/*
+    */tests/*
+    */site-packages/*
+    */venv/*
+    */virtualenv/*
+    */.local/*
+    setup.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__.:
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if False:
+    if TYPE_CHECKING:
+
+show_missing = True
+precision = 2
+
+[html]
+directory = htmlcov 

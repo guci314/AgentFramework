@@ -137,8 +137,8 @@ class MultiStepAgent_v2(Agent):
 2. 有状态的jupyter notebook kernel：用于执行代码和与外部环境交互
 
 # 指令类型说明
-- execution: 执行性任务，会调用jupyter notebook执行代码对外部世界产生行为或观察，同时改变智能体的记忆（如执行代码、文件操作、数据写入等）
-- information: 信息性任务，只是对智能体记忆的查询或修改，不会调用jupyter notebook（如查询数据、告知状态等）
+- execution: 执行性任务，会调用jupyter notebook执行代码对外部世界产生行为或观察，同时改变智能体的记忆（如执行代码、文件操作、数据写入、观察外部环境等）
+- information: 信息性任务，只是对智能体记忆的查询或修改，不会调用jupyter notebook（如查询历史对话、告知状态等）
 
 # 规划规则
 1. 分析任务特点，合理拆分步骤
@@ -184,8 +184,8 @@ class MultiStepAgent_v2(Agent):
 2. 有状态的jupyter notebook kernel：用于执行代码和与外部环境交互
 
 # 指令类型说明
-- execution: 执行性任务，会调用jupyter notebook执行代码对外部世界产生行为或观察，同时改变智能体的记忆（如执行代码、文件操作、数据写入等）
-- information: 信息性任务，只是对智能体记忆的查询或修改，不会调用jupyter notebook（如查询数据、告知状态等）
+- execution: 执行性任务，会调用jupyter notebook执行代码对外部世界产生行为或观察，同时改变智能体的记忆（如执行代码、文件操作、数据写入、观察外部环境等）
+- information: 信息性任务，只是对智能体记忆的查询或修改，不会调用jupyter notebook（如查询历史对话、告知状态等）
 
 # 控制流处理原则
 - **while循环**: 将循环体内的步骤提取为普通步骤，循环控制由决策者处理
@@ -841,42 +841,51 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         return True
 
     #TODO: 是否区分执行性和信息性任务?
-    def execute_single_step(self, step: Dict[str, Any]) -> Optional[Result]:
+    def execute_single_step(self, step: Dict[str, Any], task_history=None) -> Optional[Result]:
         """执行计划中的单个步骤。"""
         
         agent_name = step.get("agent_name")
         instruction = step.get("instruction")
         instruction_type = step.get("instruction_type", "execution")  # 默认为execution类型
         if not agent_name or not instruction:
-            return Result(False, "", "", "步骤缺少 agent_name 或 instruction")
+            return Result(False, instruction, "", "步骤缺少 agent_name 或 instruction")
 
         try:
-            # 调用成员 Agent 执行
-            # result = self.device.execute_code(
-            #     f'{agent_name}.execute_sync("""{instruction}""")'
-            # )
-            result=None
-            prompt=f"""
-# 执行任务
+            # 查找指定的智能体
+            target_agent = None
+            for spec in self.agent_specs:
+                if spec.name == agent_name:
+                    target_agent = spec.instance
+                    break
+            
+            # 如果找不到指定的智能体，返回错误
+            if target_agent is None:
+                return Result(False, instruction, "", f"找不到名为 '{agent_name}' 的智能体")
 
-## 任务类型
-{instruction_type}
+            # 获取前序步骤的结果
+            previous_results = []
+            if task_history is None:
+                task_history = []
+            for task in task_history:
+                if task.get('result') and getattr(task.get('result'), 'success', False):
+                    task_name = task.get('task', {}).get('name', '')
+                    return_value = getattr(task.get('result'), 'return_value', '')
+                    previous_results.append(f"步骤 {task_name} 的结果:\n{return_value}")
+
+            # 构建包含前序结果的prompt
+            prompt = f"""# 执行任务
 
 ## 指令
 {instruction}
 
-## 执行者
-{agent_name}
-
-
+## 前序步骤结果
+{chr(10).join(previous_results) if previous_results else "无前序步骤结果"}
 """
-            # 根据指令类型选择执行方式
+            # 使用目标智能体执行任务
             if instruction_type == "information":
-                # information类型任务使用chat_stream - 只改变智能体记忆，不对外部环境产生行为
-                response = self.chat_stream(prompt)
+                response = target_agent.chat_stream(prompt)
             else:
-                # execution类型任务使用execute_stream - 会改变智能体记忆和外部环境
-                response = self.execute_stream(prompt)
+                response = target_agent.execute_stream(prompt)
                 
             # 处理响应流并收集结果
             response_text = ""
@@ -888,16 +897,13 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     
             # 根据指令类型解析结果
             if instruction_type == "information":
-                # information类型任务：chat_stream返回字符串，构造成功的Result
                 return Result(True, instruction, response_text, "", response_text)
             else:
-                # execution类型任务：解析execute_stream返回的Result
                 if isinstance(result, Result):
                     return result
                 elif hasattr(result, "return_value") and isinstance(result.return_value, Result):
                     return result.return_value
                 else:
-                    # 如果返回的不是 Result，尝试构造一个失败的 Result
                     stdout = getattr(result, "stdout", str(result))
                     stderr = getattr(result, "stderr", None)
                     return Result(False, instruction, stdout, stderr, None)
@@ -1052,7 +1058,7 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         self.update_step_status(current_idx, "running")
         
         # 执行步骤
-        exec_result = self.execute_single_step(current_step)
+        exec_result = self.execute_single_step(current_step, context['task_history'])
         
         # 记录任务历史
         context['task_history'].append({
@@ -1598,816 +1604,3 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                 'new_tasks': []
             }
 
-    # def _create_ipython_instance(self):
-    #     """
-    #     创建一个IPython实例用于执行代码
-    #     """
-    #     try:
-    #         from IPython.core.interactiveshell import InteractiveShell
-    #         # 创建配置对象
-    #         from traitlets.config import Config
-    #         c = Config()
-    #         # 禁用matplotlib的自动配置
-    #         c.InteractiveShell.pylab = None
-    #         # 禁用各种可能导致GUI相关问题的功能
-    #         c.InteractiveShell.autoindent = False
-    #         c.InteractiveShell.colors = 'NoColor'
-    #         c.InteractiveShell.confirm_exit = False
-            
-    #         # 添加额外的参数来避免循环导入问题
-    #         # 禁用交互式自动加载，减少依赖冲突
-    #         c.InteractiveShell.cache_size = 0
-    #         c.InteractiveShell.autocall = 0
-    #         c.InteractiveShell.automagic = False
-            
-    #         # 使用带有配置的InteractiveShell
-    #         # 设置独立命名空间，减少与外部变量冲突
-    #         ipython = InteractiveShell.instance(config=c, display_banner=False, user_ns={})
-            
-    #         # 预先导入常用模块，确保初始化正确
-    #         ipython.run_cell("import sys, os")
-            
-    #         # 安全地配置matplotlib (如果有需要)
-    #         try:
-    #             # 设置matplotlib配置以避免GUI初始化
-    #             ipython.run_cell("import matplotlib\nmatplotlib.use('Agg')")
-    #         except Exception as e:
-    #             # 忽略matplotlib相关错误
-    #             pass
-                
-    #         return ipython
-    #     except ImportError:
-    #         logging.error("无法导入IPython，某些功能可能不可用")
-    #         return None
-
-#%%
-
-
-#%%
-# ====== 示例 main 代码块 ======
-if __name__ == "__main__":
-    # 设置代理服务器
-    # import os
-    # os.environ['http_proxy'] = 'http://127.0.0.1:7890'
-    # os.environ['https_proxy'] = 'http://127.0.0.1:7890'
-    
-    # os.environ["AGENT_MAX_TOKENS"] = "1000000"
-    from pythonTask import *
-    from knowledge_agent import promgraming_knowledge
-     
-    
-    # llm=llm_claude_sonnet_4
-    # llm=llm_gemini_2_5_pro_preview_06_05_google
-    llm=llm_deepseek
-    
-    # 实例化 MultiStepAgent_v2 时不传入 agent_specs
-    multi_agent = MultiStepAgent_v2(llm=llm)
-
-    # 使用 register_agent 动态注册 Agent
-    # coder_agent = Agent(llm=llm)
-    # multi_agent.register_agent(
-    #     name="coder",
-    #     instance=coder_agent,
-    #     description="通用Agent"
-    # )
-    
-    document_agent = Agent(llm=llm)
-    document_agent.loadKnowledge(promgraming_knowledge)
-    document_agent.loadKnowledge('如果指令要求你写文档，你应该调用gemini语言模型生成文档')
-    document_agent.api_specification='''
-    文档Agent,擅长写文档
-    '''
-    multi_agent.register_agent(
-        name="document_agent",
-        instance=document_agent
-    )
-    
-    
-    # 示例主指令
-    # main_instruction = "请用python写一个hello world程序"
-    main_instruction = """
-    
-    # 销售数据分析任务
-
-sales_data.csv是销售数据文件，请使用此文件进行数据分析。
-
-# 规则
-1. 不要生成图表
-2. 报告中必须包含每个地区，每个产品，每个销售人员的销售额
-3. 分析报告保存到sales_analysis_report.md
-4. 分析报告必须调用gemini模型生成
-
-    """
-
-    # 执行多步骤任务
-    result = multi_agent.execute_multi_step(main_instruction)
-    print("多步骤执行结果：")
-    print(result)
-
-#%%
-if __name__ == "__main__":
-    summary_prompt='''
-    你的任务是创建一份详细的对话总结，密切关注用户的明确要求和你之前的行动。
-    这份总结应该全面捕获技术细节、代码模式和架构决策，这些对于继续对话和支持任何后续任务都是必不可少的。
-    你的总结应该按以下结构组织：
-    上下文：继续对话所需的上下文。如果根据当前任务适用，这应该包括：
-    之前的对话：关于整个与用户对话中讨论内容的高层次细节。这应该写得让别人能够跟上总体对话流程。
-    当前工作：详细描述在此次总结请求之前正在进行的工作。特别注意对话中最近的消息。
-    关键技术概念：列出所有重要的技术概念、技术、编码约定和讨论过的框架，这些可能与继续这项工作相关。
-    相关文件和代码：如果适用，枚举为任务继续而检查、修改或创建的具体文件和代码部分。特别注意最近的消息和更改。
-    问题解决：记录到目前为止解决的问题和任何正在进行的故障排除工作。
-    待处理任务和下一步：概述你被明确要求处理的所有待处理任务，以及列出你将为所有未完成工作采取的下一步，如果适用的话。在能增加清晰度的地方包含代码片段。对于任何下一步，包含来自最近对话的直接引用，准确显示你正在处理的任务以及你停止的地方。这应该是逐字逐句的，以确保任务之间的上下文没有信息丢失。
-    示例总结结构：
-    之前的对话：
-    [详细描述]
-    当前工作：
-    [详细描述]
-    关键技术概念：
-    [概念1]
-    [概念2]
-    [...]
-    相关文件和代码：
-    [文件名1]
-    [此文件重要性的总结]
-    [对此文件所做更改的总结，如有的话]
-    [重要代码片段]
-    [文件名2]
-    [重要代码片段]
-    [...]
-    问题解决：
-    [详细描述]
-    待处理任务和下一步：
-    [任务1详情和下一步]
-    [任务2详情和下一步]
-    [...]
-    仅输出到目前为止的对话总结，不要添加任何其他评论或解释。
-    '''
-
-    resonse=multi_agent.chat_stream(summary_prompt)
-    for chunk in resonse:
-        print(chunk,end='',flush=True)
-
-#%%
-if __name__ == "__main__":
-    import os
-    # os.environ["AGENT_MAX_TOKENS"] = "1000000"
-    from pythonTask import *
-    from knowledge_agent import promgraming_knowledge
-     
-    # llm=llm_gemini_2_5_pro_preview_05_06_google
-    llm=llm_deepseek
-    
-
-    # 实例化 MultiStepAgent_v2 时不传入 agent_specs
-    multi_agent = MultiStepAgent_v2(llm=llm)
-
-    # 使用 register_agent 动态注册 Agent
-    # coder_agent = Agent(llm=llm)
-    # multi_agent.register_agent(
-    #     name="coder",
-    #     instance=coder_agent,
-    #     description="通用Agent"
-    # )
-    
-    web_agent = Agent(llm=llm)
-    web_agent.loadPythonModules(['aiTools'])
-    web_agent.loadKnowledge('''
-    如果指令要求你写文档，你应该调用gemini语言模型生成文档
-    ## 调用语言模型示例
-    from langchain_openai import ChatOpenAI
-    from dotenv import load_dotenv
-    load_dotenv()
-    llm_gemini_2_flash_openrouter = ChatOpenAI(
-        temperature=0,
-        model="google/gemini-2.0-flash-001", 
-        base_url='https://openrouter.ai/api/v1',
-        api_key=os.getenv('OPENROUTER_API_KEY'
-    )
-    x:str=llm_gemini_2_flash_openrouter.invoke("你好").content
-    print(x)
-    ''')
-    web_agent.api_specification='''
-    web_agent,擅长搜索网络信息,抓取网页内容，生成报告
-    '''
-    multi_agent.register_agent(
-        name="web_agent",
-        instance=web_agent
-    )
-    
-    
-    # 示例主指令
-    # main_instruction = "请用python写一个hello world程序"
-    main_instruction = """
-    
-    # 任务
-    1:使用关键词crewai 搜索网络信息，抓取搜索结果的前10个网页，把抓取到的网页合并保存在变量web_content中
-    2:根据web_content调用gemini模型生成crewai教程，教程大约3000字，教程必须使用中文。教程需包含crewai的系统架构，核心组件，示例代码。
-    3:教程保存在/home/guci/myModule/AiResearch/crewai_tutorial.md
-
-    """
-
-    # 执行多步骤任务
-    result = multi_agent.execute_multi_step(main_instruction)
-    print("多步骤执行结果：")
-    print(result)
-
-#%%
-
-#%%
-if __name__ == "__main__":
-    import os
-    os.environ["AGENT_MAX_TOKENS"] = "1000000"
-    from pythonTask import *
-    from knowledge_agent import promgraming_knowledge
-     
-    llm_qwen3_235b_openrouter = ChatOpenAI(
-    temperature=0,
-    model="qwen/qwen3-235b-a22b:NovitaAI", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'),
-    )
-    
-    llm_qwen3_32b_openrouter = ChatOpenAI(
-    temperature=0,
-    model="qwen/qwen3-32b:NovitaAI", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'),
-    )
-    
-    llm_qwen3_30b_openrouter = ChatOpenAI(
-    temperature=0,
-    model="qwen/qwen3-30b-a3b:NovitaAI", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'),
-    )
-    
-    llm_qwen3_8b_openrouter = ChatOpenAI(
-    temperature=0,
-    model="qwen/qwen3-8b", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'),
-    )
-    
-    
-    # llm=llm_llama_4_maverick_openrouter 
-    llm=llm_gemini_2_5_pro_preview_05_06_google
-    # llm=llm_qwen3_30b_openrouter
-    # llm=llm_Pro_DeepSeek_V3_siliconflow
-
-
-
-    # 实例化 MultiStepAgent_v2 时不传入 agent_specs
-    multi_agent = MultiStepAgent_v2(llm=llm)
-    
-    '''
-    内存编程Agent有能力搜索互联网，抓取网页内容。
-    '''
-    
-    researcher = Agent(llm=llm)
-    researcher.loadPythonModules(['aiTools'])
-    researcher.loadKnowledge('''
-    ## 调用语言模型示例
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
-load_dotenv()
-llm_gemini_2_flash_openrouter = ChatOpenAI(
-    temperature=0,
-    model="google/gemini-2.0-flash-001", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'
-)
-x:str=llm_gemini_2_flash_openrouter.invoke("你好").content
-print(x)
-
-## 如果指令要求你写文档，你应该调用gemini语言模型生成文档
-    ''')
-    researcher.api_specification='''
-    研究者，擅长搜索互联网，抓取网页内容，写报告。
-    
-    输入：
-     研究主题
-    
-    输出：
-    研究报告
-    
-    # 示例
-    response=researcher.execute_stream('请搜索互联网，抓取网页内容，写个multi agent system报告') #response是一个迭代器，迭代器前面是过程信息，迭代器最后一个元素是Result对象
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-    report=result.return_value #result.return_value中包含最终的报告
-    print(report)
-    
-    '''
-    multi_agent.register_agent(
-        name="researcher",
-        instance=researcher
-    )
-    
-    # 使用 register_agent 动态注册 Agent
-    coder = Agent(llm=llm)
-    coder.loadKnowledge('''
-    ## 调用语言模型示例
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
-load_dotenv()
-llm_gemini_2_flash_openrouter = ChatOpenAI(
-    temperature=0,
-    model="google/gemini-2.0-flash-001", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'
-)
-x:str=llm_gemini_2_flash_openrouter.invoke("你好").content
-print(x)
-    ''')
-    # coder.loadPythonModules(['aiTools'])
-    coder.api_specification='''
-    内存编程Agent，擅长编写python代码。它在内存中的jupyter notebook中编写和运行代码。
-    
-    输入：
-    1. 程序描述（或者运行程序的报错信息）
-    2. context信息，编程需要的相关知识
-    
-    输出：
-    程序代码和说明
-    
-    # 示例
-    response=coder.execute_stream('写个函数生成斐波那契数列的第n个数') #response是一个迭代器，迭代器前面是过程信息，迭代器最后一个元素是Result对象
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-    code=result.code #result.code中包含最终的代码
-    print(code)
-    
-    '''
-    multi_agent.register_agent(
-        name="coder",
-        instance=coder
-    )
-    
-    code_file_editor = Agent(llm=llm)
-    code_file_editor.loadKnowledge('''
-    ## 编程任务示例代码
-    import aider_demo.aider_programming_demo
-    instruction = f"保存代码到{file_name}\n#代码\n{code}" 
-    edit_file_names=[{file_name}] # 要编辑的文件列表
-    read_only_files=[] # 只读文件列表，只读文件不会被修改，是要编辑的文件依赖的文件
-    result=aider_demo.aider_programming_demo.programming(instruction,edit_file_names,read_only_files) # 执行编程任务
-    print(result) # 打印编程任务结果
-
-    ## 如果指令是编写或修改或保存python文件，优先使用aider_demo.aider_programming_demo.programming函数执行编程任务修改python文件。如果programming函数失败，直接使用python代码修改文件。
-                                ''')
-    
-    code_file_editor.api_specification="""
-    python文件编辑Agent，擅长编辑python文件。
-    
-    输入：
-    1. 代码或者写个代码的指令
-    2. 要编辑的文件列表
-    3. 只读文件列表，只读文件不会被修改，是要编辑的文件依赖的文件
-    
-    输出：
-    1. 编辑后的代码
-    2. 编辑后的代码说明
-    
-    # 示例
-    #假设代码保存在变量code中
-    response=code_file_editor.execute_stream(f'''
-    把代码保存到/home/guci/myModule/AiResearch/math1.py
-
-    # 代码
-    {code}
-                                            ''')
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-    print(result.return_value)
-    """
-    multi_agent.register_agent(
-        name="code_file_editor",
-        instance=code_file_editor
-    )
-    
-    task_executer=Agent(llm=llm)
-    task_executer.api_specification="""
-    任务执行Agent，擅长执行任务。
-    """
-    multi_agent.register_agent(
-        name="task_executer",
-        instance=task_executer
-    )
-    
-    # 示例主指令
-    main_instruction_crewai = """
-    
-    # 任务
-    1：调用coder写个crewai的示例程序。示例程序必须仅仅依赖context中的api key就可运行。示例程序必须演示crewai的SerperDevTool
-    2：调用code_file_editor把程序保存在/home/guci/myModule/AiResearch/crewai_example.py
-    
-    # context
-    ##  语言模型
-    llm=aiTools.llm_openrouter("openrouter/meta-llama/llama-4-maverick")
-    
-    ## serper api key
-    serper_api_key=os.getenv('SERPER_API_KEY')
-
-    # 验证任务成功的标准
-    1.程序成功运行
-    2.程序使用了crewai的SerperDevTool
-    3.程序输出了正确的结果
-
-    """
-    
-    # main_instruction = """
-    
-    # # 任务
-    # 1：调用coder搜索互联网查找crewai的serper tool的使用方法。
-    # 2：调用coder阅读/home/guci/myModule/AiResearch/crewai_example.py
-    # 3：调用coder修改/home/guci/myModule/AiResearch/crewai_example.py，使用serper tool搜索互联网信息。
-    # 4：调用code_file_editor把修改后的程序保存在/home/guci/myModule/AiResearch/crewai_example.py
-    
-    # # context
-    # 语言模型请使用deepseek
-    # from dotenv import load_dotenv
-    # load_dotenv()
-    # from langchain_openai import ChatOpenAI
-    # llm_deepseek = ChatOpenAI(
-    #     temperature=0,
-    #     model="deepseek/deepseek-chat",  
-    #     base_url="https://api.deepseek.com",
-    #     api_key=os.getenv('DEEPSEEK_API_KEY'),
-    #     max_tokens=8192
-    # )
-    
-    # # serper api key
-    # serper_api_key=os.getenv('SERPER_API_KEY')
-
-
-    # """
-    
-    main_instruction='''
-    记忆压缩函数软件设计说明书（定制版）
-1. 功能描述
-本函数用于对一组对话消息（BaseMessage的list，且HumanMessage和AIMessage交替出现）进行记忆压缩。其目标是：
-保持消息列表中最后10条消息内容不变；
-对前面的消息进行总结压缩，生成一条人类消息（HumanMessage）和一条AI消息（AIMessage，内容为"ok"），替换原有的多条消息。
-2. 输入输出
-输入
-类型：List[BaseMessage]
-约束：消息类型为HumanMessage和AIMessage，且严格交替出现（即HumanMessage, AIMessage, HumanMessage, ...）
-输出
-类型：List[BaseMessage]
-说明：前N-10条消息被压缩为一条HumanMessage和一条AIMessage，后10条消息保持原样。
-3. 主要流程
-分割消息
-将输入消息列表分为两部分：前N-10条（需压缩），后10条（保持原样）。
-压缩前段消息
-将前N-10条消息内容进行合并、总结，生成一条HumanMessage（内容为合并/摘要后的内容）。
-生成一条AIMessage，内容为"ok"。
-拼接输出
-将压缩后的两条消息与后10条原始消息合并，输出新的消息列表。
-
-
-
-4. 关键点说明
-摘要算法：summarize_messages可以简单实现为将所有HumanMessage和AIMessage的内容拼接，使用llm_gemini_2_flash_openrouter模型生成摘要。
-消息类型：压缩后前两条消息分别为HumanMessage和AIMessage，AIMessage内容固定为"ok"。
-边界处理：若消息总数≤10，则无需压缩，直接返回原消息列表。
-
-
-    #任务
-    实现上面的函数保存到/home/guci/myModule/AiResearch/message_compress.py
-    '''
-
-    # 执行多步骤任务
-    result = multi_agent.execute_multi_step(main_instruction_crewai)
-    print("多步骤执行结果：")
-    print(result)
-    
-#%%
-if __name__ == "__main__":
-    
-    instruction='''
-    记忆压缩函数软件设计说明书（定制版）
-1. 功能描述
-from langchain_core.messages import HumanMessage,AIMessage,BaseMessage
-本函数用于对一组对话消息（BaseMessage的list，且HumanMessage和AIMessage交替出现）进行记忆压缩。其目标是：
-保持消息列表中最后10条消息内容不变；
-对前面的消息进行总结压缩，生成一条人类消息（HumanMessage）和一条AI消息（AIMessage，内容为"ok"），替换原有的多条消息。
-2. 输入输出
-输入
-类型：List[BaseMessage]
-约束：消息类型为HumanMessage和AIMessage，且严格交替出现（即HumanMessage, AIMessage, HumanMessage, ...）
-输出
-类型：List[BaseMessage]
-说明：前N-10条消息被压缩为一条HumanMessage和一条AIMessage，后10条消息保持原样。
-3. 主要流程
-分割消息
-将输入消息列表分为两部分：前N-10条（需压缩），后10条（保持原样）。
-压缩前段消息
-将前N-10条消息内容进行合并、总结，生成一条HumanMessage（内容为合并/摘要后的内容）。总结请使用llm_gemini_2_flash_openrouter语言模型。
-生成一条AIMessage，内容为"ok"。
-拼接输出
-将压缩后的两条消息与后10条原始消息合并，输出新的消息列表。
-
-## 调用语言模型示例
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
-load_dotenv()
-llm_gemini_2_flash_openrouter = ChatOpenAI(
-    temperature=0,
-    model="google/gemini-2.0-flash-001", 
-    base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'
-)
-x:str=llm_gemini_2_flash_openrouter.invoke("你好").content
-print(x)
-
-4. 关键点说明
-摘要算法：summarize_messages可以简单实现为将所有HumanMessage和AIMessage的内容拼接，使用gemini模型生成摘要。
-消息类型：压缩后前两条消息分别为HumanMessage和AIMessage，AIMessage内容固定为"ok"。
-边界处理：若消息总数≤10，则无需压缩，直接返回原消息列表。
-
-
-    #任务
-    实现上面的函数,可以使用langchain的库
-    '''
-    from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_deepseek,llm_deepseek_r1
-    from prompts import information_task_evaluate_message
-    llm=llm_deepseek_r1
-    agent=Agent(llm=llm,evaluation_system_messages=[information_task_evaluate_message])
-    agent.loadKnowledge('''
-    # 代码规范
-    1. 代码注释请使用中文
-    2. 除了功能代码，必须有测试代码
-    3. 测试代码必须放到if __name__ == "__main__":中
-    4. 多行注释请使用三个单引号，不要使用三个双引号
-    
-                        ''')
-    response=agent.execute_stream(instruction)
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-
-#%%
-if __name__ == "__main__":
-    instruction='''
-    把代码保存到/home/guci/myModule/AiResearch/message_compress.py
-    '''
-    response=agent.execute_stream(instruction)
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-        
-#%%
-if __name__ == "__main__":
-    response=agent.chat_stream('请输出完整的代码，不要输出任何解释')
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-#%%
-if __name__ == "__main__":
-    from autogen.code_utils import extract_code
-    code=extract_code(result.return_value)[0][1]
-    print(code)
-
-#%%
-if __name__ == "__main__":
-    llm=llm_deepseek
-    code_file_editor = Agent(llm=llm)
-    code_file_editor.loadKnowledge('''
-    ## 编程任务示例代码
-    import aider_demo.aider_programming_demo
-    instruction = f"保存代码到{file_name}\n#代码\n{code}" 
-    edit_file_names=[{file_name}] # 要编辑的文件列表
-    read_only_files=[] # 只读文件列表，只读文件不会被修改，是要编辑的文件依赖的文件
-    result=aider_demo.aider_programming_demo.programming(instruction,edit_file_names,read_only_files) # 执行编程任务
-    print(result) # 打印编程任务结果
-
-    ## 如果指令是编写或修改或保存python文件，优先使用aider_demo.aider_programming_demo.programming函数执行编程任务修改python文件。如果programming函数失败，直接使用python代码修改文件。
-                                ''')
-    
-    code_file_editor.api_specification="""
-    python文件编辑Agent，擅长编辑python文件。
-    
-    输入：
-    1. 代码或者写个代码的指令
-    2. 要编辑的文件列表
-    3. 只读文件列表，只读文件不会被修改，是要编辑的文件依赖的文件
-    
-    输出：
-    1. 编辑后的代码
-    2. 编辑后的代码说明
-    
-    # 示例
-    #假设代码保存在变量code中
-    response=code_file_editor.execute_stream(f'''
-    把代码保存到/home/guci/myModule/AiResearch/math1.py
-
-    # 代码
-    {code}
-                                            ''')
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-    print(result.return_value)
-    """
-    
-    instruction=f'''
-    请把代码保存到/home/guci/myModule/AiResearch/message_compress.py
-    # 代码
-    {code}
-    '''
-    response=code_file_editor.execute_stream(instruction)
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-# ====== 测试和示例代码 ======
-
-if __name__ == "__main__":
-    # 测试代码：DeepSeek Prover 模型
-    from langchain_openai import ChatOpenAI
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    llm_prover_openrouter = ChatOpenAI(
-        temperature=0,
-        model="deepseek/deepseek-prover-v2", 
-        base_url='https://openrouter.ai/api/v1',
-        api_key=os.getenv('OPENROUTER_API_KEY'),
-    )
-
-    x=llm_prover_openrouter.invoke("扩散模型架构是图灵完备的吗？")
-    print(x.content)
-    
-    x=llm_prover_openrouter.invoke("请证明1+1=2，只允许使用纯逻辑")
-    print(x.content)
-    
-    x=llm_prover_openrouter.invoke("图灵完备意味着能实现任意智能吗？")
-    print(x.content)
-
-    x=llm_prover_openrouter.invoke("请用transformer架构实现一个通用图灵机，它能够模拟任意图灵机。代码注释请用中文。")
-    print(x.content)
-
-    from pythonTask import llm_deepseek_r1
-    x=llm_deepseek_r1.invoke("请用transformer架构实现一个通用图灵机，它能够模拟任意图灵机。单元测试中模拟一个简单的图灵机。代码注释请用中文。")
-    print(x.content)
-
-if __name__ == "__main__":
-    llm=llm_deepseek
-    coder = Agent(llm=llm)
-    code_file_editor = Agent(llm=llm)
-    code_file_editor.loadKnowledge('''
-    ## 编程任务示例代码
-    import aider_demo.aider_programming_demo
-    instruction = f"保存代码到{file_name}\n#代码\n{code}" 
-    edit_file_names=[{file_name}] # 要编辑的文件列表
-    read_only_files=[] # 只读文件列表，只读文件不会被修改，是要编辑的文件依赖的文件
-    result=aider_demo.aider_programming_demo.programming(instruction,edit_file_names,read_only_files) # 执行编程任务
-    print(result) # 打印编程任务结果
-
-    ## 如果指令是编写或修改或保存python文件，优先使用aider_demo.aider_programming_demo.programming函数执行编程任务修改python文件。如果programming函数失败，直接使用python代码修改文件。
-                                ''')
-    task_executer=Agent(llm=llm)
-    
-#%%
-if __name__ == "__main__":
-    response=coder.execute_stream('''
-    写一个函数，计算斐波那契数列的第n个数.
-    
-    ''')
-    result:Result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-            
-#%%
-if __name__ == "__main__":
-    response=code_file_editor.execute_stream(f'''
-    把代码保存到/home/guci/myModule/AiResearch/hello_world.py
-
-    # 代码
-    {result.code}
-                                                ''')
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-
-#%%
-if __name__ == "__main__":
-    response=task_executer.execute_stream(f'''
-    运行/home/guci/myModule/AiResearch/hello_world.py，判断测试是否通过
-    ''')
-    result=None
-    for chunk in response:
-        result=chunk
-        print(chunk,end='',flush=True)
-        
-#%%
-if __name__ == "__main__":
-    print(result.return_value)
-#%%
-# 设置代理服务器环境变量
-import os
-
-os.environ['https_proxy'] = 'socks5://127.0.0.1:7890'
-os.environ['all_proxy'] = 'socks5://127.0.0.1:7890'
-
-#%%
-# 取消代理服务器环境变量设置
-os.environ.pop('http_proxy', None)
-os.environ.pop('https_proxy', None) 
-os.environ.pop('all_proxy', None)
-
-
-if __name__ == "__main__":
-    # 设置代理服务器环境变量
-    import os
-    # os.environ['http_proxy'] = 'http://127.0.0.1:7890'
-    # os.environ['https_proxy'] = 'http://127.0.0.1:7890'
-    # os.environ['all_proxy'] = 'socks5://127.0.0.1:7890'
-
-    # 示例1：自主规划模式（默认）
-    from pythonTask import llm_llama_4_maverick_openrouter, llm_deepseek
-    llm = llm_deepseek
-
-    # 创建自主规划模式的多步骤智能体
-    multi_agent_autonomous = MultiStepAgent_v2(llm=llm, use_autonomous_planning=True)
-    coder_agent = Agent(llm=llm)
-    multi_agent_autonomous.register_agent(
-        name="coder",
-        instance=coder_agent
-    )
-
-    # 自主规划模式 - AI会自主分解任务
-    print("=== 自主规划模式示例 ===")
-    main_instruction = "请用python写一个hello world程序"
-    multi_agent_autonomous.execute_multi_step(main_instruction)
-
-
-
-#%%
-if __name__ == "__main__":
-    from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_gemini_2_5_pro_preview_06_05_google,llm_deepseek,llm_claude_37_sonnet,llm_deepseek_r1
-    
-    # llm=llm_gemini_2_5_pro_preview_05_06_google
-
-    # llm=llm_gemini_2_5_pro_preview_06_05_google
-    llm=llm_deepseek
-    # 创建 MultiStepAgent_v2 实例，使用工作流风格的提示词模板
-    workflow_agent = MultiStepAgent_v2(
-        llm=llm,
-        use_autonomous_planning=False
-        # planning_prompt_template=workflow_prompt_template
-    )
-
-    # 注册智能体
-    coder_agent = Agent(llm=llm)
-    coder_agent.loadKnowledge('''
-                            保存代码到文件的时候，代码字符串应该使用三个双引号。代码内部的引号应该使用转义字符，以避免编译错误。
-                            ''')
-    coder_agent.api_specification='''
-    通用编程智能体,擅长编写python代码
-    '''
-    workflow_agent.register_agent(
-        name="coder",
-        instance=coder_agent
-    )
-
-    test_agent = Agent(llm=llm)
-    test_agent.api_specification='''
-    软件测试智能体,擅长运行和测试python代码
-    '''
-    workflow_agent.register_agent(
-        name="tester",
-        instance=test_agent
-    )
-
-    # 执行任务
-    result = workflow_agent.execute_multi_step("""
-    1. coder: 实现一个简单的计算器类，包含加减乘除功能和完整单元测试
-    2. coder: 把代码保存到simple_calculator.py
-    3. tester: 运行simple_calculator.py，获得输出结果。
-    4. decision_maker: 分析输出结果，测试通过则完成工作流，测试失败则生成修复任务并循环回到步骤3
-    """)
-
-# %%
-
-
-# %%

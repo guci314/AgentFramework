@@ -54,7 +54,7 @@ def demo_compression():
         
         llm = ChatOpenAI(
             temperature=0,
-            model="google/gemini-2.0-flash-001", 
+            model="google/gemini-2.5-flash-preview-05-20", 
             base_url='https://openrouter.ai/api/v1',
             api_key=api_key
         )

@@ -1,0 +1,49 @@
+<context>
+# Overview  
+本PRD聚焦于为`enhancedAgent_v2.py`中的`MultiStepAgent_v2`类开发一套高质量、可自动化运行的单元测试。目标是确保该多智能体调度核心类的主要功能、异常处理和边界场景均被真实验证。所有测试必须直接调用真实依赖（包括deepseek语言模型llm_deepseek），不允许使用mock。该测试体系将极大提升系统的健壮性和可维护性。
+
+# Core Features  
+- 覆盖主要公有方法：如`execute_multi_step`、`plan_execution`、`register_agent`、`select_next_executable_step`等。
+- 场景全面：包括正常流程、异常流程、边界条件。
+- 真实依赖：所有测试均直接调用llm_deepseek和真实Agent实例，无任何mock。
+- 自动化与可复现：**unittest**驱动，支持coverage.py生成覆盖率报告。
+- 结果可追溯：测试报告和覆盖率报告自动生成，便于持续集成和回归。
+
+# User Experience  
+- 目标用户：AI/自动化开发者、测试工程师。
+- 主要流程：拉取代码→配置llm_deepseek API→运行unittest→查看测试与覆盖率报告。
+- 体验要求：一键运行、结果清晰、失败可定位。
+</context>
+<PRD>
+# Technical Architecture  
+- 组件：unittest测试用例、llm_deepseek依赖配置、测试数据、覆盖率工具（如coverage.py）。
+- 数据模型：测试用例、测试结果、覆盖率数据。
+- API与集成：直接调用MultiStepAgent_v2及其依赖（llm_deepseek、Agent等），无mock。
+- 基础设施：需配置deepseek API KEY，保证测试环境可访问真实deepseek服务。
+
+# Development Roadmap  
+- MVP：
+  - 配置unittest和llm_deepseek依赖
+  - 编写基础测试用例，覆盖主要方法的正常流程
+  - 实现异常和边界场景测试
+  - 自动生成测试与覆盖率报告（可选用coverage.py）
+- 后续增强：
+  - 持续补充新功能/bug修复的测试
+  - 集成CI自动化测试
+  - 优化测试数据和断言丰富性
+
+# Logical Dependency Chain
+- 首先配置llm_deepseek依赖和unittest环境
+- 编写基础功能测试，确保主流程可跑通
+- 扩展异常/边界场景测试
+- 持续完善覆盖率和报告生成
+
+# Risks and Mitigations  
+- deepseek API不可用：提前检测API KEY和网络，失败时跳过相关测试并告警
+- 真实依赖响应不稳定：测试需容忍一定的LLM响应波动，断言应兼容合理的输出变动
+- 覆盖率不足：定期review测试用例，补充遗漏场景
+
+# Appendix  
+- 参考：unittest、coverage.py官方文档，deepseek API文档
+- 技术选型：unittest、coverage.py、deepseek LLM
+</PRD> 
