@@ -14,7 +14,7 @@ sys.path.append(str(project_root))
 
 from langchain_openai import ChatOpenAI
 from task_master_agent import TaskMasterAgent, AgentSpecification
-from pythonTask import Agent
+from pythonTask import Agent, llm_deepseek_openrouter
 from agent_base import Result
 import logging
 
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 def create_sample_agents():
     """创建示例智能体"""
-    # 使用虚拟的 LLM（实际使用时需要真实的 LLM）
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
+    # 使用 OpenRouter 的 DeepSeek 模型
+    llm = llm_deepseek_openrouter
     
     # 创建编程智能体
     coder_agent = Agent(llm=llm, stateful=True)
@@ -67,7 +67,7 @@ def basic_usage_example():
         
         # 3. 初始化 TaskMasterAgent
         print("\n2. 初始化 TaskMasterAgent...")
-        llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
+        llm = llm_deepseek_openrouter
         
         tm_agent = TaskMasterAgent(
             project_root=str(project_dir),
@@ -140,7 +140,7 @@ def mixed_mode_example():
         project_dir.mkdir(exist_ok=True)
         
         agent_specs = create_sample_agents()
-        llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
+        llm = llm_deepseek_openrouter
         
         tm_agent = TaskMasterAgent(
             project_root=str(project_dir),
@@ -212,7 +212,7 @@ def prd_driven_example():
         project_dir.mkdir(exist_ok=True)
         
         agent_specs = create_sample_agents()
-        llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
+        llm = llm_deepseek_openrouter
         
         tm_agent = TaskMasterAgent(
             project_root=str(project_dir),
@@ -289,9 +289,12 @@ if __name__ == "__main__":
     print("=" * 50)
     
     # 检查环境
-    if "OPENAI_API_KEY" not in os.environ:
-        print("警告: 未设置 OPENAI_API_KEY 环境变量")
+    if "OPENROUTER_API_KEY" not in os.environ:
+        print("警告: 未设置 OPENROUTER_API_KEY 环境变量")
         print("示例将在模拟模式下运行，某些功能可能无法正常工作")
+        print()
+    else:
+        print("已设置 OPENROUTER_API_KEY，使用真实 LLM 运行")
         print()
     
     try:
@@ -304,7 +307,7 @@ if __name__ == "__main__":
         print("\n" + "=" * 50)
         print("所有示例执行完成!")
         print("\n使用说明:")
-        print("1. 配置 OPENAI_API_KEY 环境变量以使用真实的 LLM")
+        print("1. 配置 OPENROUTER_API_KEY 环境变量以使用真实的 LLM")
         print("2. 查看生成的 example_project* 目录了解项目结构")
         print("3. 参考代码了解各种使用模式")
         
