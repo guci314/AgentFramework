@@ -251,6 +251,11 @@ class TaskMasterAgent(Agent):
         try:
             logger.info("开始 Task Master AI 原生执行模式")
             
+            # 第零步：清空所有现有任务
+            logger.info("清空所有现有任务")
+            if not self.tm_client.clear_all_tasks():
+                logger.warning("清空任务失败，但继续执行")
+            
             # 第一步：智能规划
             tasks = self._intelligent_planning(main_instruction, use_prd, prd_content)
             if not tasks:
@@ -444,9 +449,13 @@ class TaskMasterAgent(Agent):
         }
         
         try:
-            # 获取所有任务
-            all_tasks = self.tm_client.get_tasks(with_subtasks=True)
-            execution_result["total_tasks"] = len(all_tasks)
+            # 获取所有主任务（不展开子任务）
+            main_tasks = self.tm_client.get_tasks(with_subtasks=False)
+            execution_result["total_tasks"] = len(main_tasks)
+            
+            # 统计子任务数量用于详细信息
+            all_tasks_expanded = self.tm_client.get_tasks(with_subtasks=True)
+            execution_result["subtasks_count"] = len(all_tasks_expanded) - len(main_tasks)
             
             while True:
                 # 获取下一个可执行任务
@@ -464,8 +473,8 @@ class TaskMasterAgent(Agent):
                 # 设置任务为执行中
                 self.tm_client.set_task_status(task_id, "in-progress")
                 
-                # 执行任务
-                execution_success = self._execute_single_tm_task(next_task)
+                # 检查是否为多智能体协调任务
+                execution_success = self._execute_task_with_subtasks(next_task)
                 
                 # 更新任务状态
                 if execution_success:
@@ -529,11 +538,24 @@ class TaskMasterAgent(Agent):
             instruction = step.get("instruction", "")
             instruction_type = step.get("instruction_type", "execution")
             
+            # 如果没有找到指定的智能体，使用第一个可用的智能体
+            if not target_agent and self.agent_specs:
+                target_agent = self.agent_specs[0].instance
+                logger.info(f"使用默认智能体: {self.agent_specs[0].name}")
+            
+            if not target_agent:
+                logger.error("没有可用的智能体来执行任务")
+                return False
+            
+            # 增强指令，确保任务具体可执行
+            enhanced_instruction = self._enhance_task_instruction(task, instruction)
+            
             # 执行任务
+            logger.info(f"执行指令: {enhanced_instruction[:100]}...")
             if instruction_type == "information":
-                result = target_agent.chat_sync(instruction)
+                result = target_agent.chat_sync(enhanced_instruction)
             else:
-                result = target_agent.execute_sync(instruction)
+                result = target_agent.execute_sync(enhanced_instruction)
             
             # 检查执行结果
             return result.success if hasattr(result, 'success') else bool(result)
@@ -541,6 +563,129 @@ class TaskMasterAgent(Agent):
         except Exception as e:
             logger.error(f"执行单个任务失败: {e}")
             return False
+    
+    def _execute_task_with_subtasks(self, task: Dict[str, Any]) -> bool:
+        """
+        执行任务，如果有子任务则按顺序执行子任务
+        
+        Args:
+            task: 任务对象
+            
+        Returns:
+            执行是否成功
+        """
+        try:
+            subtasks = task.get("subtasks", [])
+            
+            # 如果没有子任务，执行普通任务
+            if not subtasks:
+                return self._execute_single_tm_task(task)
+            
+            # 如果有子任务，按顺序执行
+            logger.info(f"任务 {task.get('id')} 包含 {len(subtasks)} 个子任务，开始按顺序执行")
+            
+            for i, subtask in enumerate(subtasks):
+                subtask_id = subtask.get("id", f"{task.get('id')}.{i+1}")
+                subtask_name = subtask.get("title", subtask.get("description", "未命名子任务"))
+                
+                logger.info(f"执行子任务 {subtask_id}: {subtask_name}")
+                
+                # 设置子任务状态为执行中
+                self.tm_client.set_task_status(subtask_id, "in-progress")
+                
+                # 执行子任务
+                success = self._execute_single_tm_task(subtask)
+                
+                if success:
+                    logger.info(f"子任务 {subtask_id} 执行成功")
+                    # 更新子任务状态为完成
+                    if not self.tm_client.set_task_status(subtask_id, "done"):
+                        logger.warning(f"更新子任务 {subtask_id} 状态失败，但继续执行")
+                else:
+                    logger.error(f"子任务 {subtask_id} 执行失败")
+                    # 更新子任务状态为失败
+                    self.tm_client.set_task_status(subtask_id, "failed")
+                    return False  # 如果任何子任务失败，整个任务失败
+            
+            logger.info(f"任务 {task.get('id')} 的所有子任务执行完成")
+            return True
+            
+        except Exception as e:
+            logger.error(f"执行多智能体任务失败: {e}")
+            return False
+    
+    def _enhance_task_instruction(self, task: Dict[str, Any], instruction: str) -> str:
+        """
+        增强任务指令，使其更具体和可执行
+        
+        Args:
+            task: 原始任务对象
+            instruction: 原始指令
+            
+        Returns:
+            增强后的指令
+        """
+        try:
+            task_title = task.get("title", "")
+            task_details = task.get("details", "")
+            
+            # 为计算器任务创建具体的执行指令
+            if "计算器" in task_title or "calculator" in task_title.lower():
+                enhanced_instruction = f"""
+请创建一个功能完整的计算器应用程序。具体要求：
+
+**任务目标**: {task_title}
+
+**实现要求**:
+1. 创建一个名为 'calculator_app.py' 的Python文件
+2. 实现一个Calculator类，包含以下方法：
+   - add(a, b): 加法运算
+   - subtract(a, b): 减法运算  
+   - multiply(a, b): 乘法运算
+   - divide(a, b): 除法运算（包含除零检查）
+3. 创建一个用户界面（命令行或简单GUI）
+4. 包含错误处理和输入验证
+5. 提供使用示例
+
+**详细规格**:
+{task_details}
+
+**执行步骤**:
+1. 设计Calculator类的结构
+2. 实现基本运算方法
+3. 添加错误处理
+4. 创建用户界面
+5. 测试所有功能
+6. 生成文档和使用说明
+
+请开始实现这个计算器应用程序。
+"""
+            else:
+                # 通用任务增强
+                enhanced_instruction = f"""
+请执行以下任务：
+
+**任务**: {task_title}
+**描述**: {instruction}
+
+**详细信息**:
+{task_details}
+
+**执行指导**:
+1. 分析任务需求
+2. 制定实现计划
+3. 逐步实现功能
+4. 测试和验证结果
+5. 提供完整的输出
+
+请开始执行这个任务。
+"""
+            
+            return enhanced_instruction.strip()
+            
+        except Exception as e:
+            logger.error(f"增强任务指令失败: {e}")
+            return instruction or "请执行分配的任务"
     
     def _multistep_execution_loop(self, plan: List[Dict[str, Any]], interactive: bool = False) -> str:
         """
@@ -648,6 +793,7 @@ class TaskMasterAgent(Agent):
             total_tasks = result.get("total_tasks", 0)
             completed_tasks = result.get("tasks_completed", 0)
             failed_tasks = result.get("tasks_failed", 0)
+            subtasks_count = result.get("subtasks_count", 0)
             success = result.get("success", True)
             
             summary = f"""
@@ -658,10 +804,12 @@ class TaskMasterAgent(Agent):
 **执行状态**: {'成功' if success else '失败'}
 
 ### 任务统计
-- 总任务数: {total_tasks}
+- 主任务数: {total_tasks}
 - 成功完成: {completed_tasks}
 - 执行失败: {failed_tasks}
-- 完成率: {(completed_tasks / total_tasks * 100):.1f}% (如果总数>0)
+- 完成率: {(completed_tasks / total_tasks * 100) if total_tasks > 0 else 0:.1f}%
+- 子任务数: {subtasks_count}
+- 总执行单元: {total_tasks + subtasks_count}
 
 ### 智能体信息
 - 注册智能体数: {len(self.agent_specs)}

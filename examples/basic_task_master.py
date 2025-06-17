@@ -300,9 +300,9 @@ if __name__ == "__main__":
     try:
         # 运行示例
         basic_usage_example()
-        mixed_mode_example()
-        prd_driven_example()
-        configuration_example()
+        # mixed_mode_example()
+        # prd_driven_example()
+        # configuration_example()
         
         print("\n" + "=" * 50)
         print("所有示例执行完成!")
