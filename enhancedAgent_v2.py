@@ -546,60 +546,12 @@ while true {{
 
     # ====== 智能调度相关方法 ======
     
-    def can_execute_step(self, step: Dict) -> Tuple[bool, str]:
-        """基于Agent记忆和系统状态判断步骤可执行性（新版：要求LLM返回JSON）"""
-        step_id = step.get('id')
-        step_name = step.get('name')
-        prerequisites = step.get('prerequisites', '无')
-        instruction = step.get('instruction', '')
-
-        # 如果先决条件为"无"，直接可执行
-        if prerequisites in ['无', '']:
-            return True, "无先决条件限制"
-
-        # 构造判断提示
-        check_prompt = f"""
-根据当前状态判断步骤是否可以执行：
-
-步骤ID: {step_id}
-步骤名称: {step_name}
-先决条件: {prerequisites}
-指令概要: {instruction[:100]}...
-
-请检查：
-1. 当前系统状态是否满足先决条件
-2. 所需文件/数据是否已准备好  
-3. 前置步骤是否已完成
-
-请严格按照如下JSON格式返回：
-{{
-  "executable": true/false,  // 是否可执行
-  "reason": "具体说明"
-}}
-"""
-        response_format = {"type": "json_object"}
-        try:
-            response = self.chat_sync(check_prompt, response_format=response_format)
-            response_text = response.return_value if response.return_value else response.stdout
-            import json
-            # 兼容：有时LLM会返回代码块
-            if isinstance(response_text, str):
-                response_text = response_text.strip()
-                if response_text.startswith("```json"):
-                    response_text = response_text[len("```json"):].strip()
-                    if response_text.endswith("```"):
-                        response_text = response_text[:-3].strip()
-            result = json.loads(response_text)
-            executable = bool(result.get("executable", False))
-            reason = result.get("reason", "无理由")
-            return executable, reason
-        except Exception as e:
-            import logging
-            logging.warning(f"判断步骤可执行性时出错: {e}")
-            return True, "无法判断，默认可执行"
+    # 注意：can_execute_step 方法已移除
+    # 步骤可执行性判断现在统一由 make_decision 方法中的决策机制处理
+    # 这避免了重复的LLM调用和决策逻辑分散的问题
     
     def select_next_executable_step(self, plan: List[Dict]) -> Optional[Tuple[int, Dict]]:
-        """智能选择下一个可执行步骤"""
+        """简化的步骤选择 - 统一决策机制方案2"""
         
         # 获取所有待执行步骤
         pending_steps = []
@@ -612,66 +564,9 @@ while true {{
         if not pending_steps:
             return None
         
-        # 如果只有一个待执行步骤，直接返回
-        if len(pending_steps) == 1:
-            return pending_steps[0]
-        
-        # 筛选出可执行的步骤
-        executable_steps = []
-        for i, step in pending_steps:
-            can_exec, reason = self.can_execute_step(step)
-            if can_exec:
-                executable_steps.append((i, step, reason))
-        
-        # 如果没有可执行步骤，返回None
-        if not executable_steps:
-            return None
-        
-        # 如果只有一个可执行步骤，直接返回
-        if len(executable_steps) == 1:
-            return executable_steps[0][:2]
-        
-        # 多个可执行步骤时，使用Agent记忆进行智能选择
-        step_descriptions = []
-        for i, (idx, step, reason) in enumerate(executable_steps):
-            step_descriptions.append(f"{i+1}. 步骤{step.get('id')}: {step.get('name')} - {reason}")
-        
-        selection_prompt = f"""
-当前有多个可执行步骤，请根据执行逻辑和当前状态选择最合适的下一步：
-
-可执行步骤：
-{chr(10).join(step_descriptions)}
-
-选择标准：
-1. 执行的逻辑顺序和优先级
-2. 当前系统状态和资源情况
-3. 任务的整体进度和目标
-
-请选择一个步骤编号 (1-{len(executable_steps)})
-返回格式: 选择: 数字
-"""
-        
-        try:
-            response = self.chat_sync(selection_prompt)
-            response_text = response.return_value if response.return_value else response.stdout
-            
-            # 提取选择的数字
-            import re
-            match = re.search(r'选择[:：]\s*(\d+)', response_text)
-            if match:
-                selected_num = int(match.group(1))
-                if 1 <= selected_num <= len(executable_steps):
-                    selected_idx = selected_num - 1
-                    return executable_steps[selected_idx][:2]
-            
-            # 解析失败，返回第一个
-            logger.warning(f"解析步骤选择失败，默认选择第一个: {response_text}")
-            return executable_steps[0][:2]
-            
-        except Exception as e:
-            logger.warning(f"智能选择步骤时出错: {e}")
-            # 出错时返回第一个可执行步骤
-            return executable_steps[0][:2]
+        # 简化逻辑：按顺序返回第一个待执行步骤
+        # 具体的可执行性判断和智能选择交由统一的决策机制处理
+        return pending_steps[0]
     
     def _add_new_tasks(self, new_tasks: List[Dict]):
         """添加新任务到计划中"""
@@ -1135,6 +1030,9 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         elif action == 'generate_fix_task_and_loop':
             return self._handle_fix_task_decision(decision, context)
             
+        elif action == 'skip_step':
+            return self._handle_skip_step_decision(decision, context)
+            
         return False
     
     def _process_failure_decision(self, decision: Dict[str, Any], context: Dict[str, Any], 
@@ -1158,6 +1056,9 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
             
         elif action == 'generate_new_task':
             return self._handle_generate_new_task_decision(decision, context)
+            
+        elif action == 'skip_step':
+            return self._handle_skip_step_decision(decision, context)
             
         else:
             # 默认处理：增加重试次数
@@ -1204,6 +1105,37 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         else:
             context['summary'] += "\n修复任务生成失败或达到最大重试次数"
             return True
+    
+    def _handle_skip_step_decision(self, decision: Dict[str, Any], 
+                                 context: Dict[str, Any]) -> bool:
+        """处理跳过步骤的决策"""
+        target_step_id = decision.get('target_step_id')
+        
+        if not target_step_id:
+            logger.warning("skip_step决策缺少target_step_id")
+            return False
+        
+        # 查找目标步骤
+        target_index = self.find_step_index_by_id(target_step_id)
+        if target_index >= 0:
+            plan = self.get_plan()
+            
+            # 将目标步骤标记为跳过
+            if target_index < len(plan):
+                plan[target_index]['status'] = 'skipped'
+                self.device.set_variable("current_plan", plan)
+                
+                context['summary'] += f"\n跳过步骤: {target_step_id} - {decision.get('reason', '无原因')}"
+                logger.debug(f"跳过步骤: {target_step_id}")
+                print(f"\n跳过步骤: {plan[target_index].get('name', target_step_id)}")
+                
+                return False  # 继续执行工作流
+            else:
+                logger.warning(f"步骤索引越界: {target_index}")
+                return False
+        else:
+            logger.warning(f"找不到要跳过的步骤ID: {target_step_id}")
+            return False
     
     def _execute_fix_task(self, decision: Dict[str, Any], 
                          context: Dict[str, Any]) -> bool:
@@ -1434,7 +1366,7 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         
         # 生成决策提示
         prompt = f"""
-# 执行决策分析 (方案2: 动态控制流)
+# 执行决策分析 (方案2: 统一决策机制)
 
 ## 当前执行状态
 已完成步骤数: {len(completed_steps)}
@@ -1462,20 +1394,35 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
 {context_str}
 
 ## 决策任务
-请分析当前执行状态和结果，决定下一步操作。可选的操作有：
+请分析当前执行状态和结果，决定下一步操作。作为统一决策机制，你需要：
+
+1. **评估步骤可执行性**: 如果下一个步骤的前置条件未满足，考虑生成准备任务或跳转到其他步骤
+2. **智能路径选择**: 根据当前状态选择最优的执行路径
+3. **动态任务管理**: 根据执行结果动态调整任务计划
 
 ### 基本决策类型：
-1. **continue**: 继续执行下一个计划步骤
+1. **continue**: 继续执行下一个计划步骤（确保前置条件已满足）
 2. **complete**: 完成整个工作流（目标已达成）
 3. **retry**: 重试当前步骤
-4. **generate_new_task**: 生成新的任务
+4. **generate_new_task**: 生成新的任务（包括准备任务、信息收集任务等）
 
-### 控制流决策类型（方案2新增）：
-5. **jump_to**: 跳转到指定步骤ID
+### 控制流决策类型：
+5. **jump_to**: 跳转到指定步骤ID（当前步骤不可执行时）
 6. **loop_back**: 循环回到指定步骤ID
 7. **generate_fix_task_and_loop**: 生成修复任务并循环回到测试步骤
+8. **skip_step**: 跳过当前步骤（当步骤不再需要时）
 
 ## 决策策略
+
+### 步骤可执行性评估
+- **前置条件检查**: 分析下一个步骤的先决条件是否满足
+- **资源可用性**: 检查所需文件、数据、服务是否就绪
+- **依赖关系**: 确认前置步骤是否已完成
+
+### 智能路径选择
+- **优先级排序**: 根据任务重要性和紧急性选择执行顺序
+- **并行可能性**: 识别可以并行执行的步骤
+- **最短路径**: 选择最高效的执行路径
 
 ### 测试结果分析（针对测试步骤）
 如果当前步骤是测试步骤，请根据测试结果决策：
@@ -1487,23 +1434,26 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
 - 如果超过限制，选择 `complete` 并说明原因
 - 如果需要修复错误，使用 `generate_fix_task_and_loop`
 
-### 其他策略
-- 信息不足: 生成信息收集任务
-- 错误处理: 生成诊断和修复任务
-- 替代方案: 尝试其他方法
+### 动态任务生成策略
+- **信息收集**: 当信息不足时生成信息收集任务
+- **准备任务**: 当前置条件不满足时生成准备任务
+- **错误处理**: 生成诊断和修复任务
+- **替代方案**: 当主路径受阻时生成替代任务
 
 ## 输出格式
 请以JSON格式返回你的决策：
 
 ```json
 {{
-  "action": "continue|complete|retry|generate_new_task|jump_to|loop_back|generate_fix_task_and_loop",
+  "action": "continue|complete|retry|generate_new_task|jump_to|loop_back|generate_fix_task_and_loop|skip_step",
   "reason": "详细说明你的决策理由",
-  "target_step_id": "目标步骤ID（仅用于jump_to和loop_back）",
+  "target_step_id": "目标步骤ID（仅用于jump_to、loop_back和skip_step）",
   "loop_target": "循环目标步骤ID（仅用于generate_fix_task_and_loop）",
   "fix_instruction": "修复指令（仅用于generate_fix_task_and_loop）",
   "fix_agent": "修复智能体（仅用于generate_fix_task_and_loop）",
   "error_details": "错误详情（仅用于generate_fix_task_and_loop）",
+  "step_executable": true,
+  "executable_reason": "步骤可执行性分析（用于continue决策）",
   "new_tasks": [
     {{
       "id": "task_id",
@@ -1518,11 +1468,14 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
 ```
 
 重要提示：
-1. 如果剩余步骤不为空且未达到目标，不要选择complete
-2. 如果选择generate_new_task，必须提供完整的new_tasks数组
-3. 如果选择控制流操作，必须提供相应的目标步骤ID
-4. 新任务的agent_name必须从可用智能体列表中选择
-5. 优先使用专门的控制流决策类型来处理循环和条件分支
+1. **统一决策责任**: 作为统一决策机制，你负责评估步骤可执行性和选择最优路径
+2. **步骤可执行性**: 选择continue时，请在step_executable字段说明步骤是否可执行
+3. **动态路径调整**: 如果步骤不可执行，考虑generate_new_task、jump_to或skip_step
+4. 如果剩余步骤不为空且未达到目标，不要选择complete
+5. 如果选择generate_new_task，必须提供完整的new_tasks数组
+6. 如果选择控制流操作，必须提供相应的目标步骤ID
+7. 新任务的agent_name必须从可用智能体列表中选择
+8. **智能决策**: 根据当前状态和历史选择最合适的执行策略
 """
         return prompt
     
