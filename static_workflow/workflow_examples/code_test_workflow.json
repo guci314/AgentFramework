@@ -1,0 +1,264 @@
+{
+  "workflow_metadata": {
+    "name": "code_test_workflow",
+    "version": "1.0",
+    "description": "通用代码实现和测试工作流 - 支持循环修复",
+    "author": "MultiStepAgent_v3"
+  },
+  "global_variables": {
+    "max_fix_attempts": 3,
+    "test_timeout": 120,
+    "code_quality_threshold": 0.8,
+    "coverage_threshold": 0.9
+  },
+  "steps": [
+    {
+      "id": "analyze_requirements",
+      "name": "分析需求",
+      "agent_name": "analyst",
+      "instruction": "分析项目需求，制定实现计划：\n1. 理解功能需求\n2. 识别技术要求\n3. 设计代码结构\n4. 制定测试策略",
+      "instruction_type": "information",
+      "expected_output": "需求分析和实现计划",
+      "timeout": 60,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "implement_code",
+        "failure_next": "error_handling"
+      }
+    },
+    {
+      "id": "implement_code",
+      "name": "实现代码",
+      "agent_name": "coder",
+      "instruction": "根据需求分析实现核心功能代码：\n1. 编写主要功能模块\n2. 添加错误处理\n3. 编写文档字符串\n4. 确保代码规范",
+      "instruction_type": "execution",
+      "expected_output": "完整的功能代码实现",
+      "timeout": 180,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "code_review",
+        "failure_next": "implementation_fix"
+      }
+    },
+    {
+      "id": "code_review",
+      "name": "代码审查",
+      "agent_name": "reviewer",
+      "instruction": "对实现的代码进行全面审查：\n1. 检查代码质量\n2. 验证最佳实践\n3. 检查安全性\n4. 评估可维护性",
+      "instruction_type": "information",
+      "expected_output": "代码审查报告和质量评分",
+      "timeout": 60,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "code_quality_score >= code_quality_threshold",
+        "success_next": "write_unit_tests",
+        "failure_next": "code_improvement"
+      }
+    },
+    {
+      "id": "code_improvement",
+      "name": "代码改进",
+      "agent_name": "coder",
+      "instruction": "根据代码审查结果改进代码：\n1. 修复质量问题\n2. 优化代码结构\n3. 改善可读性\n4. 增强错误处理",
+      "instruction_type": "execution",
+      "expected_output": "改进后的代码",
+      "timeout": 120,
+      "control_flow": {
+        "type": "loop",
+        "loop_condition": "code_quality_score < code_quality_threshold AND retry_count < 2",
+        "loop_target": "code_review",
+        "max_iterations": 2,
+        "exit_on_max": "write_unit_tests"
+      }
+    },
+    {
+      "id": "write_unit_tests",
+      "name": "编写单元测试",
+      "agent_name": "tester",
+      "instruction": "为代码编写全面的单元测试：\n1. 测试正常功能\n2. 测试边界条件\n3. 测试异常情况\n4. 确保高覆盖率",
+      "instruction_type": "execution",
+      "expected_output": "完整的单元测试套件",
+      "timeout": 120,
+      "max_retries": 1,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "run_tests",
+        "failure_next": "test_writing_fix"
+      }
+    },
+    {
+      "id": "run_tests",
+      "name": "执行测试",
+      "agent_name": "tester",
+      "instruction": "运行所有单元测试并分析结果：\n1. 执行测试套件\n2. 收集覆盖率数据\n3. 分析失败用例\n4. 生成测试报告",
+      "instruction_type": "execution",
+      "expected_output": "测试执行报告",
+      "timeout": "${test_timeout}",
+      "control_flow": {
+        "type": "conditional",
+        "condition": "test_result.success == True AND test_coverage >= coverage_threshold",
+        "success_next": "integration_tests",
+        "failure_next": "analyze_test_failures"
+      }
+    },
+    {
+      "id": "analyze_test_failures",
+      "name": "分析测试失败",
+      "agent_name": "tester",
+      "instruction": "详细分析测试失败的原因：\n1. 分类失败类型\n2. 识别根本原因\n3. 制定修复计划\n4. 评估影响范围",
+      "instruction_type": "information",
+      "expected_output": "测试失败分析报告",
+      "timeout": 60,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "failure_type == 'code_issue'",
+        "success_next": "fix_code_issues",
+        "failure_next": "fix_test_issues"
+      }
+    },
+    {
+      "id": "fix_code_issues",
+      "name": "修复代码问题",
+      "agent_name": "coder",
+      "instruction": "根据测试失败分析修复代码问题：\n1. 修复逻辑错误\n2. 处理边界条件\n3. 改进异常处理\n4. 验证修复效果",
+      "instruction_type": "execution",
+      "expected_output": "修复后的代码",
+      "timeout": 120,
+      "control_flow": {
+        "type": "loop",
+        "loop_condition": "retry_count < max_fix_attempts",
+        "loop_target": "run_tests",
+        "max_iterations": "${max_fix_attempts}",
+        "exit_on_max": "escalate_issues"
+      }
+    },
+    {
+      "id": "fix_test_issues",
+      "name": "修复测试问题",
+      "agent_name": "tester",
+      "instruction": "修复测试代码中的问题：\n1. 修正测试逻辑\n2. 更新测试数据\n3. 改进断言\n4. 增加测试覆盖",
+      "instruction_type": "execution",
+      "expected_output": "修复后的测试代码",
+      "timeout": 90,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "run_tests",
+        "failure_next": "escalate_issues"
+      }
+    },
+    {
+      "id": "integration_tests",
+      "name": "集成测试",
+      "agent_name": "tester",
+      "instruction": "执行集成测试验证系统整体功能：\n1. 模块间交互测试\n2. 端到端功能验证\n3. 性能基准测试\n4. 兼容性检查",
+      "instruction_type": "execution",
+      "expected_output": "集成测试报告",
+      "timeout": 180,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "integration_tests_passed == true",
+        "success_next": "final_validation",
+        "failure_next": "integration_fix"
+      }
+    },
+    {
+      "id": "integration_fix",
+      "name": "集成问题修复",
+      "agent_name": "coder",
+      "instruction": "修复集成测试发现的问题：\n1. 解决模块间接口问题\n2. 修复数据流问题\n3. 优化性能瓶颈\n4. 确保系统稳定性",
+      "instruction_type": "execution",
+      "expected_output": "集成问题修复结果",
+      "timeout": 150,
+      "control_flow": {
+        "type": "loop",
+        "loop_condition": "retry_count < 2",
+        "loop_target": "integration_tests",
+        "max_iterations": 2,
+        "exit_on_max": "escalate_issues"
+      }
+    },
+    {
+      "id": "final_validation",
+      "name": "最终验证",
+      "agent_name": "tester",
+      "instruction": "执行最终的全面验证：\n1. 完整功能测试\n2. 质量指标检查\n3. 文档完整性验证\n4. 部署就绪确认",
+      "instruction_type": "information",
+      "expected_output": "最终验证报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    },
+    {
+      "id": "implementation_fix",
+      "name": "实现修复",
+      "agent_name": "coder",
+      "instruction": "修复代码实现中的基础问题",
+      "instruction_type": "execution",
+      "expected_output": "修复后的基础实现",
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "code_review",
+        "failure_next": "error_handling"
+      }
+    },
+    {
+      "id": "test_writing_fix",
+      "name": "测试编写修复",
+      "agent_name": "tester",
+      "instruction": "修复测试编写过程中的问题",
+      "instruction_type": "execution",
+      "expected_output": "修复后的测试编写",
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "run_tests",
+        "failure_next": "error_handling"
+      }
+    },
+    {
+      "id": "escalate_issues",
+      "name": "问题升级",
+      "agent_name": "coordinator",
+      "instruction": "处理无法自动解决的复杂问题：\n1. 详细记录问题\n2. 分析解决方案\n3. 提供建议\n4. 标记需要人工干预",
+      "instruction_type": "information",
+      "expected_output": "问题升级报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    },
+    {
+      "id": "error_handling",
+      "name": "错误处理",
+      "agent_name": "coordinator",
+      "instruction": "处理工作流执行过程中的错误",
+      "instruction_type": "information",
+      "expected_output": "错误处理报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    }
+  ],
+  "control_rules": [
+    {
+      "trigger": "execution_time > 600",
+      "action": "jump_to",
+      "target": "escalate_issues",
+      "priority": 1
+    },
+    {
+      "trigger": "total_failures > 5",
+      "action": "jump_to",
+      "target": "escalate_issues",
+      "priority": 2
+    }
+  ],
+  "error_handling": {
+    "default_strategy": "retry_with_analysis",
+    "escalation_rules": [
+      {
+        "condition": "critical_failure == true",
+        "action": "immediate_escalation"
+      }
+    ]
+  }
+}

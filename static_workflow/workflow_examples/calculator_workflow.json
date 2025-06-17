@@ -1,0 +1,135 @@
+{
+  "workflow_metadata": {
+    "name": "calculator_implementation",
+    "version": "1.0",
+    "description": "计算器实现和测试工作流 - 静态控制流版本",
+    "author": "MultiStepAgent_v3"
+  },
+  "global_variables": {
+    "max_retries": 3,
+    "timeout": 300,
+    "test_threshold": 1.0,
+    "output_file": "calculator.py",
+    "test_file": "test_calculator.py"
+  },
+  "steps": [
+    {
+      "id": "implement_calculator",
+      "name": "实现计算器",
+      "agent_name": "coder",
+      "instruction": "实现一个简单的计算器类Calculator，包含以下功能：\n1. add(a, b) - 加法\n2. subtract(a, b) - 减法\n3. multiply(a, b) - 乘法\n4. divide(a, b) - 除法（需要处理除零异常）\n\n请将代码保存为calculator.py文件。确保代码结构清晰，包含适当的文档字符串。",
+      "instruction_type": "execution",
+      "expected_output": "calculator.py文件，包含Calculator类的完整实现",
+      "timeout": 120,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "write_tests",
+        "failure_next": "error_handling"
+      }
+    },
+    {
+      "id": "write_tests",
+      "name": "编写测试",
+      "agent_name": "tester", 
+      "instruction": "为calculator.py中的Calculator类编写完整的单元测试。要求：\n1. 测试所有四个基本运算方法\n2. 测试边界情况（如除零、负数等）\n3. 使用pytest框架\n4. 至少包含10个测试用例\n\n请将测试代码保存为test_calculator.py文件。",
+      "instruction_type": "execution",
+      "expected_output": "test_calculator.py文件，包含完整的测试用例",
+      "timeout": 120,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "run_tests",
+        "failure_next": "error_handling"
+      }
+    },
+    {
+      "id": "run_tests",
+      "name": "运行测试",
+      "agent_name": "tester",
+      "instruction": "运行pytest test_calculator.py命令执行所有测试用例。请检查：\n1. 所有测试是否通过\n2. 是否有任何错误或失败\n3. 测试覆盖率情况\n\n如果测试失败，请记录详细的失败信息。",
+      "instruction_type": "execution",
+      "expected_output": "测试执行结果，包含通过/失败的详细信息",
+      "timeout": 60,
+      "max_retries": 1,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "last_result.success == True",
+        "success_next": "complete_workflow",
+        "failure_next": "fix_implementation"
+      }
+    },
+    {
+      "id": "fix_implementation",
+      "name": "修复实现",
+      "agent_name": "coder",
+      "instruction": "根据测试失败的结果，修复calculator.py中的问题。请：\n1. 仔细分析测试失败的原因\n2. 修复代码中的错误\n3. 确保修复后的代码逻辑正确\n4. 保持代码的整洁和可读性\n\n修复完成后，重新保存calculator.py文件。",
+      "instruction_type": "execution",
+      "expected_output": "修复后的calculator.py文件",
+      "timeout": 120,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "loop",
+        "loop_condition": "retry_count < max_retries",
+        "loop_target": "run_tests",
+        "max_iterations": "${max_retries}",
+        "exit_on_max": "error_handling"
+      }
+    },
+    {
+      "id": "complete_workflow",
+      "name": "完成工作流",
+      "agent_name": "tester",
+      "instruction": "所有测试都已通过！请生成最终的成功报告，包括：\n1. 实现的功能总结\n2. 测试通过情况\n3. 代码质量评估\n4. 项目完成确认",
+      "instruction_type": "information",
+      "expected_output": "项目完成报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    },
+    {
+      "id": "error_handling", 
+      "name": "错误处理",
+      "agent_name": "tester",
+      "instruction": "处理执行过程中出现的错误。请分析错误原因并生成详细的错误报告，包括：\n1. 错误发生的步骤\n2. 具体错误信息\n3. 可能的解决方案\n4. 后续建议",
+      "instruction_type": "information",
+      "expected_output": "详细的错误分析报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    }
+  ],
+  "control_rules": [
+    {
+      "trigger": "execution_time > timeout",
+      "action": "jump_to",
+      "target": "error_handling",
+      "priority": 1
+    },
+    {
+      "trigger": "retry_count >= max_retries",
+      "action": "jump_to", 
+      "target": "error_handling",
+      "priority": 2
+    },
+    {
+      "trigger": "consecutive_failures > 2",
+      "action": "terminate",
+      "cleanup_steps": ["error_handling"],
+      "priority": 3
+    }
+  ],
+  "error_handling": {
+    "default_strategy": "retry_with_backoff",
+    "escalation_rules": [
+      {
+        "condition": "consecutive_failures > 2",
+        "action": "terminate_workflow"
+      },
+      {
+        "condition": "execution_time > 600",
+        "action": "timeout_termination"
+      }
+    ]
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "workflow_metadata": {
+    "name": "data_processing_workflow",
+    "version": "1.0", 
+    "description": "数据处理工作流 - 包含并行处理和条件分支",
+    "author": "MultiStepAgent_v3"
+  },
+  "global_variables": {
+    "data_quality_threshold": 0.8,
+    "max_processing_time": 300,
+    "output_format": "csv",
+    "backup_enabled": true
+  },
+  "steps": [
+    {
+      "id": "load_data",
+      "name": "加载数据",
+      "agent_name": "data_agent",
+      "instruction": "加载原始数据文件，支持CSV、JSON、Excel格式。请检查数据完整性并报告基本统计信息。",
+      "instruction_type": "execution",
+      "expected_output": "数据加载结果和基本统计信息",
+      "timeout": 60,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "last_result.success == true",
+        "success_next": "validate_data_quality",
+        "failure_next": "error_recovery"
+      }
+    },
+    {
+      "id": "validate_data_quality",
+      "name": "验证数据质量",
+      "agent_name": "data_agent",
+      "instruction": "对加载的数据进行质量检查：\n1. 检查缺失值比例\n2. 检查数据类型一致性\n3. 检查异常值\n4. 计算数据质量分数（0-1）",
+      "instruction_type": "execution",
+      "expected_output": "数据质量报告和质量分数",
+      "timeout": 120,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "data_quality_score >= data_quality_threshold",
+        "success_next": "parallel_processing",
+        "failure_next": "data_cleaning"
+      }
+    },
+    {
+      "id": "data_cleaning",
+      "name": "数据清洗",
+      "agent_name": "data_agent",
+      "instruction": "执行数据清洗操作：\n1. 处理缺失值\n2. 修正数据类型\n3. 移除或修正异常值\n4. 标准化数据格式",
+      "instruction_type": "execution",
+      "expected_output": "清洗后的数据",
+      "timeout": 180,
+      "control_flow": {
+        "type": "loop",
+        "loop_condition": "data_quality_score < data_quality_threshold AND retry_count < 3",
+        "loop_target": "validate_data_quality",
+        "max_iterations": 3,
+        "exit_on_max": "error_recovery"
+      }
+    },
+    {
+      "id": "parallel_processing",
+      "name": "并行数据处理",
+      "agent_name": "coordinator",
+      "instruction": "协调并行数据处理任务",
+      "instruction_type": "information",
+      "expected_output": "并行处理协调结果",
+      "control_flow": {
+        "type": "parallel",
+        "parallel_steps": ["feature_extraction", "statistical_analysis", "data_transformation"],
+        "join_condition": "all_complete",
+        "success_next": "merge_results",
+        "failure_next": "partial_results_handling",
+        "timeout": 240
+      }
+    },
+    {
+      "id": "feature_extraction",
+      "name": "特征提取",
+      "agent_name": "ml_agent",
+      "instruction": "从清洗后的数据中提取关键特征：\n1. 数值特征统计\n2. 分类特征编码\n3. 时间序列特征\n4. 自定义业务特征",
+      "instruction_type": "execution",
+      "expected_output": "特征提取结果",
+      "timeout": 120
+    },
+    {
+      "id": "statistical_analysis", 
+      "name": "统计分析",
+      "agent_name": "analyst",
+      "instruction": "执行深度统计分析：\n1. 描述性统计\n2. 相关性分析\n3. 分布检验\n4. 趋势分析",
+      "instruction_type": "execution",
+      "expected_output": "统计分析报告",
+      "timeout": 120
+    },
+    {
+      "id": "data_transformation",
+      "name": "数据转换",
+      "agent_name": "data_agent",
+      "instruction": "执行数据转换操作：\n1. 数据归一化\n2. 格式转换\n3. 结构重组\n4. 索引优化",
+      "instruction_type": "execution",
+      "expected_output": "转换后的数据",
+      "timeout": 120
+    },
+    {
+      "id": "merge_results",
+      "name": "合并结果",
+      "agent_name": "data_agent",
+      "instruction": "合并所有并行处理的结果：\n1. 整合特征数据\n2. 附加统计信息\n3. 验证数据一致性\n4. 生成最终数据集",
+      "instruction_type": "execution",
+      "expected_output": "最终合并的数据集",
+      "timeout": 60,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "backup_enabled == true",
+        "success_next": "backup_data",
+        "failure_next": "generate_report"
+      }
+    },
+    {
+      "id": "backup_data",
+      "name": "备份数据",
+      "agent_name": "data_agent", 
+      "instruction": "创建处理后数据的备份：\n1. 保存原始数据副本\n2. 保存处理后数据\n3. 保存处理日志\n4. 生成备份清单",
+      "instruction_type": "execution",
+      "expected_output": "数据备份确认",
+      "timeout": 30,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "generate_report",
+        "failure_next": "generate_report"
+      }
+    },
+    {
+      "id": "partial_results_handling",
+      "name": "部分结果处理",
+      "agent_name": "data_agent",
+      "instruction": "处理并行任务的部分成功结果：\n1. 识别完成的任务\n2. 评估可用数据\n3. 决定是否继续处理\n4. 生成部分结果报告",
+      "instruction_type": "execution",
+      "expected_output": "部分结果处理报告",
+      "timeout": 60,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "completed_steps >= 2",
+        "success_next": "merge_results",
+        "failure_next": "error_recovery"
+      }
+    },
+    {
+      "id": "generate_report",
+      "name": "生成报告",
+      "agent_name": "analyst",
+      "instruction": "生成最终的数据处理报告：\n1. 处理过程总结\n2. 数据质量评估\n3. 关键发现\n4. 处理统计信息",
+      "instruction_type": "information",
+      "expected_output": "完整的数据处理报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    },
+    {
+      "id": "error_recovery",
+      "name": "错误恢复",
+      "agent_name": "coordinator",
+      "instruction": "执行错误恢复程序：\n1. 分析错误原因\n2. 尝试替代处理方案\n3. 生成错误报告\n4. 提供恢复建议",
+      "instruction_type": "information",
+      "expected_output": "错误恢复报告",
+      "control_flow": {
+        "type": "terminal"
+      }
+    }
+  ],
+  "control_rules": [
+    {
+      "trigger": "execution_time > max_processing_time",
+      "action": "jump_to",
+      "target": "partial_results_handling",
+      "priority": 1
+    },
+    {
+      "trigger": "failed_steps > 2",
+      "action": "jump_to",
+      "target": "error_recovery",
+      "priority": 2
+    }
+  ],
+  "error_handling": {
+    "default_strategy": "graceful_degradation",
+    "escalation_rules": [
+      {
+        "condition": "critical_failure == true",
+        "action": "immediate_termination"
+      }
+    ]
+  }
+}
