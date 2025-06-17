@@ -8,14 +8,14 @@ AgentFrameWork - 多智能体框架
 - 记忆管理
 """
 
-from .enhancedAgent_v2 import MultiStepAgent_v2, AgentSpecification, WorkflowState
+from .enhancedAgent_v2 import MultiStepAgent_v2, RegisteredAgent, WorkflowState
 from .agent_base import AgentBase, Result
 from .pythonTask import Agent, StatefulExecutor
 
 __version__ = "0.1.0"
 __all__ = [
-    "MultiStepAgent_v2", 
-    "AgentSpecification", 
+        "MultiStepAgent_v2",
+    "RegisteredAgent",
     "WorkflowState",
     "AgentBase", 
     "Result",

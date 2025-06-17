@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 # 只设置当前模块的日志级别，不影响全局配置
 logger.setLevel(logging.DEBUG)
 
-class AgentSpecification:
-    """存储 Agent 元数据"""
+class RegisteredAgent:
+    """存储已注册的 Agent 信息"""
     def __init__(self, name: str, instance: Agent, description: str):
         self.name = name
         self.instance = instance
@@ -64,7 +64,7 @@ class MultiStepAgent_v2(Agent):
     def __init__(
         self,
         llm: BaseChatModel,
-        agent_specs: Optional[List[AgentSpecification]] = None,
+        registered_agents: Optional[List[RegisteredAgent]] = None,
         max_retries: int = 3,
         thinker_system_message: Optional[str] = None,
         thinker_chat_system_message: Optional[str] = None,
@@ -83,11 +83,11 @@ class MultiStepAgent_v2(Agent):
             max_retries=max_retries,
         )
         self.device = StatefulExecutor()
-        self.agent_specs = agent_specs if agent_specs is not None else []
+        self.registered_agents = registered_agents if registered_agents is not None else []
         self.max_retries = max_retries
         self.thinker_chat_system_message = thinker_chat_system_message
         # 注册成员 Agent 到 StatefulExecutor 的变量空间
-        for spec in self.agent_specs:
+        for spec in self.registered_agents:
             self.device.set_variable(spec.name, spec.instance)
         # 初始化 current_plan
         self.device.set_variable("current_plan", [])
@@ -258,7 +258,7 @@ while true {{
       "id": "step4",
       "name": "分析测试结果并决策",
       "instruction": "分析测试结果，如果测试通过则完成工作流，如果测试失败则生成修复任务并循环回到测试步骤",
-      "agent_name": "decision_maker",
+      "agent_name": "tester",
       "instruction_type": "information",
       "phase": "verification", 
       "expected_output": "决策结果",
@@ -273,41 +273,27 @@ while true {{
         """注册一个新的 Agent。"""
         # 获取Agent的描述，如果没有api_specification属性则使用默认描述
         description = getattr(instance, 'api_specification', f"{name}智能体，通用任务执行者")
-        spec = AgentSpecification(name=name, instance=instance, description=description)
-        self.agent_specs.append(spec)
+        spec = RegisteredAgent(name=name, instance=instance, description=description)
+        self.registered_agents.append(spec)
         self.device.set_variable(spec.name, spec.instance)
         logger.debug(f"已注册 Agent: {name}")
     
-    def ensure_decision_maker_agent(self):
-        """确保注册了决策智能体（如果还没有的话）"""
-        decision_maker_exists = any(spec.name == "decision_maker" for spec in self.agent_specs)
-        if not decision_maker_exists:
-            # 创建一个决策智能体
-            decision_agent = Agent(llm=self.llm)
-            decision_agent.api_specification = """
-            决策智能体，负责分析执行结果并决定工作流的下一步操作。
-            专门处理循环控制、条件分支和错误修复决策。
-            """
-            self.register_agent("decision_maker", decision_agent)
-            logger.debug("自动注册了决策智能体")
+
 
     def plan_execution(self, main_instruction: str) -> List[Dict[str, Any]]:
         """
         根据主指令规划执行步骤，支持自定义提示词模板。
         """
-        # 如果不是自主规划模式，确保有决策智能体 (方案2)
-        if not self.use_autonomous_planning:
-            self.ensure_decision_maker_agent()
         
         # 构建可用 Agent 的描述字符串
         available_agents_str = "\n".join(
-            [f"- {spec.name}: {spec.description}" for spec in self.agent_specs]
+            [f"- {spec.name}: {spec.description}" for spec in self.registered_agents]
         )
         if not available_agents_str:
             available_agents_str = "无可用 Agent。请确保已注册 Agent。"
             
         # 获取可用 Agent 名称列表
-        available_agent_names = [spec.name for spec in self.agent_specs] or ["无"]
+        available_agent_names = [spec.name for spec in self.registered_agents] or ["无"]
         
         # 检查是否有上一次失败的验证结果
         previous_attempt_failed = False
@@ -499,7 +485,7 @@ while true {{
                 "id": "fallback_step",
                 "name": "执行完整任务",
                 "instruction": main_instruction,
-                "agent_name": self.agent_specs[0].name if self.agent_specs else "general_agent",
+                "agent_name": self.registered_agents[0].name if self.registered_agents else "general_agent",
                 "phase": "execution",
                 "instruction_type": "execution",
                 "expected_output": "任务完成结果",
@@ -514,7 +500,7 @@ while true {{
                     "id": f"auto_{i}",
                     "name": f"自动步骤{i}",
                     "instruction": f"执行任务的第{i+1}部分",  # 避免直接使用原始指令
-                    "agent_name": self.agent_specs[0].name if self.agent_specs else "general_agent",
+                    "agent_name": self.registered_agents[0].name if self.registered_agents else "general_agent",
                     "phase": "execution",
                     "instruction_type": "execution",
                     "expected_output": f"第{i+1}部分的执行结果",
@@ -531,7 +517,7 @@ while true {{
             if "instruction" not in step:
                 step["instruction"] = f"执行任务的第{i+1}部分"  # 避免直接使用原始指令
             if "agent_name" not in step:
-                step["agent_name"] = self.agent_specs[0].name if self.agent_specs else "general_agent"
+                step["agent_name"] = self.registered_agents[0].name if self.registered_agents else "general_agent"
             if "phase" not in step:
                 step["phase"] = "execution"
             if "instruction_type" not in step:
@@ -853,7 +839,7 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         try:
             # 查找指定的智能体
             target_agent = None
-            for spec in self.agent_specs:
+            for spec in self.registered_agents:
                 if spec.name == agent_name:
                     target_agent = spec.instance
                     break
@@ -1388,8 +1374,8 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         
         # 获取可用智能体列表
         available_agents = "\n".join([
-            f"- {spec.name}: {spec.description}" for spec in self.agent_specs
-        ]) if self.agent_specs else "无可用智能体"
+            f"- {spec.name}: {spec.description}" for spec in self.registered_agents
+        ]) if self.registered_agents else "无可用智能体"
         
         # 格式化当前结果
         if isinstance(current_result, Result):

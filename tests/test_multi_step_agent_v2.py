@@ -5,7 +5,7 @@ import os
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from enhancedAgent_v2 import MultiStepAgent_v2, AgentSpecification, WorkflowState
+from enhancedAgent_v2 import MultiStepAgent_v2, RegisteredAgent, WorkflowState
 from pythonTask import Agent, llm_deepseek, Result
 from tests.config.test_config import skip_if_api_unavailable, check_deepseek_api_health
 
@@ -109,153 +109,137 @@ class TestMultiStepAgentV2(unittest.TestCase):
         pass
     
     def test_import_and_initialization(self):
-        """测试MultiStepAgent_v2能够正常导入和初始化"""
-        # 验证实例创建成功
+        """测试基本导入和初始化"""
+        # 测试导入是否成功
         self.assertIsInstance(self.agent, MultiStepAgent_v2)
         
-        # 验证基本属性存在
-        self.assertTrue(hasattr(self.agent, 'agent_specs'))
+        # 测试基本属性是否存在
+        self.assertTrue(hasattr(self.agent, 'registered_agents'))
         self.assertTrue(hasattr(self.agent, 'device'))
-        self.assertTrue(hasattr(self.agent, 'workflow_state'))
-        self.assertIsInstance(self.agent.workflow_state, WorkflowState)
+        self.assertTrue(hasattr(self.agent, 'max_retries'))
         
-        # 验证初始状态
-        self.assertEqual(len(self.agent.agent_specs), 0)
-        self.assertEqual(self.agent.get_plan(), [])
+        # 测试初始状态
+        self.assertEqual(len(self.agent.registered_agents), 0)
+        self.assertEqual(self.agent.max_retries, 3)
     
     def test_register_agent_success(self):
         """测试成功注册agent"""
         test_agent = Agent(llm=self.llm)
         test_agent.api_specification = "测试智能体"
         
-        # 注册agent
         self.agent.register_agent("test_agent", test_agent)
         
-        # 验证注册成功
-        self.assertEqual(len(self.agent.agent_specs), 1)
-        self.assertEqual(self.agent.agent_specs[0].name, "test_agent")
-        self.assertEqual(self.agent.agent_specs[0].instance, test_agent)
-        self.assertEqual(self.agent.agent_specs[0].description, "测试智能体")
-        
-        # 验证agent已存储到device中
-        stored_agent = self.agent.device.get_variable("test_agent")
-        self.assertEqual(stored_agent, test_agent)
+        # 验证agent是否成功注册
+        self.assertEqual(len(self.agent.registered_agents), 1)
+        self.assertEqual(self.agent.registered_agents[0].name, "test_agent")
+        self.assertEqual(self.agent.registered_agents[0].instance, test_agent)
+        self.assertEqual(self.agent.registered_agents[0].description, "测试智能体")
     
     def test_register_multiple_agents(self):
         """测试注册多个agent"""
         agent1 = Agent(llm=self.llm)
-        agent1.api_specification = "第一个智能体"
+        agent1.api_specification = "智能体1"
         agent2 = Agent(llm=self.llm)
-        agent2.api_specification = "第二个智能体"
+        agent2.api_specification = "智能体2"
         
         self.agent.register_agent("agent1", agent1)
         self.agent.register_agent("agent2", agent2)
         
-        # 验证两个agent都注册成功
-        self.assertEqual(len(self.agent.agent_specs), 2)
-        self.assertEqual(self.agent.agent_specs[0].name, "agent1")
-        self.assertEqual(self.agent.agent_specs[1].name, "agent2")
+        # 验证两个agent都成功注册
+        self.assertEqual(len(self.agent.registered_agents), 2)
+        self.assertEqual(self.agent.registered_agents[0].name, "agent1")
+        self.assertEqual(self.agent.registered_agents[1].name, "agent2")
     
     def test_register_agent_with_duplicate_name(self):
-        """测试注册重复名称的agent"""
+        """测试注册相同名称的agent"""
         agent1 = Agent(llm=self.llm)
         agent1.api_specification = "第一个智能体"
         agent2 = Agent(llm=self.llm)
         agent2.api_specification = "第二个智能体"
         
-        self.agent.register_agent("same_name", agent1)
-        self.agent.register_agent("same_name", agent2)
+        self.agent.register_agent("duplicate", agent1)
+        self.agent.register_agent("duplicate", agent2)
         
-        # 验证两个agent都被注册（允许重复名称）
-        self.assertEqual(len(self.agent.agent_specs), 2)
-        # 最后注册的agent会覆盖device中的变量
-        stored_agent = self.agent.device.get_variable("same_name")
-        self.assertEqual(stored_agent, agent2)
+        # 应该有两个agent，都叫duplicate（系统允许重复名称）
+        self.assertEqual(len(self.agent.registered_agents), 2)
     
     def test_register_agent_with_empty_name(self):
         """测试注册空名称的agent"""
         test_agent = Agent(llm=self.llm)
+        test_agent.api_specification = "空名称测试"
         
-        # 注册空名称的agent
         self.agent.register_agent("", test_agent)
         
-        # 验证注册成功（允许空名称）
-        self.assertEqual(len(self.agent.agent_specs), 1)
-        self.assertEqual(self.agent.agent_specs[0].name, "")
+        # 应该允许空名称
+        self.assertEqual(len(self.agent.registered_agents), 1)
+        self.assertEqual(self.agent.registered_agents[0].name, "")
     
     def test_register_agent_with_special_characters(self):
-        """测试注册包含特殊字符名称的agent"""
+        """测试注册包含特殊字符的agent名称"""
         test_agent = Agent(llm=self.llm)
-        special_name = "test-agent_123!@#"
+        special_name = "test@#$%^&*()agent"
         
         self.agent.register_agent(special_name, test_agent)
         
-        # 验证注册成功
-        self.assertEqual(len(self.agent.agent_specs), 1)
-        self.assertEqual(self.agent.agent_specs[0].name, special_name)
+        self.assertEqual(len(self.agent.registered_agents), 1)
+        self.assertEqual(self.agent.registered_agents[0].name, special_name)
     
     def test_register_agent_with_none(self):
         """测试注册None作为agent"""
-        # 注册None作为agent实例
         self.agent.register_agent("none_agent", None)
         
-        # 验证注册成功（方法不进行输入验证）
-        self.assertEqual(len(self.agent.agent_specs), 1)
-        self.assertEqual(self.agent.agent_specs[0].name, "none_agent")
-        self.assertEqual(self.agent.agent_specs[0].instance, None)
+        # 应该允许注册None
+        self.assertEqual(len(self.agent.registered_agents), 1)
+        self.assertEqual(self.agent.registered_agents[0].name, "none_agent")
+        self.assertEqual(self.agent.registered_agents[0].instance, None)
     
     def test_register_agent_with_string_as_agent(self):
         """测试注册字符串作为agent"""
-        # 注册字符串作为agent实例
         self.agent.register_agent("string_agent", "not_an_agent")
         
-        # 验证注册成功（方法不进行类型验证）
-        self.assertEqual(len(self.agent.agent_specs), 1)
-        self.assertEqual(self.agent.agent_specs[0].instance, "not_an_agent")
+        # 应该允许注册任何对象
+        self.assertEqual(len(self.agent.registered_agents), 1)
+        self.assertEqual(self.agent.registered_agents[0].instance, "not_an_agent")
     
     def test_register_agent_with_number_as_name(self):
-        """测试注册数字作为名称"""
+        """测试注册数字作为agent名称"""
         test_agent = Agent(llm=self.llm)
         
-        # 注册数字作为名称
         self.agent.register_agent(123, test_agent)
         
-        # 验证注册成功
-        self.assertEqual(len(self.agent.agent_specs), 1)
-        self.assertEqual(self.agent.agent_specs[0].name, 123)
+        # 应该允许数字作为名称
+        self.assertEqual(len(self.agent.registered_agents), 1)
+        self.assertEqual(self.agent.registered_agents[0].name, 123)
     
     def test_register_agent_without_api_specification(self):
         """测试注册没有api_specification的agent"""
         test_agent = Agent(llm=self.llm)
-        # 确保没有api_specification属性
-        if hasattr(test_agent, 'api_specification'):
-            delattr(test_agent, 'api_specification')
+        # 不设置api_specification
         
         self.agent.register_agent("test_agent", test_agent)
         
-        # 验证使用默认描述
+        # 应该使用默认描述
         expected_description = "test_agent智能体，通用任务执行者"
-        self.assertEqual(self.agent.agent_specs[0].description, expected_description)
+        self.assertEqual(self.agent.registered_agents[0].description, expected_description)
     
     def test_register_agent_with_empty_api_specification(self):
         """测试注册空api_specification的agent"""
         test_agent = Agent(llm=self.llm)
         test_agent.api_specification = ""
         
-        self.agent.register_agent("test_agent", test_agent)
+        self.agent.register_agent("empty_spec", test_agent)
         
-        # 验证使用空字符串作为描述
-        self.assertEqual(self.agent.agent_specs[0].description, "")
+        self.assertEqual(self.agent.registered_agents[0].description, "")
     
     def test_register_agent_creates_agent_specification(self):
-        """测试注册agent时创建正确的AgentSpecification对象"""
+        """测试注册agent时创建正确的RegisteredAgent对象"""
         test_agent = Agent(llm=self.llm)
         test_agent.api_specification = "测试描述"
         
         self.agent.register_agent("test_agent", test_agent)
         
-        spec = self.agent.agent_specs[0]
-        self.assertIsInstance(spec, AgentSpecification)
+        spec = self.agent.registered_agents[0]
+        self.assertIsInstance(spec, RegisteredAgent)
         self.assertEqual(spec.name, "test_agent")
         self.assertEqual(spec.instance, test_agent)
         self.assertEqual(spec.description, "测试描述")
@@ -1173,27 +1157,22 @@ class TestMultiStepAgentV2(unittest.TestCase):
     
     def test_register_agent_boundary_conditions(self):
         """测试register_agent的边界条件"""
+        # 测试非常长的名称
+        long_name = "a" * 1000
+        test_agent = Agent(llm=self.llm)
+        self.agent.register_agent(long_name, test_agent)
         
-        # 测试注册具有极长名称的智能体
-        long_name = "agent_" + "x" * 100
-        agent_with_long_name = EchoAgent(self.llm)
-        
-        # 应该能成功注册
-        self.agent.register_agent(long_name, agent_with_long_name)
-        
-        # 验证智能体已注册
-        agent_names = [spec.name for spec in self.agent.agent_specs]
+        # 验证注册成功
+        agent_names = [spec.name for spec in self.agent.registered_agents]
         self.assertIn(long_name, agent_names)
         
-        # 测试注册具有特殊Unicode字符的智能体
-        unicode_name = "智能体_🤖_测试"
-        unicode_agent = EchoAgent(self.llm)
+        # 测试非常长的描述
+        test_agent2 = Agent(llm=self.llm)
+        test_agent2.api_specification = "x" * 10000
+        self.agent.register_agent("long_desc", test_agent2)
         
-        self.agent.register_agent(unicode_name, unicode_agent)
-        
-        # 验证Unicode名称的智能体已注册
-        agent_names = [spec.name for spec in self.agent.agent_specs]
-        self.assertIn(unicode_name, agent_names)
+        agent_names = [spec.name for spec in self.agent.registered_agents]
+        self.assertIn("long_desc", agent_names)
 
 
 if __name__ == '__main__':

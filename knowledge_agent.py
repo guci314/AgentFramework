@@ -215,7 +215,7 @@ llm_gemini_2_flash_openrouter = ChatOpenAI(
     temperature=0,
     model="google/gemini-2.0-flash-001", 
     base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY'
+    api_key=os.getenv('OPENROUTER_API_KEY')
 )
 x:str=llm_gemini_2_flash_openrouter.invoke("你好").content
 print(x)
@@ -247,6 +247,9 @@ sentiment = result.get("sentiment")
 confidence = result.get("confidence", 0)
 print(f"情感: {sentiment}, 置信度: {confidence}")
 
+"""
+
+aider_knowledge = """
 ## 编程任务示例代码
 import aider_demo.aider_programming_demo
 instruction = "在test_example.py中添加add函数测试用例" # 编程指令
