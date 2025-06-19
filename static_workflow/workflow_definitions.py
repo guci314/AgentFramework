@@ -36,6 +36,32 @@ class StepStatus(Enum):
 
 
 @dataclass
+class StepExecution:
+    """步骤执行实例"""
+    execution_id: str                    # 执行ID（唯一标识）
+    step_id: str                        # 步骤ID
+    iteration: int                      # 迭代次数（从1开始）
+    status: StepStatus = StepStatus.PENDING
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    result: Any = None                  # 执行结果
+    error_message: Optional[str] = None
+    retry_count: int = 0               # 重试次数
+    
+    @property
+    def duration(self) -> Optional[float]:
+        """获取执行时长（秒）"""
+        if self.start_time and self.end_time:
+            return (self.end_time - self.start_time).total_seconds()
+        return None
+    
+    @property
+    def is_finished(self) -> bool:
+        """判断是否已结束（无论成功或失败）"""
+        return self.status in [StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.SKIPPED]
+
+
+@dataclass
 class ControlFlow:
     """控制流配置"""
     type: ControlFlowType
@@ -50,6 +76,11 @@ class ControlFlow:
     join_condition: Optional[str] = None      # 并行合并条件
     timeout: Optional[int] = None             # 超时时间（秒）
     
+    # AI评估相关字段（混合方案）
+    ai_evaluate_test_result: bool = False     # 是否启用AI智能评估测试结果
+    ai_confidence_threshold: float = 0.5      # AI评估置信度阈值（0-1）
+    ai_fallback_condition: Optional[str] = None  # AI评估失败时的回退条件
+    
     def __post_init__(self):
         """后处理：类型转换和验证"""
         if isinstance(self.type, str):
@@ -58,7 +89,7 @@ class ControlFlow:
 
 @dataclass 
 class WorkflowStep:
-    """工作流步骤定义"""
+    """工作流步骤定义（无状态，纯数据结构）"""
     id: str                                   # 步骤唯一标识
     name: str                                # 步骤名称
     agent_name: str                          # 执行智能体名称
@@ -67,20 +98,10 @@ class WorkflowStep:
     expected_output: str = ""                # 预期输出
     control_flow: Optional[ControlFlow] = None # 控制流配置
     timeout: Optional[int] = None            # 步骤超时
-    retry_count: int = 0                     # 重试次数
     max_retries: int = 3                     # 最大重试次数
-    
-    # 运行时状态
-    status: StepStatus = StepStatus.PENDING
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    result: Optional[Any] = None
-    error_message: Optional[str] = None
     
     def __post_init__(self):
         """后处理：类型转换和验证"""
-        if isinstance(self.status, str):
-            self.status = StepStatus(self.status)
         if isinstance(self.control_flow, dict):
             self.control_flow = ControlFlow(**self.control_flow)
 
@@ -194,6 +215,24 @@ class WorkflowDefinition:
                     for parallel_step in cf.parallel_steps:
                         if parallel_step not in step_ids:
                             errors.append(f"步骤 {step.id} 的 parallel_steps 引用了不存在的步骤: {parallel_step}")
+                
+                # 检查AI评估字段的合法性
+                if hasattr(cf, 'ai_evaluate_test_result') and cf.ai_evaluate_test_result:
+                    # 检查置信度阈值范围
+                    if hasattr(cf, 'ai_confidence_threshold') and cf.ai_confidence_threshold is not None:
+                        if not (0.0 <= cf.ai_confidence_threshold <= 1.0):
+                            errors.append(f"步骤 {step.id} 的 ai_confidence_threshold 必须在 0.0-1.0 范围内: {cf.ai_confidence_threshold}")
+                    
+                    # 检查回退条件表达式
+                    if hasattr(cf, 'ai_fallback_condition') and cf.ai_fallback_condition:
+                        # 基本语法检查：确保不包含危险字符
+                        if any(char in cf.ai_fallback_condition for char in ['import', 'exec', 'eval', '__']):
+                            errors.append(f"步骤 {step.id} 的 ai_fallback_condition 包含不安全的表达式: {cf.ai_fallback_condition}")
+                
+                # 检查混合配置的逻辑一致性
+                if hasattr(cf, 'ai_evaluate_test_result') and cf.ai_evaluate_test_result and cf.condition:
+                    # 警告：同时使用AI评估和传统条件表达式
+                    errors.append(f"步骤 {step.id} 同时设置了 ai_evaluate_test_result=True 和 condition 表达式，建议只使用一种方式")
         
         # 检查控制规则引用
         for rule in self.control_rules:
@@ -297,10 +336,17 @@ class WorkflowLoader:
                         'exit_on_max': cf.exit_on_max,
                         'parallel_steps': cf.parallel_steps,
                         'join_condition': cf.join_condition,
-                        'timeout': cf.timeout
+                        'timeout': cf.timeout,
+                        # AI评估相关字段
+                        'ai_evaluate_test_result': cf.ai_evaluate_test_result,
+                        'ai_confidence_threshold': cf.ai_confidence_threshold,
+                        'ai_fallback_condition': cf.ai_fallback_condition
                     }
-                    # 移除None值
-                    step_dict['control_flow'] = {k: v for k, v in step_dict['control_flow'].items() if v is not None}
+                    # 移除None值和False值（保持配置文件简洁）
+                    step_dict['control_flow'] = {
+                        k: v for k, v in step_dict['control_flow'].items() 
+                        if v is not None and v is not False
+                    }
                 
                 data['steps'].append(step_dict)
             
@@ -331,3 +377,104 @@ class WorkflowLoader:
         except Exception as e:
             logger.error(f"保存工作流文件失败 {file_path}: {e}")
             raise
+
+
+@dataclass
+class WorkflowExecutionContext:
+    """工作流执行上下文"""
+    workflow_id: str                                        # 工作流执行ID
+    step_executions: Dict[str, List[StepExecution]] = field(default_factory=dict)  # 步骤执行历史
+    current_iteration: Dict[str, int] = field(default_factory=dict)               # 当前迭代次数
+    loop_counters: Dict[str, int] = field(default_factory=dict)                  # 循环计数器
+    runtime_variables: Dict[str, Any] = field(default_factory=dict)              # 运行时变量
+    
+    def get_current_execution(self, step_id: str) -> Optional[StepExecution]:
+        """获取步骤的当前执行实例"""
+        executions = self.step_executions.get(step_id, [])
+        if executions:
+            return executions[-1]  # 返回最新的执行实例
+        return None
+    
+    def get_execution_history(self, step_id: str) -> List[StepExecution]:
+        """获取步骤的执行历史"""
+        return self.step_executions.get(step_id, [])
+    
+    def should_execute_step(self, step_id: str) -> bool:
+        """判断步骤是否应该执行"""
+        current_execution = self.get_current_execution(step_id)
+        
+        # 如果没有执行过，应该执行
+        if not current_execution:
+            return True
+        
+        # 如果当前执行未完成，不应该重复执行
+        if not current_execution.is_finished:
+            return False
+        
+        # 如果已完成，通常不需要重新执行（除非在循环中）
+        # 这个逻辑将在WorkflowEngine中根据控制流进一步判断
+        return True
+    
+    def create_execution(self, step_id: str) -> StepExecution:
+        """为步骤创建新的执行实例"""
+        import uuid
+        
+        # 计算迭代次数
+        iteration = self.current_iteration.get(step_id, 0) + 1
+        self.current_iteration[step_id] = iteration
+        
+        # 创建执行实例
+        execution = StepExecution(
+            execution_id=f"{self.workflow_id}_{step_id}_{iteration}",
+            step_id=step_id,
+            iteration=iteration
+        )
+        
+        # 添加到执行历史
+        if step_id not in self.step_executions:
+            self.step_executions[step_id] = []
+        self.step_executions[step_id].append(execution)
+        
+        return execution
+    
+    def get_step_statistics(self, step_id: str) -> Dict[str, Any]:
+        """获取步骤的执行统计信息"""
+        executions = self.get_execution_history(step_id)
+        if not executions:
+            return {"total_executions": 0}
+        
+        total_executions = len(executions)
+        completed_executions = sum(1 for ex in executions if ex.status == StepStatus.COMPLETED)
+        failed_executions = sum(1 for ex in executions if ex.status == StepStatus.FAILED)
+        total_duration = sum(ex.duration or 0 for ex in executions if ex.duration)
+        
+        return {
+            "total_executions": total_executions,
+            "completed_executions": completed_executions,
+            "failed_executions": failed_executions,
+            "success_rate": completed_executions / total_executions if total_executions > 0 else 0,
+            "total_duration": total_duration,
+            "average_duration": total_duration / total_executions if total_executions > 0 else 0
+        }
+    
+    def get_workflow_statistics(self) -> Dict[str, Any]:
+        """获取整个工作流的执行统计信息"""
+        all_executions = []
+        for executions in self.step_executions.values():
+            all_executions.extend(executions)
+        
+        if not all_executions:
+            return {"total_executions": 0}
+        
+        total_executions = len(all_executions)
+        completed_executions = sum(1 for ex in all_executions if ex.status == StepStatus.COMPLETED)
+        failed_executions = sum(1 for ex in all_executions if ex.status == StepStatus.FAILED)
+        
+        return {
+            "total_step_executions": total_executions,
+            "completed_step_executions": completed_executions,
+            "failed_step_executions": failed_executions,
+            "unique_steps_executed": len(self.step_executions),
+            "current_iterations": dict(self.current_iteration),
+            "loop_counters": dict(self.loop_counters)
+        }

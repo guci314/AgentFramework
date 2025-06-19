@@ -14,18 +14,19 @@ MultiStepAgent_v3的静态工作流架构实现。
 """
 
 from .MultiStepAgent_v3 import MultiStepAgent_v3
-from .static_workflow_engine import StaticWorkflowEngine, WorkflowState, WorkflowExecutionResult
-from .workflow_definitions import WorkflowDefinition, WorkflowStep, WorkflowLoader
+from .static_workflow_engine import StaticWorkflowEngine, WorkflowExecutionResult
+from .workflow_definitions import WorkflowDefinition, WorkflowStep, WorkflowLoader, WorkflowExecutionContext, StepExecution
 from .control_flow_evaluator import ControlFlowEvaluator
 
 __version__ = "1.0.0"
 __all__ = [
     "MultiStepAgent_v3",
     "StaticWorkflowEngine", 
-    "WorkflowState",
     "WorkflowExecutionResult",
     "WorkflowDefinition",
     "WorkflowStep",
     "WorkflowLoader",
+    "WorkflowExecutionContext",
+    "StepExecution",
     "ControlFlowEvaluator"
 ]

@@ -13,11 +13,23 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
-from .workflow_definitions import (
-    WorkflowDefinition, WorkflowStep, ControlFlow, ControlFlowType, 
-    StepStatus, ControlRule
-)
-from .control_flow_evaluator import ControlFlowEvaluator
+try:
+    # 尝试相对导入（当作为包使用时）
+    from .workflow_definitions import (
+        WorkflowDefinition, WorkflowStep, ControlFlow, ControlFlowType, 
+        StepStatus, ControlRule, StepExecution, WorkflowExecutionContext
+    )
+    from .control_flow_evaluator import ControlFlowEvaluator
+except ImportError:
+    # 回退到绝对导入（当直接运行时）
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from workflow_definitions import (
+        WorkflowDefinition, WorkflowStep, ControlFlow, ControlFlowType, 
+        StepStatus, ControlRule, StepExecution, WorkflowExecutionContext
+    )
+    from control_flow_evaluator import ControlFlowEvaluator
 
 logger = logging.getLogger(__name__)
 
@@ -39,24 +51,7 @@ class WorkflowExecutionResult:
     step_results: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class WorkflowState:
-    """工作流执行状态"""
-    current_step_id: Optional[str] = None
-    execution_stack: List[str] = field(default_factory=list)
-    loop_counters: Dict[str, int] = field(default_factory=dict)
-    retry_counters: Dict[str, int] = field(default_factory=dict)
-    runtime_variables: Dict[str, Any] = field(default_factory=dict)
-    parallel_groups: Dict[str, Set[str]] = field(default_factory=dict)
-    completed_parallel_steps: Dict[str, Set[str]] = field(default_factory=dict)
-    step_start_times: Dict[str, datetime] = field(default_factory=dict)
-    
-    def reset_step_status(self, step_id: str) -> None:
-        """重置步骤状态（用于循环）"""
-        if step_id in self.retry_counters:
-            del self.retry_counters[step_id]
-        if step_id in self.step_start_times:
-            del self.step_start_times[step_id]
+# WorkflowState 类已被移除，由 WorkflowExecutionContext 替代
 
 
 class ParallelExecutor:
@@ -113,14 +108,14 @@ class ParallelExecutor:
 class StaticWorkflowEngine:
     """静态工作流执行引擎"""
     
-    def __init__(self, max_parallel_workers: int = 4):
-        self.evaluator = ControlFlowEvaluator()
+    def __init__(self, max_parallel_workers: int = 4, ai_evaluator=None):
+        self.evaluator = ControlFlowEvaluator(ai_evaluator=ai_evaluator)
         self.parallel_executor = ParallelExecutor(max_parallel_workers)
         self.step_executor = None  # 将由MultiStepAgent_v3设置
         
         # 执行状态
         self.workflow_definition = None
-        self.workflow_state = None
+        self.execution_context = None
         self.execution_start_time = None
         
         # 回调函数
@@ -139,7 +134,9 @@ class StaticWorkflowEngine:
         """执行完整工作流"""
         
         self.workflow_definition = workflow_definition
-        self.workflow_state = WorkflowState()
+        import uuid
+        workflow_id = f"workflow_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+        self.execution_context = WorkflowExecutionContext(workflow_id=workflow_id)
         self.execution_start_time = datetime.now()
         
         logger.info(f"开始执行工作流: {workflow_definition.workflow_metadata.name}")
@@ -147,7 +144,7 @@ class StaticWorkflowEngine:
         try:
             # 初始化上下文变量
             if initial_variables:
-                self.workflow_state.runtime_variables.update(initial_variables)
+                self.execution_context.runtime_variables.update(initial_variables)
             
             # 设置评估器上下文
             self._update_evaluator_context()
@@ -170,38 +167,34 @@ class StaticWorkflowEngine:
             return self._generate_execution_result(False, str(e))
     
     def _execute_workflow_iteration(self, step_id: str) -> Optional[str]:
-        """执行一个工作流迭代"""
+        """执行一个工作流迭代（简化版，基于执行上下文）"""
         
         step = self.workflow_definition.get_step_by_id(step_id)
         if not step:
             logger.error(f"找不到步骤: {step_id}")
             return None
         
-        self.workflow_state.current_step_id = step_id
-        
         # 检查全局控制规则
         if self._check_global_control_rules():
             return None
         
-        # 检查步骤是否应该被跳过
-        if step.status in [StepStatus.COMPLETED, StepStatus.SKIPPED]:
-            return self._get_next_step_id(step, True)
-        
-        # 处理不同类型的控制流
+        # 使用新的执行模型：总是尝试执行步骤，让控制流决定是否需要重新执行
         if step.control_flow and step.control_flow.type == ControlFlowType.PARALLEL:
             return self._handle_parallel_execution(step)
         else:
             return self._execute_single_step(step)
     
     def _execute_single_step(self, step: WorkflowStep) -> Optional[str]:
-        """执行单个步骤"""
+        """执行单个步骤（基于执行实例）"""
         
-        logger.info(f"执行步骤: {step.name} ({step.id})")
+        # 创建新的执行实例
+        execution = self.execution_context.create_execution(step.id)
         
-        # 更新步骤状态
-        step.status = StepStatus.RUNNING
-        step.start_time = datetime.now()
-        self.workflow_state.step_start_times[step.id] = step.start_time
+        logger.info(f"执行步骤: {step.name} ({step.id}) - 第{execution.iteration}次迭代")
+        
+        # 更新执行状态
+        execution.status = StepStatus.RUNNING
+        execution.start_time = datetime.now()
         
         # 回调通知
         if self.on_step_start:
@@ -209,7 +202,7 @@ class StaticWorkflowEngine:
         
         try:
             # 检查超时
-            if step.timeout and self._check_step_timeout(step):
+            if step.timeout and self._check_step_timeout(execution):
                 raise TimeoutError(f"步骤 {step.id} 执行超时")
             
             # 执行步骤
@@ -218,10 +211,10 @@ class StaticWorkflowEngine:
             
             result = self.step_executor(step)
             
-            # 更新步骤结果
-            step.result = result
-            step.status = StepStatus.COMPLETED
-            step.end_time = datetime.now()
+            # 更新执行结果
+            execution.result = result
+            execution.status = StepStatus.COMPLETED
+            execution.end_time = datetime.now()
             
             # 更新运行时变量
             self._update_runtime_variables_from_result(step.id, result)
@@ -230,35 +223,32 @@ class StaticWorkflowEngine:
             if self.on_step_complete:
                 self.on_step_complete(step, result)
             
-            logger.info(f"步骤完成: {step.name}")
+            logger.info(f"步骤完成: {step.name} (用时: {execution.duration:.2f}s)")
             
-            # 确定下一步
-            return self._get_next_step_id(step, True)
+            # 确定下一步（基于执行成功）
+            return self._get_next_step_id(step, execution, True)
             
         except Exception as e:
             # 处理步骤失败
-            return self._handle_step_failure(step, e)
+            return self._handle_step_failure(step, execution, e)
     
-    def _handle_step_failure(self, step: WorkflowStep, error: Exception) -> Optional[str]:
-        """处理步骤失败"""
+    def _handle_step_failure(self, step: WorkflowStep, execution: StepExecution, error: Exception) -> Optional[str]:
+        """处理步骤失败（基于执行实例）"""
         
         logger.error(f"步骤失败: {step.name}, 错误: {error}")
         
-        step.status = StepStatus.FAILED
-        step.end_time = datetime.now()
-        step.error_message = str(error)
+        # 更新执行实例状态
+        execution.status = StepStatus.FAILED
+        execution.end_time = datetime.now()
+        execution.error_message = str(error)
         
         # 检查是否需要重试
-        retry_count = self.workflow_state.retry_counters.get(step.id, 0)
-        if retry_count < step.max_retries:
-            # 增加重试计数
-            self.workflow_state.retry_counters[step.id] = retry_count + 1
+        if execution.retry_count < step.max_retries:
+            # 创建重试执行实例
+            retry_execution = self.execution_context.create_execution(step.id)
+            retry_execution.retry_count = execution.retry_count + 1
             
-            logger.info(f"重试步骤: {step.name} (第{retry_count + 1}次)")
-            
-            # 重置步骤状态并重试
-            step.status = StepStatus.PENDING
-            step.retry_count = retry_count + 1
+            logger.info(f"重试步骤: {step.name} (第{retry_execution.retry_count}次)")
             
             return step.id  # 重新执行当前步骤
         
@@ -267,7 +257,7 @@ class StaticWorkflowEngine:
             self.on_step_failed(step, error)
         
         # 确定失败后的下一步
-        return self._get_next_step_id(step, False)
+        return self._get_next_step_id(step, execution, False)
     
     def _handle_parallel_execution(self, step: WorkflowStep) -> Optional[str]:
         """处理并行执行"""
@@ -275,7 +265,10 @@ class StaticWorkflowEngine:
         control_flow = step.control_flow
         if not control_flow.parallel_steps:
             logger.warning(f"并行步骤 {step.id} 没有定义parallel_steps")
-            return self._get_next_step_id(step, True)
+            # 创建执行实例用于获取下一步
+            execution = self.execution_context.create_execution(step.id)
+            execution.status = StepStatus.COMPLETED
+            return self._get_next_step_id(step, execution, True)
         
         # 获取并行步骤
         parallel_steps = []
@@ -287,7 +280,10 @@ class StaticWorkflowEngine:
                 logger.warning(f"找不到并行步骤: {step_id}")
         
         if not parallel_steps:
-            return self._get_next_step_id(step, True)
+            # 创建执行实例用于获取下一步
+            execution = self.execution_context.create_execution(step.id)
+            execution.status = StepStatus.COMPLETED
+            return self._get_next_step_id(step, execution, True)
         
         logger.info(f"开始并行执行 {len(parallel_steps)} 个步骤")
         
@@ -298,48 +294,45 @@ class StaticWorkflowEngine:
             control_flow.join_condition or "all_complete"
         )
         
-        # 更新步骤状态
+        # 创建并行步骤的执行实例
         all_success = True
         for step_id, result in results.items():
-            parallel_step = self.workflow_definition.get_step_by_id(step_id)
+            parallel_execution = self.execution_context.create_execution(step_id)
+            parallel_execution.start_time = datetime.now()
+            parallel_execution.end_time = datetime.now()
+            
             if result and getattr(result, 'success', False):
-                parallel_step.status = StepStatus.COMPLETED
-                parallel_step.result = result
+                parallel_execution.status = StepStatus.COMPLETED
+                parallel_execution.result = result
             else:
-                parallel_step.status = StepStatus.FAILED
+                parallel_execution.status = StepStatus.FAILED
                 all_success = False
         
-        # 更新当前步骤状态
-        step.status = StepStatus.COMPLETED if all_success else StepStatus.FAILED
-        step.end_time = datetime.now()
+        # 创建当前步骤的执行实例
+        execution = self.execution_context.create_execution(step.id)
+        execution.status = StepStatus.COMPLETED if all_success else StepStatus.FAILED
+        execution.start_time = datetime.now()
+        execution.end_time = datetime.now()
         
-        return self._get_next_step_id(step, all_success)
+        return self._get_next_step_id(step, execution, all_success)
     
     def _execute_single_step_for_parallel(self, step: WorkflowStep) -> Any:
-        """并行执行时的单步骤执行"""
+        """并行执行时的单步骤执行（使用执行实例模型）"""
+        # 注意：在并行执行中，执行实例的创建和管理由_handle_parallel_execution负责
+        # 这里只负责实际的执行逻辑
         try:
-            step.status = StepStatus.RUNNING
-            step.start_time = datetime.now()
-            
             if not self.step_executor:
                 raise ValueError("未设置步骤执行器")
             
             result = self.step_executor(step)
-            
-            step.result = result
-            step.status = StepStatus.COMPLETED
-            step.end_time = datetime.now()
-            
             return result
             
         except Exception as e:
-            step.status = StepStatus.FAILED
-            step.end_time = datetime.now()
-            step.error_message = str(e)
+            logger.error(f"并行步骤 {step.id} 执行失败: {e}")
             raise
     
-    def _get_next_step_id(self, current_step: WorkflowStep, success: bool) -> Optional[str]:
-        """根据控制流确定下一步骤ID"""
+    def _get_next_step_id(self, current_step: WorkflowStep, execution: StepExecution, success: bool) -> Optional[str]:
+        """根据控制流确定下一步骤ID（简化版）"""
         
         control_flow = current_step.control_flow
         if not control_flow:
@@ -347,7 +340,7 @@ class StaticWorkflowEngine:
             return self._get_sequential_next_step(current_step.id)
         
         # 更新评估器上下文
-        self._update_evaluator_context(current_step.result)
+        self._update_evaluator_context(execution.result)
         
         if control_flow.type == ControlFlowType.TERMINAL:
             return None
@@ -357,17 +350,13 @@ class StaticWorkflowEngine:
             return next_step_id or self._get_sequential_next_step(current_step.id)
         
         elif control_flow.type == ControlFlowType.CONDITIONAL:
-            # 评估条件
-            if control_flow.condition:
-                condition_result = self.evaluator.evaluate_condition(control_flow.condition)
-                next_step_id = control_flow.success_next if condition_result else control_flow.failure_next
-            else:
-                next_step_id = control_flow.success_next if success else control_flow.failure_next
-            
+            # 评估条件（使用混合方案）
+            condition_result = self.evaluator.evaluate_control_flow_condition(control_flow, success)
+            next_step_id = control_flow.success_next if condition_result else control_flow.failure_next
             return next_step_id or self._get_sequential_next_step(current_step.id)
         
         elif control_flow.type == ControlFlowType.LOOP:
-            return self._handle_loop_control(current_step, success)
+            return self._handle_loop_control(current_step, execution, success)
         
         elif control_flow.type == ControlFlowType.PARALLEL:
             # 并行步骤的后续步骤
@@ -378,14 +367,14 @@ class StaticWorkflowEngine:
             logger.warning(f"未知的控制流类型: {control_flow.type}")
             return self._get_sequential_next_step(current_step.id)
     
-    def _handle_loop_control(self, current_step: WorkflowStep, success: bool) -> Optional[str]:
-        """处理循环控制"""
+    def _handle_loop_control(self, current_step: WorkflowStep, execution: StepExecution, success: bool) -> Optional[str]:
+        """处理循环控制（简化版）"""
         
         control_flow = current_step.control_flow
         loop_key = f"loop_{current_step.id}"
         
-        # 获取当前循环计数
-        current_count = self.workflow_state.loop_counters.get(loop_key, 0)
+        # 获取当前循环计数（使用执行上下文）
+        current_count = self.execution_context.loop_counters.get(loop_key, 0)
         
         # 检查最大迭代次数
         max_iterations = control_flow.max_iterations
@@ -405,17 +394,10 @@ class StaticWorkflowEngine:
         
         if should_continue_loop and success:
             # 继续循环
-            self.workflow_state.loop_counters[loop_key] = current_count + 1
+            self.execution_context.loop_counters[loop_key] = current_count + 1
             
-            # 重置目标步骤的状态
-            if control_flow.loop_target:
-                target_step = self.workflow_definition.get_step_by_id(control_flow.loop_target)
-                if target_step:
-                    target_step.status = StepStatus.PENDING
-                    self.workflow_state.reset_step_status(control_flow.loop_target)
-                
-                logger.info(f"循环回到步骤: {control_flow.loop_target} (第{current_count + 1}次)")
-                return control_flow.loop_target
+            logger.info(f"循环回到步骤: {control_flow.loop_target} (第{current_count + 1}次)")
+            return control_flow.loop_target
         
         # 退出循环
         next_step_id = control_flow.success_next if success else control_flow.failure_next
@@ -441,7 +423,8 @@ class StaticWorkflowEngine:
                     return True
                 
                 elif rule.action == "jump_to" and rule.target:
-                    self.workflow_state.current_step_id = rule.target
+                    # 在新的执行模型中，跳转逻辑由返回的step_id处理
+                    logger.info(f"全局控制规则触发跳转到: {rule.target}")
                     return False
         
         return False
@@ -457,16 +440,16 @@ class StaticWorkflowEngine:
                 except Exception as e:
                     logger.error(f"清理步骤失败: {step.name}, 错误: {e}")
     
-    def _check_step_timeout(self, step: WorkflowStep) -> bool:
+    def _check_step_timeout(self, execution: StepExecution) -> bool:
         """检查步骤是否超时"""
-        if not step.timeout:
+        step = self.workflow_definition.get_step_by_id(execution.step_id)
+        if not step or not step.timeout:
             return False
         
-        start_time = self.workflow_state.step_start_times.get(step.id)
-        if not start_time:
+        if not execution.start_time:
             return False
         
-        return self.evaluator.check_timeout(start_time, step.timeout)
+        return self.evaluator.check_timeout(execution.start_time, step.timeout)
     
     def _update_evaluator_context(self, step_result: Any = None) -> None:
         """更新评估器上下文"""
@@ -476,93 +459,100 @@ class StaticWorkflowEngine:
         
         self.evaluator.set_context(
             global_variables=self.workflow_definition.global_variables,
-            runtime_variables=self.workflow_state.runtime_variables,
+            runtime_variables=self.execution_context.runtime_variables,
             step_result=step_result,
             execution_stats=execution_stats
         )
     
     def _calculate_execution_stats(self) -> Dict[str, Any]:
-        """计算执行统计信息"""
+        """计算执行统计信息（基于执行上下文）"""
         
-        completed_count = sum(1 for step in self.workflow_definition.steps 
-                            if step.status == StepStatus.COMPLETED)
-        failed_count = sum(1 for step in self.workflow_definition.steps 
-                         if step.status == StepStatus.FAILED)
+        # 使用执行上下文的统计信息
+        workflow_stats = self.execution_context.get_workflow_statistics()
         
         current_time = datetime.now()
         execution_time = (current_time - self.execution_start_time).total_seconds()
         
         return {
-            'completed_steps': completed_count,
-            'failed_steps': failed_count,
+            'completed_steps': workflow_stats.get('completed_step_executions', 0),
+            'failed_steps': workflow_stats.get('failed_step_executions', 0),
             'total_steps': len(self.workflow_definition.steps),
+            'total_executions': workflow_stats.get('total_step_executions', 0),
             'execution_time': execution_time,
-            'retry_count': sum(self.workflow_state.retry_counters.values()),
-            'consecutive_failures': self._count_consecutive_failures(),
+            'unique_steps_executed': workflow_stats.get('unique_steps_executed', 0),
+            'current_iterations': workflow_stats.get('current_iterations', {}),
         }
     
-    def _count_consecutive_failures(self) -> int:
-        """计算连续失败次数"""
-        consecutive_failures = 0
-        
-        # 从最近执行的步骤开始倒序计算
-        for step in reversed(self.workflow_definition.steps):
-            if step.status == StepStatus.FAILED:
-                consecutive_failures += 1
-            elif step.status in [StepStatus.COMPLETED, StepStatus.RUNNING]:
-                break
-        
-        return consecutive_failures
     
     def _update_runtime_variables_from_result(self, step_id: str, result: Any) -> None:
         """从步骤结果更新运行时变量"""
         
         # 设置通用结果变量
-        self.workflow_state.runtime_variables[f'{step_id}_result'] = result
-        self.workflow_state.runtime_variables['last_result'] = result
+        self.execution_context.runtime_variables[f'{step_id}_result'] = result
+        self.execution_context.runtime_variables['last_result'] = result
         
         # 根据结果类型设置特定变量
         if hasattr(result, 'success'):
-            self.workflow_state.runtime_variables[f'{step_id}_success'] = result.success
-            self.workflow_state.runtime_variables['last_success'] = result.success
+            self.execution_context.runtime_variables[f'{step_id}_success'] = result.success
+            self.execution_context.runtime_variables['last_success'] = result.success
         
         if hasattr(result, 'success'):
             # 为了兼容使用returncode的工作流，将success转换为returncode风格
             returncode_equivalent = 0 if result.success else 1
-            self.workflow_state.runtime_variables[f'{step_id}_returncode'] = returncode_equivalent
-            self.workflow_state.runtime_variables['last_returncode'] = returncode_equivalent
+            self.execution_context.runtime_variables[f'{step_id}_returncode'] = returncode_equivalent
+            self.execution_context.runtime_variables['last_returncode'] = returncode_equivalent
             
             # 特殊处理测试结果
             if 'test' in step_id.lower():
-                self.workflow_state.runtime_variables['test_passed'] = result.success
-                self.workflow_state.runtime_variables['test_success_rate'] = 1.0 if result.success else 0.0
+                self.execution_context.runtime_variables['test_passed'] = result.success
+                self.execution_context.runtime_variables['test_success_rate'] = 1.0 if result.success else 0.0
     
     def _generate_execution_result(self, success: bool, error_message: str = None) -> WorkflowExecutionResult:
-        """生成工作流执行结果"""
+        """生成工作流执行结果（基于执行上下文）"""
         
         end_time = datetime.now()
         execution_time = (end_time - self.execution_start_time).total_seconds()
         
-        # 统计步骤状态
-        completed_steps = sum(1 for step in self.workflow_definition.steps 
-                            if step.status == StepStatus.COMPLETED)
-        failed_steps = sum(1 for step in self.workflow_definition.steps 
-                         if step.status == StepStatus.FAILED)
-        skipped_steps = sum(1 for step in self.workflow_definition.steps 
-                          if step.status == StepStatus.SKIPPED)
+        # 使用执行上下文统计步骤状态
+        workflow_stats = self.execution_context.get_workflow_statistics()
+        completed_steps = workflow_stats.get('completed_step_executions', 0)
+        failed_steps = workflow_stats.get('failed_step_executions', 0)
         
-        # 收集步骤结果
+        # 计算跳过的步骤（定义了但未执行的步骤）
+        executed_step_ids = set(self.execution_context.step_executions.keys())
+        defined_step_ids = set(step.id for step in self.workflow_definition.steps)
+        skipped_steps = len(defined_step_ids - executed_step_ids)
+        
+        # 收集步骤结果（基于执行上下文）
         step_results = {}
         for step in self.workflow_definition.steps:
-            step_results[step.id] = {
-                'name': step.name,
-                'status': step.status.value,
-                'result': step.result,
-                'start_time': step.start_time.isoformat() if step.start_time else None,
-                'end_time': step.end_time.isoformat() if step.end_time else None,
-                'error_message': step.error_message,
-                'retry_count': step.retry_count
-            }
+            latest_execution = self.execution_context.get_current_execution(step.id)
+            step_stats = self.execution_context.get_step_statistics(step.id)
+            
+            if latest_execution:
+                step_results[step.id] = {
+                    'name': step.name,
+                    'status': latest_execution.status.value,
+                    'result': latest_execution.result,
+                    'start_time': latest_execution.start_time.isoformat() if latest_execution.start_time else None,
+                    'end_time': latest_execution.end_time.isoformat() if latest_execution.end_time else None,
+                    'error_message': latest_execution.error_message,
+                    'retry_count': latest_execution.retry_count,
+                    'total_executions': step_stats['total_executions'],
+                    'success_rate': step_stats['success_rate']
+                }
+            else:
+                step_results[step.id] = {
+                    'name': step.name,
+                    'status': 'not_executed',
+                    'result': None,
+                    'start_time': None,
+                    'end_time': None,
+                    'error_message': None,
+                    'retry_count': 0,
+                    'total_executions': 0,
+                    'success_rate': 0.0
+                }
         
         return WorkflowExecutionResult(
             success=success,
@@ -577,3 +567,4 @@ class StaticWorkflowEngine:
             error_message=error_message,
             step_results=step_results
         )
+    

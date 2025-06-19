@@ -19,11 +19,22 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent_base import Result, reduce_memory_decorator_compress
 from pythonTask import Agent
 from langchain_core.language_models import BaseChatModel
-from result_evaluator import TestResultEvaluator, MockTestResultEvaluator
-
-from .workflow_definitions import WorkflowDefinition, WorkflowStep, WorkflowLoader
-from .static_workflow_engine import StaticWorkflowEngine, WorkflowExecutionResult
-from .control_flow_evaluator import ControlFlowEvaluator
+try:
+    # 尝试相对导入（当作为包使用时）
+    from .result_evaluator import TestResultEvaluator, MockTestResultEvaluator
+    from .workflow_definitions import WorkflowDefinition, WorkflowStep, WorkflowLoader
+    from .static_workflow_engine import StaticWorkflowEngine, WorkflowExecutionResult
+    from .control_flow_evaluator import ControlFlowEvaluator
+except ImportError:
+    # 回退到绝对导入（当直接运行时）
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(current_dir)
+    from result_evaluator import TestResultEvaluator, MockTestResultEvaluator
+    from workflow_definitions import WorkflowDefinition, WorkflowStep, WorkflowLoader
+    from static_workflow_engine import StaticWorkflowEngine, WorkflowExecutionResult
+    from control_flow_evaluator import ControlFlowEvaluator
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +54,6 @@ class MultiStepAgent_v3(Agent):
     采用声明式控制流架构，通过预定义的工作流配置文件
     实现确定性的高性能执行。
     """
-    
     def __init__(
         self,
         llm: BaseChatModel,
@@ -54,7 +64,6 @@ class MultiStepAgent_v3(Agent):
         max_parallel_workers: int = 4,
         workflow_base_path: str = None,
         planning_prompt_template: Optional[str] = None,
-        deepseek_api_key: Optional[str] = None,
         use_mock_evaluator: bool = False
     ):
         """
@@ -69,8 +78,10 @@ class MultiStepAgent_v3(Agent):
             max_parallel_workers: 最大并行工作进程数
             workflow_base_path: 工作流配置文件基础路径
             planning_prompt_template: 自定义规划提示模板
-            deepseek_api_key: DeepSeek API密钥，用于智能测试结果判断
-            use_mock_evaluator: 是否使用模拟评估器（开发/测试用）
+            use_mock_evaluator: 是否强制使用模拟评估器。
+                               False: 尝试使用AI评估器(通过DEEPSEEK_API_KEY环境变量)，
+                                     如无API key则自动降级为模拟评估器
+                               True: 强制使用模拟评估器(开发/测试/离线环境)
         """
         
         # 使用默认的系统消息
@@ -100,12 +111,19 @@ class MultiStepAgent_v3(Agent):
         )
         
         # 初始化智能结果评估器
-        if use_mock_evaluator or not deepseek_api_key:
+        if use_mock_evaluator:
+            # 强制使用模拟评估器
             self.result_evaluator = MockTestResultEvaluator()
-            logger.info("使用模拟测试结果评估器")
+            logger.info("强制使用模拟测试结果评估器")
         else:
-            self.result_evaluator = TestResultEvaluator(api_key=deepseek_api_key)
-            logger.info("使用DeepSeek智能测试结果评估器")
+            # 尝试使用AI评估器，自动降级处理
+            try:
+                self.result_evaluator = TestResultEvaluator()  # 让它自己获取API key
+                logger.info("使用DeepSeek智能测试结果评估器")
+            except Exception as e:
+                # API key 不可用或其他问题，自动降级
+                logger.warning(f"AI评估器初始化失败，降级为模拟评估器: {e}")
+                self.result_evaluator = MockTestResultEvaluator()
         
         # 初始化核心组件（传递AI评估器给工作流引擎）
         self.registered_agents = registered_agents if registered_agents is not None else []
@@ -1109,6 +1127,12 @@ class MultiStepAgent_v3(Agent):
 - 预期输出: {current_step.expected_output}
 """
         
+        # 添加当前执行指令
+        enhanced_instruction += f"""
+## 当前任务指令
+{current_step.instruction}
+"""
+        
         # 添加执行历史
         if execution_history:
             enhanced_instruction += f"""
@@ -1118,11 +1142,8 @@ class MultiStepAgent_v3(Agent):
 {execution_history}
 """
         
-        # 添加当前执行指令
+        # 添加重要提示
         enhanced_instruction += f"""
-## 当前任务指令
-{current_step.instruction}
-
 ## 重要提示
 - 请基于上述执行历史的结果来执行当前任务
 - 避免重复之前已完成的工作

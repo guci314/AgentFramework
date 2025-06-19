@@ -66,7 +66,7 @@
       "timeout": 120,
       "control_flow": {
         "type": "loop",
-        "loop_condition": "code_quality_score < code_quality_threshold AND retry_count < 2",
+        "loop_condition": "workflow_state.improvement_attempts < 2",
         "loop_target": "code_review",
         "max_iterations": 2,
         "exit_on_max": "write_unit_tests"
@@ -127,9 +127,9 @@
       "timeout": 120,
       "control_flow": {
         "type": "loop",
-        "loop_condition": "retry_count < max_fix_attempts",
+        "loop_condition": "workflow_state.fix_attempts < 3",
         "loop_target": "run_tests",
-        "max_iterations": "${max_fix_attempts}",
+        "max_iterations": 3,
         "exit_on_max": "escalate_issues"
       }
     },
@@ -172,7 +172,7 @@
       "timeout": 150,
       "control_flow": {
         "type": "loop",
-        "loop_condition": "retry_count < 2",
+        "loop_condition": "workflow_state.integration_fix_attempts < 2",
         "loop_target": "integration_tests",
         "max_iterations": 2,
         "exit_on_max": "escalate_issues"

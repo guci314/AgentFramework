@@ -54,7 +54,9 @@
       "max_retries": 1,
       "control_flow": {
         "type": "conditional",
-        "condition": "last_result.success == True",
+        "ai_evaluate_test_result": true,
+        "ai_confidence_threshold": 0.8,
+        "ai_fallback_condition": "last_result.success == True",
         "success_next": "complete_workflow",
         "failure_next": "fix_implementation"
       }
@@ -70,9 +72,9 @@
       "max_retries": 2,
       "control_flow": {
         "type": "loop",
-        "loop_condition": "retry_count < max_retries",
+        "loop_condition": null,
         "loop_target": "run_tests",
-        "max_iterations": "${max_retries}",
+        "max_iterations": 3,
         "exit_on_max": "error_handling"
       }
     },

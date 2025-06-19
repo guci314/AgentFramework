@@ -235,11 +235,13 @@ class VariableInterpolator:
 class ControlFlowEvaluator:
     """控制流条件评估器"""
     
-    def __init__(self):
+    def __init__(self, ai_evaluator=None):
         self.evaluator = SafeEvaluator()
         self.interpolator = None
         self.context_variables = {}
         self.runtime_variables = {}
+        self.ai_evaluator = ai_evaluator  # AI结果评估器
+        self.current_step_result = None   # 保存当前步骤结果用于AI评估
     
     def set_context(self, 
                    global_variables: Dict[str, Any] = None,
@@ -289,13 +291,47 @@ class ControlFlowEvaluator:
         self.context_variables = all_variables
         self.evaluator.set_variables(all_variables)
         self.interpolator = VariableInterpolator(all_variables)
+        # 保存步骤结果供AI评估使用
+        self.current_step_result = step_result
+    
+    def evaluate_control_flow_condition(self, control_flow, default_success_state: bool = True) -> bool:
+        """
+        评估ControlFlow的条件（混合方案）
+        
+        Args:
+            control_flow: ControlFlow对象
+            default_success_state: 当没有条件时的默认状态
+            
+        Returns:
+            bool: 条件评估结果
+        """
+        
+        # 混合方案的优先级处理
+        # 1. 首先检查AI评估字段
+        if getattr(control_flow, 'ai_evaluate_test_result', False):
+            logger.info("使用AI布尔字段评估测试结果")
+            return self._evaluate_with_ai_field(control_flow)
+        
+        # 2. 然后检查传统条件表达式
+        elif hasattr(control_flow, 'condition') and control_flow.condition:
+            return self.evaluate_condition(control_flow.condition)
+        
+        # 3. 最后使用默认状态
+        else:
+            return default_success_state
     
     def evaluate_condition(self, condition: str) -> bool:
-        """评估条件表达式"""
+        """评估条件表达式（保持向后兼容）"""
         if not condition:
             return True
         
         try:
+            # 检查是否是AI智能评估条件（字符串方式）
+            if "ai_evaluate_test_result" in condition:
+                logger.info(f"使用AI字符串条件评估测试结果: {condition}")
+                return self._evaluate_with_ai_string(condition)
+            
+            # 传统条件评估
             # 先进行变量插值
             interpolated_condition = self.interpolator.interpolate(condition)
             logger.debug(f"评估条件: {condition} -> {interpolated_condition}")
@@ -309,6 +345,89 @@ class ControlFlowEvaluator:
         except Exception as e:
             logger.error(f"条件评估失败: {condition}, 错误: {e}")
             return False
+    
+    def _evaluate_with_ai_field(self, control_flow) -> bool:
+        """使用AI评估器判断测试结果（布尔字段方式）"""
+        
+        if not self.ai_evaluator:
+            # 尝试使用fallback条件
+            fallback_condition = getattr(control_flow, 'ai_fallback_condition', None)
+            if fallback_condition:
+                logger.warning("AI评估器未配置，使用fallback条件")
+                return self.evaluate_condition(fallback_condition)
+            else:
+                logger.warning("AI评估器未配置，回退到success状态")
+                return getattr(self.current_step_result, 'success', False)
+        
+        if not self.current_step_result:
+            logger.warning("没有步骤结果可供AI评估")
+            return False
+        
+        try:
+            # 使用AI评估器分析结果
+            evaluation = self.ai_evaluator.evaluate_test_result(
+                result_code=getattr(self.current_step_result, 'code', None),
+                result_stdout=getattr(self.current_step_result, 'stdout', None),
+                result_stderr=getattr(self.current_step_result, 'stderr', None),
+                result_return_value=getattr(self.current_step_result, 'return_value', None)
+            )
+            
+            # 检查置信度阈值
+            confidence_threshold = getattr(control_flow, 'ai_confidence_threshold', 0.5)
+            if evaluation["confidence"] < confidence_threshold:
+                logger.warning(f"AI评估置信度 {evaluation['confidence']:.2f} 低于阈值 {confidence_threshold}")
+                # 尝试使用fallback条件
+                fallback_condition = getattr(control_flow, 'ai_fallback_condition', None)
+                if fallback_condition:
+                    logger.info("使用fallback条件")
+                    return self.evaluate_condition(fallback_condition)
+            
+            result = evaluation["passed"]
+            logger.info(f"AI评估结果: {'通过' if result else '失败'} (置信度: {evaluation['confidence']:.2f})")
+            logger.debug(f"评估理由: {evaluation['reason']}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"AI评估失败: {e}")
+            # 尝试使用fallback条件
+            fallback_condition = getattr(control_flow, 'ai_fallback_condition', None)
+            if fallback_condition:
+                logger.info("AI评估失败，使用fallback条件")
+                return self.evaluate_condition(fallback_condition)
+            # 最终回退到传统方法
+            return getattr(self.current_step_result, 'success', False)
+    
+    def _evaluate_with_ai_string(self, condition: str) -> bool:
+        """使用AI评估器判断测试结果（字符串条件方式，保持向后兼容）"""
+        
+        if not self.ai_evaluator:
+            logger.warning("AI评估器未配置，回退到传统方法")
+            return getattr(self.current_step_result, 'success', False)
+        
+        if not self.current_step_result:
+            logger.warning("没有步骤结果可供AI评估")
+            return False
+        
+        try:
+            # 使用AI评估器分析结果
+            evaluation = self.ai_evaluator.evaluate_test_result(
+                result_code=getattr(self.current_step_result, 'code', None),
+                result_stdout=getattr(self.current_step_result, 'stdout', None),
+                result_stderr=getattr(self.current_step_result, 'stderr', None),
+                result_return_value=getattr(self.current_step_result, 'return_value', None)
+            )
+            
+            result = evaluation["passed"]
+            logger.info(f"AI评估结果: {'通过' if result else '失败'} (置信度: {evaluation['confidence']:.2f})")
+            logger.debug(f"评估理由: {evaluation['reason']}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"AI评估失败: {e}")
+            # 回退到传统方法
+            return getattr(self.current_step_result, 'success', False)
     
     def interpolate_value(self, value: Union[str, int, float, Any]) -> Any:
         """插值变量值"""

@@ -16,9 +16,22 @@ MAX_TOKENS = 60000
 
 #region Result
 class Result:
-    '''
+    """
     执行结果类
-    '''
+    
+    用于封装智能体执行操作后的结果信息，包括执行状态、代码、输出等。
+    支持同步和异步执行结果的统一表示。
+    
+    注意：对于单元测试或验证类指令，success=True表示成功完成了测试或验证操作，
+    而不是测试结果是否通过。测试或验证的实际结果（通过/失败）记录在return_value中。
+        
+    Attributes:
+        success (bool): 执行成功标志
+        code (str): 根据指令由语言模型生成的代码
+        stdout (str): 标准输出内容
+        stderr (str): 标准错误输出内容
+        return_value (str): 执行结果的返回值
+    """
     def __init__(self, success: bool, code: str, stdout: str = None, stderr: str = None, return_value: str = None):
         self.success = success
         self.code = code

@@ -80,7 +80,14 @@ def main():
     
     try:
         # 这是核心功能调用
-        result = agent_v3.execute_multi_step("实现一个计算器，保存到文件calculator.py中。编写测试用例，保存到文件test_calculator.py中。运行测试用例。如果测试用例失败，则修复代码，并重新运行测试用例。如果测试用例成功，则结束。")
+        prompt='''
+        实现一个计算器类Calculator，保存到文件calculator.py中。
+        编写测试用例，保存到文件test_calculator.py中。
+        运行测试用例。
+        如果测试用例失败，则修复代码，并重新运行测试用例。
+        如果测试用例成功，则结束。
+        '''
+        result = agent_v3.execute_multi_step(prompt)
         
         print("\n" + "=" * 50)
         print("📊 执行结果")

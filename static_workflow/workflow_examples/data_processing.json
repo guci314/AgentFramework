@@ -52,7 +52,7 @@
       "timeout": 180,
       "control_flow": {
         "type": "loop",
-        "loop_condition": "data_quality_score < data_quality_threshold AND retry_count < 3",
+        "loop_condition": "workflow_state.cleaning_attempts < 3",
         "loop_target": "validate_data_quality",
         "max_iterations": 3,
         "exit_on_max": "error_recovery"
