@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent_base import Result, reduce_memory_decorator_compress
 from pythonTask import Agent
 from langchain_core.language_models import BaseChatModel
+from result_evaluator import TestResultEvaluator, MockTestResultEvaluator
 
 from .workflow_definitions import WorkflowDefinition, WorkflowStep, WorkflowLoader
 from .static_workflow_engine import StaticWorkflowEngine, WorkflowExecutionResult
@@ -52,7 +53,9 @@ class MultiStepAgent_v3(Agent):
         thinker_chat_system_message: Optional[str] = None,
         max_parallel_workers: int = 4,
         workflow_base_path: str = None,
-        planning_prompt_template: Optional[str] = None
+        planning_prompt_template: Optional[str] = None,
+        deepseek_api_key: Optional[str] = None,
+        use_mock_evaluator: bool = False
     ):
         """
         初始化静态工作流智能体
@@ -66,6 +69,8 @@ class MultiStepAgent_v3(Agent):
             max_parallel_workers: 最大并行工作进程数
             workflow_base_path: 工作流配置文件基础路径
             planning_prompt_template: 自定义规划提示模板
+            deepseek_api_key: DeepSeek API密钥，用于智能测试结果判断
+            use_mock_evaluator: 是否使用模拟评估器（开发/测试用）
         """
         
         # 使用默认的系统消息
@@ -94,10 +99,18 @@ class MultiStepAgent_v3(Agent):
             max_retries=max_retries
         )
         
-        # 初始化核心组件
+        # 初始化智能结果评估器
+        if use_mock_evaluator or not deepseek_api_key:
+            self.result_evaluator = MockTestResultEvaluator()
+            logger.info("使用模拟测试结果评估器")
+        else:
+            self.result_evaluator = TestResultEvaluator(api_key=deepseek_api_key)
+            logger.info("使用DeepSeek智能测试结果评估器")
+        
+        # 初始化核心组件（传递AI评估器给工作流引擎）
         self.registered_agents = registered_agents if registered_agents is not None else []
         self.max_retries = max_retries
-        self.workflow_engine = StaticWorkflowEngine(max_parallel_workers)
+        self.workflow_engine = StaticWorkflowEngine(max_parallel_workers, ai_evaluator=self.result_evaluator)
         self.workflow_loader = WorkflowLoader()
         
         # 设置工作流配置基础路径
@@ -350,6 +363,56 @@ class MultiStepAgent_v3(Agent):
             logger.error(error_msg)
             return Result(False, instruction, "", error_msg)
     
+    def evaluate_condition_with_ai(self, condition: str, last_result: Result) -> bool:
+        """
+        使用AI智能评估条件表达式
+        
+        Args:
+            condition: 条件表达式
+            last_result: 上一步的执行结果
+            
+        Returns:
+            bool: 条件是否满足
+        """
+        
+        try:
+            # 检查是否是AI智能评估条件
+            if "ai_evaluate_test_result" in condition:
+                logger.info(f"使用AI评估测试结果: {condition}")
+                
+                # 使用智能评估器判断测试结果
+                evaluation = self.result_evaluator.evaluate_test_result(
+                    result_code=getattr(last_result, 'code', None),
+                    result_stdout=getattr(last_result, 'stdout', None),
+                    result_stderr=getattr(last_result, 'stderr', None),
+                    result_return_value=getattr(last_result, 'return_value', None)
+                )
+                
+                result = evaluation["passed"]
+                logger.info(f"AI评估结果: {'通过' if result else '失败'} (置信度: {evaluation['confidence']:.2f})")
+                logger.debug(f"评估理由: {evaluation['reason']}")
+                
+                return result
+            
+            # 检查是否是传统的success条件
+            elif "last_result.success" in condition:
+                # 传统条件评估
+                if condition == "last_result.success == True":
+                    return getattr(last_result, 'success', False)
+                elif condition == "last_result.success == False":
+                    return not getattr(last_result, 'success', False)
+            
+            # 其他自定义条件可以在这里扩展
+            else:
+                logger.warning(f"未识别的条件类型: {condition}")
+                # 默认返回success状态
+                return getattr(last_result, 'success', False)
+                
+        except Exception as e:
+            logger.error(f"条件评估失败: {e}")
+            # 出错时返回保守结果
+            return False
+    
     def _on_step_start(self, step: WorkflowStep) -> None:
         """步骤开始回调"""
         print(f"\n🚀 开始执行步骤: {step.name} ({step.id})")
@@ -388,6 +451,7 @@ class MultiStepAgent_v3(Agent):
         print(f"跳过步骤: {result.skipped_steps}")
         print(f"执行时间: {result.execution_time:.2f}秒")
     
+    #TODO: 返回值应该是Result类型
     @reduce_memory_decorator_compress
     def execute_multi_step(self, main_instruction: str, interactive: bool = False) -> str:
         """
@@ -441,72 +505,6 @@ class MultiStepAgent_v3(Agent):
             logger.error(f"多步骤任务执行失败: {e}")
             return error_summary
     
-    @reduce_memory_decorator_compress
-    def execute_multi_step_static(self, 
-                                workflow_file: Union[str, Path],
-                                initial_variables: Dict[str, Any] = None) -> str:
-        """
-        静态工作流执行入口方法（直接指定工作流文件）
-        
-        Args:
-            workflow_file: 工作流配置文件路径
-            initial_variables: 初始变量
-            
-        Returns:
-            执行摘要字符串
-        """
-        
-        try:
-            result = self.execute_workflow_from_file(workflow_file, initial_variables)
-            
-            # 生成执行摘要
-            summary = f"""
-## 静态工作流执行摘要
-
-**工作流**: {result.workflow_name}
-**执行状态**: {'成功' if result.success else '失败'}
-**总步骤数**: {result.total_steps}
-**完成步骤**: {result.completed_steps}
-**失败步骤**: {result.failed_steps}
-**跳过步骤**: {result.skipped_steps}
-**执行时间**: {result.execution_time:.2f}秒
-
-### 步骤详情
-"""
-            
-            for step_id, step_info in result.step_results.items():
-                status_icon = {
-                    'completed': '✅',
-                    'failed': '❌',
-                    'skipped': '⏭️',
-                    'pending': '⏸️',
-                    'running': '🔄'
-                }.get(step_info['status'], '❓')
-                
-                summary += f"- {status_icon} **{step_info['name']}** ({step_id}): {step_info['status']}\n"
-                
-                if step_info['error_message']:
-                    summary += f"  - 错误: {step_info['error_message']}\n"
-                
-                if step_info['retry_count'] > 0:
-                    summary += f"  - 重试次数: {step_info['retry_count']}\n"
-            
-            if not result.success and result.error_message:
-                summary += f"\n**错误信息**: {result.error_message}\n"
-            
-            return summary
-            
-        except Exception as e:
-            error_summary = f"""
-## 静态工作流执行失败
-
-**错误**: {str(e)}
-**工作流文件**: {workflow_file}
-
-请检查工作流配置文件是否正确，以及所需的智能体是否已注册。
-"""
-            logger.error(f"静态工作流执行失败: {e}")
-            return error_summary
     
     def _match_workflow_for_instruction(self, instruction: str) -> str:
         """
@@ -590,32 +588,72 @@ class MultiStepAgent_v3(Agent):
 
 # 控制流类型说明
 - sequential: 顺序执行（默认）
-- conditional: 条件分支，基于条件决定下一步
-- loop: 循环执行，可设置循环条件和最大次数
+- conditional: 条件分支，基于上一步结果决定下一步
+- loop: 循环执行，用于重复执行某些步骤直到满足条件
 - parallel: 并行执行多个步骤
 - terminal: 终止节点
 
+# 重要：循环控制与步骤重试的区别
+- **步骤重试**：单个步骤失败时的自动重试机制，由 `max_retries` 控制
+- **工作流循环**：多个步骤之间的循环流程，由 `loop_condition` 控制
+- 不要将这两个概念混合使用！
+
 # 控制流配置示例
-对于conditional类型:
+
+## conditional类型 - 条件分支
+支持两种配置方式：
+
+### 方式1：AI布尔字段（推荐）
 ```json
 "control_flow": {{
   "type": "conditional",
-  "condition": "last_result.success == True",
+  "ai_evaluate_test_result": true,
+  "ai_confidence_threshold": 0.8,
+  "ai_fallback_condition": "last_result.success == True",
   "success_next": "next_step_id",
   "failure_next": "error_handling_step"
 }}
 ```
 
-对于loop类型:
+### 方式2：传统条件表达式
 ```json
 "control_flow": {{
-  "type": "loop", 
-  "loop_condition": "retry_count < max_retries",
-  "loop_target": "previous_step_id",
-  "max_iterations": 3,
-  "exit_on_max": "give_up_step"
+  "type": "conditional", 
+  "condition": "ai_evaluate_test_result == True",
+  "success_next": "next_step_id",
+  "failure_next": "error_handling_step"
 }}
 ```
+
+# AI评估配置说明
+- `ai_evaluate_test_result`: true/false，是否启用AI智能评估测试结果
+- `ai_confidence_threshold`: 0.0-1.0，AI评估置信度阈值，低于此值将使用fallback条件
+- `ai_fallback_condition`: 当AI评估失败或置信度不够时的回退条件
+- 字符串条件 `"ai_evaluate_test_result == True"`: 兼容旧版本的字符串方式
+- 传统条件 `"last_result.success == True"`: 仅判断步骤是否成功执行
+
+# 条件配置建议
+1. 对于测试、验证、构建等步骤，优先使用AI布尔字段方式
+2. 简单场景用布尔字段，复杂场景可组合条件表达式
+3. 始终设置fallback条件确保可靠性
+
+## loop类型 - 循环控制
+```json
+"control_flow": {{
+  "type": "loop",
+  "loop_condition": null,
+  "loop_target": "step3", 
+  "max_iterations": 3,
+  "exit_on_max": "error_handling"
+}}
+```
+
+# 循环控制最佳实践
+- **推荐方式**：使用 `max_iterations` 设置循环次数上限，`loop_condition` 设为 null
+- **设置出口**：必须设置 `exit_on_max` 指定达到最大迭代次数后的跳转步骤
+- **避免复杂条件**：不要使用复杂的工作流状态变量（如 `workflow_state.fix_attempts`）
+- **保持简单**：优先使用引擎内置的循环控制机制
+- 区分步骤重试（`max_retries`）和工作流循环（`max_iterations`）
 
 # 输出格式
 必须严格按照以下JSON格式输出完整的工作流配置:
@@ -941,7 +979,12 @@ class MultiStepAgent_v3(Agent):
         
         # 收集所有有效的步骤ID
         steps = workflow_data.get("steps", [])
-        valid_step_ids = {step.get("id") for step in steps}
+        valid_step_ids = {step.get("id") for step in steps if step.get("id") is not None}
+        
+        # 确保valid_step_ids不为空，避免后续NoneType错误
+        if not valid_step_ids:
+            logger.warning("没有找到有效的步骤ID，跳过引用修复")
+            return
         
         # 修复步骤中的控制流引用
         for i, step in enumerate(steps):
@@ -991,16 +1034,19 @@ class MultiStepAgent_v3(Agent):
             if "exit_on_max" in control_flow:
                 if control_flow["exit_on_max"] and control_flow["exit_on_max"] not in valid_step_ids:
                     logger.warning(f"修复步骤 {step_id} 的无效exit_on_max引用: {control_flow['exit_on_max']}")
-                    # 对于exit_on_max，设为None表示自然结束循环
-                    control_flow["exit_on_max"] = None
+                    # 对于exit_on_max，应该指向终止步骤而不是设为None
+                    terminal_step_id = self._find_or_create_terminal_step(steps, valid_step_ids)
+                    control_flow["exit_on_max"] = terminal_step_id
+                    logger.info(f"将步骤 {step_id} 的 exit_on_max 设置为终止步骤: {terminal_step_id}")
             
             # 修复parallel_steps引用
             if "parallel_steps" in control_flow:
                 parallel_steps = control_flow.get("parallel_steps", [])
-                if isinstance(parallel_steps, list):
+                if isinstance(parallel_steps, list) and parallel_steps:
                     valid_parallel_steps = []
                     for parallel_step_id in parallel_steps:
-                        if parallel_step_id in valid_step_ids:
+                        # 确保parallel_step_id不为None且在valid_step_ids中
+                        if parallel_step_id is not None and parallel_step_id in valid_step_ids:
                             valid_parallel_steps.append(parallel_step_id)
                         else:
                             logger.warning(f"移除步骤 {step_id} 中的无效parallel_steps引用: {parallel_step_id}")
@@ -1191,6 +1237,11 @@ class MultiStepAgent_v3(Agent):
                 continue
             step_ids.add(step["id"])
         
+        # 确保step_ids不为空，避免后续NoneType错误
+        if not step_ids:
+            errors.append("没有找到有效的步骤ID")
+            return {"is_valid": False, "errors": errors}
+        
         # 检查智能体名称
         available_agent_names = {spec.name for spec in self.registered_agents}
         for step in steps:
@@ -1236,12 +1287,54 @@ class MultiStepAgent_v3(Agent):
             if target and target not in step_ids:
                 errors.append(f"控制规则的 target 引用了不存在的步骤: {target}")
         
+        # 检查循环逻辑冲突
+        self._check_loop_logic_conflicts(steps, errors)
+        
         # 检查循环引用（简单检查）
         self._check_circular_references(steps, errors)
         
         is_valid = len(errors) == 0
         return {"is_valid": is_valid, "errors": errors}
     
+    def _check_loop_logic_conflicts(self, steps: List[Dict], errors: List[str]) -> None:
+        """检查循环逻辑冲突"""
+        
+        for step in steps:
+            step_id = step.get("id")
+            control_flow = step.get("control_flow", {})
+            
+            # 只检查类型为loop的步骤
+            if control_flow.get("type") != "loop":
+                continue
+            
+            loop_condition = control_flow.get("loop_condition", "")
+            max_retries = step.get("max_retries", 0)
+            max_iterations = control_flow.get("max_iterations", 0)
+            
+            # 确保loop_condition不为None，避免NoneType错误
+            if loop_condition is None:
+                loop_condition = ""
+            
+            # 检查是否混用了步骤重试和工作流循环概念
+            if loop_condition and "retry_count" in loop_condition and "max_retries" in loop_condition:
+                errors.append(f"步骤 {step_id} 的循环条件错误使用了步骤重试机制 'retry_count < max_retries'，应使用工作流状态变量")
+            
+            # 检查是否同时设置了max_retries和max_iterations且值不一致
+            if max_retries > 0 and max_iterations > 0 and max_retries != max_iterations:
+                errors.append(f"步骤 {step_id} 同时设置了 max_retries({max_retries}) 和 max_iterations({max_iterations})，这可能导致逻辑冲突")
+            
+            # 检查循环条件是否为空
+            if not loop_condition:
+                errors.append(f"步骤 {step_id} 的循环类型缺少 loop_condition")
+            
+            # 检查是否缺少循环目标
+            if not control_flow.get("loop_target"):
+                errors.append(f"步骤 {step_id} 的循环类型缺少 loop_target")
+            
+            # 检查循环条件格式
+            if loop_condition and not any(keyword in loop_condition for keyword in ['workflow_state', 'iteration_count', '<', '>', '==']):
+                errors.append(f"步骤 {step_id} 的循环条件格式可能有误: {loop_condition}")
+
     def _check_circular_references(self, steps: List[Dict], errors: List[str]) -> None:
         """检查循环引用（简单版本）"""
         
@@ -1295,6 +1388,8 @@ class MultiStepAgent_v3(Agent):
                 self._fix_agent_references(workflow_data)
             elif "缺少必要字段" in error:
                 self._add_missing_fields(workflow_data)
+            elif "循环条件错误使用了步骤重试机制" in error or "循环逻辑冲突" in error:
+                self._fix_loop_configuration(workflow_data)
         
         logger.info(f"工作流问题修复完成")
         return workflow_data
@@ -1343,3 +1438,126 @@ class MultiStepAgent_v3(Agent):
                 step["agent_name"] = self.registered_agents[0].name
             if "instruction_type" not in step:
                 step["instruction_type"] = "execution"
+    
+    def _fix_loop_configuration(self, workflow_data: Dict[str, Any]) -> None:
+        """修复循环配置问题"""
+        
+        steps = workflow_data.get("steps", [])
+        
+        for step in steps:
+            step_id = step.get("id")
+            control_flow = step.get("control_flow", {})
+            
+            # 只修复循环类型的步骤
+            if control_flow.get("type") != "loop":
+                continue
+            
+            loop_condition = control_flow.get("loop_condition", "")
+            
+            # 修复错误的循环条件（步骤重试机制）
+            if "retry_count" in loop_condition and "max_retries" in loop_condition:
+                logger.warning(f"修复步骤 {step_id} 的错误循环条件: {loop_condition}")
+                # 替换为正确的工作流状态变量
+                control_flow["loop_condition"] = "workflow_state.fix_attempts < 3"
+                control_flow["max_iterations"] = 3
+                # 清除可能冲突的步骤级重试设置
+                if step.get("max_retries", 0) > 0:
+                    step["max_retries"] = 0
+                    logger.debug(f"清除步骤 {step_id} 的 max_retries 以避免与循环逻辑冲突")
+            
+            # 确保循环步骤有必要的字段
+            if not control_flow.get("loop_condition"):
+                control_flow["loop_condition"] = "workflow_state.iteration_count < 3"
+                logger.debug(f"为步骤 {step_id} 添加默认循环条件")
+            
+            if not control_flow.get("loop_target"):
+                # 尝试找到前一个步骤作为循环目标
+                step_ids = [s.get("id") for s in steps]
+                try:
+                    current_index = step_ids.index(step_id)
+                    if current_index > 0:
+                        control_flow["loop_target"] = step_ids[current_index - 1]
+                    else:
+                        control_flow["loop_target"] = step_id  # 指向自己
+                    logger.debug(f"为步骤 {step_id} 设置循环目标: {control_flow['loop_target']}")
+                except ValueError:
+                    control_flow["loop_target"] = step_id
+            
+            if not control_flow.get("max_iterations"):
+                control_flow["max_iterations"] = 3
+                logger.debug(f"为步骤 {step_id} 设置默认最大迭代次数: 3")
+            
+            # 如果同时设置了max_retries和max_iterations且不一致，统一为max_iterations
+            max_retries = step.get("max_retries", 0)
+            max_iterations = control_flow.get("max_iterations", 0)
+            if max_retries > 0 and max_iterations > 0 and max_retries != max_iterations:
+                logger.warning(f"步骤 {step_id} 的 max_retries({max_retries}) 与 max_iterations({max_iterations}) 不一致，统一为 max_iterations")
+                step["max_retries"] = 0  # 清除步骤级重试，使用循环迭代
+            
+            logger.info(f"修复步骤 {step_id} 的循环配置完成")
+    
+    def _find_or_create_terminal_step(self, steps: List[Dict], valid_step_ids: set) -> str:
+        """
+        查找或创建终止步骤
+        
+        Args:
+            steps: 步骤列表
+            valid_step_ids: 有效的步骤ID集合
+            
+        Returns:
+            终止步骤的ID
+        """
+        
+        # 首先查找现有的终止步骤
+        for step in steps:
+            control_flow = step.get("control_flow", {})
+            if control_flow.get("type") == "terminal":
+                step_id = step.get("id")
+                if step_id in valid_step_ids:
+                    logger.debug(f"找到现有的终止步骤: {step_id}")
+                    return step_id
+        
+        # 如果没有找到终止步骤，查找最后一个步骤并将其设为终止步骤
+        if steps:
+            last_step = steps[-1]
+            last_step_id = last_step.get("id")
+            
+            if last_step_id and last_step_id in valid_step_ids:
+                # 将最后一个步骤的控制流设置为terminal
+                if "control_flow" not in last_step:
+                    last_step["control_flow"] = {}
+                last_step["control_flow"]["type"] = "terminal"
+                
+                logger.info(f"将最后一个步骤设置为终止步骤: {last_step_id}")
+                return last_step_id
+        
+        # 如果还是没有合适的步骤，创建一个新的终止步骤
+        terminal_step_id = "workflow_end"
+        
+        # 确保新步骤ID不与现有ID冲突
+        counter = 1
+        while terminal_step_id in valid_step_ids:
+            terminal_step_id = f"workflow_end_{counter}"
+            counter += 1
+        
+        # 创建终止步骤
+        terminal_step = {
+            "id": terminal_step_id,
+            "name": "工作流结束",
+            "agent_name": self.registered_agents[0].name if self.registered_agents else "default_agent",
+            "instruction": "工作流执行结束，整理和汇总执行结果",
+            "instruction_type": "information",
+            "expected_output": "工作流执行摘要",
+            "timeout": 60,
+            "max_retries": 1,
+            "control_flow": {
+                "type": "terminal"
+            }
+        }
+        
+        # 将新步骤添加到步骤列表
+        steps.append(terminal_step)
+        valid_step_ids.add(terminal_step_id)
+        
+        logger.info(f"创建新的终止步骤: {terminal_step_id}")
+        return terminal_step_id
