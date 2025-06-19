@@ -1511,7 +1511,11 @@ class Agent(AgentBase):
 
     def execute_stream(self, instruction:str) -> Iterator[object]:
         '''
-        执行自然语言指令，返回一个迭代器。迭代器的元素为执行过程中的日志（字符串），最后一个元素为执行结果（Result对象）。
+        执行自然语言指令，返回一个迭代器。
+
+        迭代器的元素：
+          - 前面的元素：执行过程中的日志（字符串）
+          - 最后一个元素：执行结果（Result对象）
         '''
         # 如果不是动作类型，则调用chat_stream方法
         # if not self.classify_instruction(instruction):
