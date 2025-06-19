@@ -1291,7 +1291,7 @@ class Agent(AgentBase):
             response_format: 可选参数，指定返回格式的字典。例如 {"type": "json_object"}
 
         Yields:
-            object: 模型响应的文本片段或Result对象
+            object: 迭代器前面的元素是执行过程日志（字符串），最后一个元素是Result对象
         '''
         content = ""
         for chunk in self.thinker.chat_stream(message, response_format):
