@@ -1284,7 +1284,14 @@ class Agent(AgentBase):
 
     def chat_stream(self,message:str,response_format:Optional[Dict]=None)->Iterator[object]:
         '''
-        与LLM进行对话
+        与LLM进行流式对话
+
+        Args:
+            message: 用户输入的消息
+            response_format: 可选参数，指定返回格式的字典。例如 {"type": "json_object"}
+
+        Yields:
+            object: 模型响应的文本片段或Result对象
         '''
         content = ""
         for chunk in self.thinker.chat_stream(message, response_format):
