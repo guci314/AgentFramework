@@ -37,7 +37,7 @@ class WorkflowExecutionContext:
 - **特点**：
   - **双模状态存储**：
     - 自然语言描述 (`current_global_state`)
-    - 结构化变量 (`runtime_variables`)
+    - 结构化变量 (`runtime_variables`) # 是否需要添加schema支持？
   - **完整生命周期管理**：
     - 版本控制 (`state_update_history`)
     - 状态更新接口 (`update_global_state()`)
