@@ -128,7 +128,12 @@ class MultiStepAgent_v3(Agent):
         # 初始化核心组件（传递AI评估器给工作流引擎）
         self.registered_agents = registered_agents if registered_agents is not None else []
         self.max_retries = max_retries
-        self.workflow_engine = StaticWorkflowEngine(max_parallel_workers, ai_evaluator=self.result_evaluator)
+        self.workflow_engine = StaticWorkflowEngine(
+            max_parallel_workers=max_parallel_workers, 
+            ai_evaluator=self.result_evaluator,
+            llm=llm,  # 传递LLM用于状态更新
+            enable_state_updates=True  # 默认启用状态更新
+        )
         self.workflow_loader = WorkflowLoader()
         
         # 设置工作流配置基础路径
@@ -1104,17 +1109,14 @@ class MultiStepAgent_v3(Agent):
     
     def _build_enhanced_instruction(self, current_step: WorkflowStep) -> str:
         """
-        构建包含执行历史的增强指令
+        构建包含全局状态的增强指令
         
         Args:
             current_step: 当前要执行的步骤
             
         Returns:
-            包含历史上下文的增强指令
+            包含全局状态上下文的增强指令
         """
-        
-        # 获取已完成步骤的历史
-        execution_history = self._get_execution_history(current_step)
         
         # 构建基本指令信息
         enhanced_instruction = f"""# 工作流步骤执行
@@ -1133,23 +1135,30 @@ class MultiStepAgent_v3(Agent):
 {current_step.instruction}
 """
         
-        # 添加执行历史
-        if execution_history:
+        # 添加全局状态（替换执行历史）
+        global_state = self.workflow_engine.get_current_global_state()
+        if global_state:
             enhanced_instruction += f"""
-## 执行历史上下文
-以下是之前已完成的步骤及其结果，请基于这些信息执行当前任务：
+## 工作流当前状态
+以下是工作流的当前整体状态，请基于这些信息执行当前任务：
 
-{execution_history}
+{global_state}
+"""
+        else:
+            # 如果没有全局状态，添加基本提示
+            enhanced_instruction += f"""
+## 工作流状态
+工作流刚开始执行，这是第一个步骤。
 """
         
         # 添加重要提示
         enhanced_instruction += f"""
 ## 重要提示
-- 请基于上述执行历史的结果来执行当前任务
+- 请基于上述工作流状态信息来执行当前任务
 - 避免重复之前已完成的工作
-- 确保与前面步骤的输出保持一致性
+- 确保与整体项目目标保持一致性
 - 如果是代码相关任务，请确保代码的正确性和完整性
-- 如果需要引用前面步骤的结果，请明确说明来源
+- 如果需要引用前面步骤的结果，请从状态信息中获取
 """
         
         return enhanced_instruction
@@ -1157,6 +1166,8 @@ class MultiStepAgent_v3(Agent):
     def _get_execution_history(self, current_step: WorkflowStep) -> str:
         """
         获取当前步骤之前的执行历史
+        
+        ⚠️ 已废弃：此方法已被全局状态管理替代，建议使用 workflow_engine.get_current_global_state()
         
         Args:
             current_step: 当前步骤

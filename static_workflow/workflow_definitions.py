@@ -25,8 +25,8 @@ class ControlFlowType(Enum):
     TERMINAL = "terminal"         # 终止执行
 
 
-class StepStatus(Enum):
-    """步骤状态枚举"""
+class StepExecutionStatus(Enum):
+    """步骤执行状态枚举"""
     PENDING = "pending"           # 待执行
     RUNNING = "running"           # 运行中
     COMPLETED = "completed"       # 已完成
@@ -41,7 +41,7 @@ class StepExecution:
     execution_id: str                    # 执行ID（唯一标识）
     step_id: str                        # 步骤ID
     iteration: int                      # 迭代次数（从1开始）
-    status: StepStatus = StepStatus.PENDING
+    status: StepExecutionStatus = StepExecutionStatus.PENDING
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     result: Any = None                  # 执行结果
@@ -58,7 +58,7 @@ class StepExecution:
     @property
     def is_finished(self) -> bool:
         """判断是否已结束（无论成功或失败）"""
-        return self.status in [StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.SKIPPED]
+        return self.status in [StepExecutionStatus.COMPLETED, StepExecutionStatus.FAILED, StepExecutionStatus.SKIPPED]
 
 
 @dataclass
@@ -146,7 +146,8 @@ class WorkflowDefinition:
     """完整的工作流定义"""
     workflow_metadata: WorkflowMetadata
     steps: List[WorkflowStep]
-    global_variables: Dict[str, Any] = field(default_factory=dict)
+    global_variables: Dict[str, Any] = field(default_factory=dict)  # 保留以确保向后兼容性
+    global_state: str = ""  # 新增：自然语言描述的全局状态
     control_rules: List[ControlRule] = field(default_factory=list)
     error_handling: ErrorHandling = field(default_factory=ErrorHandling)
     
@@ -302,6 +303,7 @@ class WorkflowLoader:
                     'created_at': workflow.workflow_metadata.created_at.isoformat() if workflow.workflow_metadata.created_at else None
                 },
                 'global_variables': workflow.global_variables,
+                'global_state': workflow.global_state,
                 'steps': [],
                 'control_rules': [],
                 'error_handling': {
@@ -387,6 +389,8 @@ class WorkflowExecutionContext:
     current_iteration: Dict[str, int] = field(default_factory=dict)               # 当前迭代次数
     loop_counters: Dict[str, int] = field(default_factory=dict)                  # 循环计数器
     runtime_variables: Dict[str, Any] = field(default_factory=dict)              # 运行时变量
+    current_global_state: str = ""                                              # 当前全局状态（自然语言）
+    state_update_history: List[str] = field(default_factory=list)              # 状态更新历史
     
     def get_current_execution(self, step_id: str) -> Optional[StepExecution]:
         """获取步骤的当前执行实例"""
@@ -444,8 +448,8 @@ class WorkflowExecutionContext:
             return {"total_executions": 0}
         
         total_executions = len(executions)
-        completed_executions = sum(1 for ex in executions if ex.status == StepStatus.COMPLETED)
-        failed_executions = sum(1 for ex in executions if ex.status == StepStatus.FAILED)
+        completed_executions = sum(1 for ex in executions if ex.status == StepExecutionStatus.COMPLETED)
+        failed_executions = sum(1 for ex in executions if ex.status == StepExecutionStatus.FAILED)
         total_duration = sum(ex.duration or 0 for ex in executions if ex.duration)
         
         return {
@@ -467,8 +471,8 @@ class WorkflowExecutionContext:
             return {"total_executions": 0}
         
         total_executions = len(all_executions)
-        completed_executions = sum(1 for ex in all_executions if ex.status == StepStatus.COMPLETED)
-        failed_executions = sum(1 for ex in all_executions if ex.status == StepStatus.FAILED)
+        completed_executions = sum(1 for ex in all_executions if ex.status == StepExecutionStatus.COMPLETED)
+        failed_executions = sum(1 for ex in all_executions if ex.status == StepExecutionStatus.FAILED)
         
         return {
             "total_step_executions": total_executions,
@@ -478,3 +482,29 @@ class WorkflowExecutionContext:
             "current_iterations": dict(self.current_iteration),
             "loop_counters": dict(self.loop_counters)
         }
+    
+    def update_global_state(self, new_state: str) -> None:
+        """更新全局状态"""
+        if self.current_global_state:
+            # 保存到历史
+            self.state_update_history.append(self.current_global_state)
+        self.current_global_state = new_state
+    
+    def get_state_summary(self) -> str:
+        """获取状态摘要，包含最新状态和更新次数"""
+        update_count = len(self.state_update_history)
+        if not self.current_global_state:
+            return "工作流尚未开始，无全局状态信息。"
+        return f"""
+当前全局状态（第{update_count + 1}次更新）：
+{self.current_global_state}
+
+状态更新历史记录：{update_count}次
+"""
+    
+    def get_state_history(self, limit: int = 5) -> List[str]:
+        """获取最近的状态历史"""
+        recent_history = self.state_update_history[-limit:] if limit > 0 else self.state_update_history
+        if self.current_global_state:
+            recent_history.append(self.current_global_state)
+        return recent_history

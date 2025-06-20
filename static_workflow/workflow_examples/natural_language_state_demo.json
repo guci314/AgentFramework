@@ -1,0 +1,127 @@
+{
+  "workflow_metadata": {
+    "name": "自然语言状态演示",
+    "version": "1.0",
+    "description": "演示新的自然语言全局状态管理功能的示例工作流",
+    "author": "StaticWorkflow System"
+  },
+  "global_variables": {
+    "project_name": "智能计算器",
+    "version": "1.0.0"
+  },
+  "global_state": "项目开始：准备开发一个智能计算器程序。目标是创建一个功能完整、经过充分测试的计算器应用。",
+  "steps": [
+    {
+      "id": "step1",
+      "name": "需求分析",
+      "agent_name": "analyst",
+      "instruction": "分析计算器的功能需求，定义核心功能和技术规格",
+      "instruction_type": "execution",
+      "expected_output": "详细的需求分析文档，包含功能列表和技术要求",
+      "timeout": 300,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "step2",
+        "failure_next": null
+      }
+    },
+    {
+      "id": "step2", 
+      "name": "设计架构",
+      "agent_name": "architect",
+      "instruction": "基于需求分析结果，设计计算器的软件架构和模块结构",
+      "instruction_type": "execution",
+      "expected_output": "架构设计文档，包含模块划分和接口定义",
+      "timeout": 400,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "step3",
+        "failure_next": "step1"
+      }
+    },
+    {
+      "id": "step3",
+      "name": "实现核心功能",
+      "agent_name": "coder",
+      "instruction": "实现计算器的核心计算功能，包括基本的四则运算",
+      "instruction_type": "execution", 
+      "expected_output": "完整的计算器核心代码，包含add、subtract、multiply、divide函数",
+      "timeout": 600,
+      "max_retries": 3,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": "step4",
+        "failure_next": "step2"
+      }
+    },
+    {
+      "id": "step4",
+      "name": "编写测试用例",
+      "agent_name": "tester",
+      "instruction": "为计算器核心功能编写全面的测试用例，确保代码质量",
+      "instruction_type": "execution",
+      "expected_output": "完整的测试套件，覆盖所有核心功能和边界情况",
+      "timeout": 400,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential", 
+        "success_next": "step5",
+        "failure_next": "step3"
+      }
+    },
+    {
+      "id": "step5",
+      "name": "运行测试验证",
+      "agent_name": "tester",
+      "instruction": "运行所有测试用例，验证计算器功能的正确性",
+      "instruction_type": "execution",
+      "expected_output": "测试执行报告，显示所有测试通过",
+      "timeout": 300,
+      "max_retries": 1,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "所有测试都通过，没有失败的用例",
+        "success_next": "step6",
+        "failure_next": "step3"
+      }
+    },
+    {
+      "id": "step6",
+      "name": "代码质量检查",
+      "agent_name": "reviewer",
+      "instruction": "对代码进行质量检查，确保符合编程规范和最佳实践",
+      "instruction_type": "execution",
+      "expected_output": "代码质量报告，确认代码符合标准",
+      "timeout": 300,
+      "max_retries": 1,
+      "control_flow": {
+        "type": "conditional",
+        "condition": "代码质量良好，符合所有编程规范",
+        "success_next": "step7",
+        "failure_next": "step3"
+      }
+    },
+    {
+      "id": "step7",
+      "name": "生成项目文档",
+      "agent_name": "documenter", 
+      "instruction": "生成完整的项目文档，包括使用说明和API文档",
+      "instruction_type": "execution",
+      "expected_output": "完整的项目文档，包含README、API文档和使用示例",
+      "timeout": 400,
+      "max_retries": 2,
+      "control_flow": {
+        "type": "sequential",
+        "success_next": null,
+        "failure_next": "step6"
+      }
+    }
+  ],
+  "control_rules": [],
+  "error_handling": {
+    "default_strategy": "retry",
+    "escalation_rules": []
+  }
+}

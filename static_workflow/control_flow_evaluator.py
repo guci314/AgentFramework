@@ -235,19 +235,22 @@ class VariableInterpolator:
 class ControlFlowEvaluator:
     """控制流条件评估器"""
     
-    def __init__(self, ai_evaluator=None):
+    def __init__(self, ai_evaluator=None, llm=None):
         self.evaluator = SafeEvaluator()
         self.interpolator = None
         self.context_variables = {}
         self.runtime_variables = {}
         self.ai_evaluator = ai_evaluator  # AI结果评估器
         self.current_step_result = None   # 保存当前步骤结果用于AI评估
+        self.llm = llm  # 用于自然语言条件评估
+        self.current_global_state = ""  # 当前全局状态
     
     def set_context(self, 
                    global_variables: Dict[str, Any] = None,
                    runtime_variables: Dict[str, Any] = None,
                    step_result: Any = None,
-                   execution_stats: Dict[str, Any] = None) -> None:
+                   execution_stats: Dict[str, Any] = None,
+                   global_state: str = None) -> None:
         """设置评估上下文"""
         
         # 合并所有变量
@@ -293,6 +296,9 @@ class ControlFlowEvaluator:
         self.interpolator = VariableInterpolator(all_variables)
         # 保存步骤结果供AI评估使用
         self.current_step_result = step_result
+        # 保存全局状态
+        if global_state is not None:
+            self.current_global_state = global_state
     
     def evaluate_control_flow_condition(self, control_flow, default_success_state: bool = True) -> bool:
         """
@@ -466,5 +472,134 @@ class ControlFlowEvaluator:
         self.runtime_variables[name] = value
         self.context_variables[name] = value
         self.evaluator.set_variables(self.context_variables)
-        if self.interpolator:
-            self.interpolator.variables = self.context_variables
+    
+    def evaluate_natural_language_condition(self, condition: str) -> bool:
+        """
+        评估自然语言条件
+        
+        Args:
+            condition: 自然语言描述的条件
+            
+        Returns:
+            bool: 条件评估结果
+        """
+        
+        if not self.llm:
+            logger.warning("LLM未配置，无法评估自然语言条件，返回False")
+            return False
+            
+        if not condition or not condition.strip():
+            logger.warning("条件为空，返回False")
+            return False
+            
+        try:
+            return self._evaluate_with_llm(condition)
+        except Exception as e:
+            logger.error(f"自然语言条件评估失败: {e}")
+            return False
+    
+    def _evaluate_with_llm(self, condition: str) -> bool:
+        """使用LLM评估自然语言条件"""
+        
+        evaluation_prompt = self._build_condition_evaluation_prompt(condition)
+        
+        # 调用LLM
+        messages = [
+            {
+                "role": "system",
+                "content": """你是一个工作流条件评估专家，负责基于当前工作流状态判断给定条件是否满足。
+
+要求：
+1. 仔细分析工作流的当前状态
+2. 理解条件的含义
+3. 基于状态信息做出准确判断
+4. 只返回 true 或 false，不要其他解释
+"""
+            },
+            {
+                "role": "user",
+                "content": evaluation_prompt
+            }
+        ]
+        
+        # 使用不同的LLM接口
+        if hasattr(self.llm, 'invoke'):
+            # LangChain 接口
+            response = self.llm.invoke(messages)
+            content = response.content if hasattr(response, 'content') else str(response)
+        elif hasattr(self.llm, 'chat'):
+            # 原始LLM接口
+            content = self.llm.chat(evaluation_prompt)
+        else:
+            # 其他接口
+            content = self.llm(evaluation_prompt)
+        
+        # 解析结果
+        content = content.strip().lower()
+        
+        # 匹配布尔值
+        if 'true' in content or '是' in content or '满足' in content or '成功' in content:
+            return True
+        elif 'false' in content or '否' in content or '不满足' in content or '失败' in content:
+            return False
+        else:
+            logger.warning(f"LLM返回的结果无法解析为布尔值: {content}")
+            return False
+    
+    def _build_condition_evaluation_prompt(self, condition: str) -> str:
+        """构建条件评估的提示词"""
+        
+        # 构建当前状态信息
+        state_info = ""
+        if self.current_global_state:
+            state_info = f"""
+## 当前工作流状态
+{self.current_global_state}
+"""
+        
+        # 构建步骤结果信息
+        result_info = ""
+        if self.current_step_result:
+            result_info = f"""
+## 最近步骤执行结果
+- 执行状态: {'成功' if getattr(self.current_step_result, 'success', False) else '失败'}
+"""
+            if hasattr(self.current_step_result, 'stdout') and self.current_step_result.stdout:
+                result_info += f"- 输出: {str(self.current_step_result.stdout)[:200]}...\n"
+            if hasattr(self.current_step_result, 'return_value') and self.current_step_result.return_value:
+                result_info += f"- 返回值: {str(self.current_step_result.return_value)[:200]}...\n"
+        
+        # 构建变量信息
+        variables_info = ""
+        if self.context_variables:
+            important_vars = {k: v for k, v in self.context_variables.items() 
+                            if not k.startswith('_') and k not in ['today', 'now', 'current_timestamp']}
+            if important_vars:
+                variables_info = f"""
+## 当前变量状态
+{str(important_vars)[:300]}...
+"""
+        
+        prompt = f"""# 工作流条件评估任务
+
+{state_info}
+{result_info}
+{variables_info}
+
+## 需要评估的条件
+{condition}
+
+## 评估要求
+请基于以上工作流状态信息，判断给定条件是否满足。
+
+- 如果条件满足，请回答: true
+- 如果条件不满足，请回答: false
+
+只需要回答 true 或 false，不需要其他解释。
+"""
+        
+        return prompt
+    
+    def can_evaluate_natural_language(self) -> bool:
+        """检查是否支持自然语言条件评估"""
+        return self.llm is not None

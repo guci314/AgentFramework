@@ -17,9 +17,10 @@ try:
     # 尝试相对导入（当作为包使用时）
     from .workflow_definitions import (
         WorkflowDefinition, WorkflowStep, ControlFlow, ControlFlowType, 
-        StepStatus, ControlRule, StepExecution, WorkflowExecutionContext
+        StepExecutionStatus, ControlRule, StepExecution, WorkflowExecutionContext
     )
     from .control_flow_evaluator import ControlFlowEvaluator
+    from .global_state_updater import GlobalStateUpdater
 except ImportError:
     # 回退到绝对导入（当直接运行时）
     import sys
@@ -27,9 +28,10 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     from workflow_definitions import (
         WorkflowDefinition, WorkflowStep, ControlFlow, ControlFlowType, 
-        StepStatus, ControlRule, StepExecution, WorkflowExecutionContext
+        StepExecutionStatus, ControlRule, StepExecution, WorkflowExecutionContext
     )
     from control_flow_evaluator import ControlFlowEvaluator
+    from global_state_updater import GlobalStateUpdater
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +110,13 @@ class ParallelExecutor:
 class StaticWorkflowEngine:
     """静态工作流执行引擎"""
     
-    def __init__(self, max_parallel_workers: int = 4, ai_evaluator=None):
-        self.evaluator = ControlFlowEvaluator(ai_evaluator=ai_evaluator)
+    def __init__(self, max_parallel_workers: int = 4, ai_evaluator=None, llm=None, enable_state_updates: bool = True):
+        self.evaluator = ControlFlowEvaluator(ai_evaluator=ai_evaluator, llm=llm)
         self.parallel_executor = ParallelExecutor(max_parallel_workers)
         self.step_executor = None  # 将由MultiStepAgent_v3设置
+        
+        # 状态更新器
+        self.state_updater = GlobalStateUpdater(llm=llm, enable_updates=enable_state_updates)
         
         # 执行状态
         self.workflow_definition = None
@@ -193,7 +198,7 @@ class StaticWorkflowEngine:
         logger.info(f"执行步骤: {step.name} ({step.id}) - 第{execution.iteration}次迭代")
         
         # 更新执行状态
-        execution.status = StepStatus.RUNNING
+        execution.status = StepExecutionStatus.RUNNING
         execution.start_time = datetime.now()
         
         # 回调通知
@@ -213,7 +218,7 @@ class StaticWorkflowEngine:
             
             # 更新执行结果
             execution.result = result
-            execution.status = StepStatus.COMPLETED
+            execution.status = StepExecutionStatus.COMPLETED
             execution.end_time = datetime.now()
             
             # 更新运行时变量
@@ -222,6 +227,9 @@ class StaticWorkflowEngine:
             # 回调通知
             if self.on_step_complete:
                 self.on_step_complete(step, result)
+            
+            # 更新全局状态
+            self._update_global_state(step, execution)
             
             logger.info(f"步骤完成: {step.name} (用时: {execution.duration:.2f}s)")
             
@@ -238,7 +246,7 @@ class StaticWorkflowEngine:
         logger.error(f"步骤失败: {step.name}, 错误: {error}")
         
         # 更新执行实例状态
-        execution.status = StepStatus.FAILED
+        execution.status = StepExecutionStatus.FAILED
         execution.end_time = datetime.now()
         execution.error_message = str(error)
         
@@ -267,7 +275,7 @@ class StaticWorkflowEngine:
             logger.warning(f"并行步骤 {step.id} 没有定义parallel_steps")
             # 创建执行实例用于获取下一步
             execution = self.execution_context.create_execution(step.id)
-            execution.status = StepStatus.COMPLETED
+            execution.status = StepExecutionStatus.COMPLETED
             return self._get_next_step_id(step, execution, True)
         
         # 获取并行步骤
@@ -282,7 +290,7 @@ class StaticWorkflowEngine:
         if not parallel_steps:
             # 创建执行实例用于获取下一步
             execution = self.execution_context.create_execution(step.id)
-            execution.status = StepStatus.COMPLETED
+            execution.status = StepExecutionStatus.COMPLETED
             return self._get_next_step_id(step, execution, True)
         
         logger.info(f"开始并行执行 {len(parallel_steps)} 个步骤")
@@ -302,15 +310,15 @@ class StaticWorkflowEngine:
             parallel_execution.end_time = datetime.now()
             
             if result and getattr(result, 'success', False):
-                parallel_execution.status = StepStatus.COMPLETED
+                parallel_execution.status = StepExecutionStatus.COMPLETED
                 parallel_execution.result = result
             else:
-                parallel_execution.status = StepStatus.FAILED
+                parallel_execution.status = StepExecutionStatus.FAILED
                 all_success = False
         
         # 创建当前步骤的执行实例
         execution = self.execution_context.create_execution(step.id)
-        execution.status = StepStatus.COMPLETED if all_success else StepStatus.FAILED
+        execution.status = StepExecutionStatus.COMPLETED if all_success else StepExecutionStatus.FAILED
         execution.start_time = datetime.now()
         execution.end_time = datetime.now()
         
@@ -461,7 +469,8 @@ class StaticWorkflowEngine:
             global_variables=self.workflow_definition.global_variables,
             runtime_variables=self.execution_context.runtime_variables,
             step_result=step_result,
-            execution_stats=execution_stats
+            execution_stats=execution_stats,
+            global_state=self.execution_context.current_global_state
         )
     
     def _calculate_execution_stats(self) -> Dict[str, Any]:
@@ -567,4 +576,68 @@ class StaticWorkflowEngine:
             error_message=error_message,
             step_results=step_results
         )
+    
+    def _update_global_state(self, step: WorkflowStep, execution: StepExecution) -> None:
+        """更新全局状态"""
+        try:
+            # 获取当前状态
+            current_state = self.execution_context.current_global_state
+            
+            # 如果是第一次更新，从工作流定义中获取初始状态
+            if not current_state and self.workflow_definition.global_state:
+                current_state = self.workflow_definition.global_state
+            
+            # 构建工作流上下文信息
+            workflow_context = self._build_workflow_context()
+            
+            # 使用状态更新器更新状态
+            new_state = self.state_updater.update_state(
+                current_state=current_state,
+                step=step,
+                execution=execution,
+                workflow_context=workflow_context
+            )
+            
+            # 更新执行上下文中的状态
+            if new_state != current_state:
+                self.execution_context.update_global_state(new_state)
+                logger.info(f"全局状态已更新 (步骤: {step.name})")
+                logger.debug(f"新状态: {new_state[:200]}...")
+                
+        except Exception as e:
+            logger.warning(f"全局状态更新失败: {e}")
+    
+    def _build_workflow_context(self) -> str:
+        """构建工作流上下文信息"""
+        if not self.workflow_definition:
+            return ""
+            
+        context_parts = []
+        
+        # 工作流基本信息
+        metadata = self.workflow_definition.workflow_metadata
+        context_parts.append(f"工作流: {metadata.name}")
+        if metadata.description:
+            context_parts.append(f"描述: {metadata.description}")
+        
+        # 执行统计
+        stats = self.execution_context.get_workflow_statistics()
+        total_steps = stats.get('total_step_executions', 0)
+        completed_steps = stats.get('completed_step_executions', 0)
+        if total_steps > 0:
+            context_parts.append(f"执行进度: {completed_steps}/{total_steps} 步骤已完成")
+        
+        return " | ".join(context_parts)
+    
+    def get_current_global_state(self) -> str:
+        """获取当前全局状态"""
+        if self.execution_context:
+            return self.execution_context.current_global_state
+        return ""
+    
+    def get_state_summary(self) -> str:
+        """获取状态摘要"""
+        if self.execution_context:
+            return self.execution_context.get_state_summary()
+        return "工作流未开始执行"
     

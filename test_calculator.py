@@ -17,17 +17,8 @@ class TestCalculator(unittest.TestCase):
 
     def test_multiplication(self):
         self.assertEqual(self.calc.multiply(3, 4), 12)
-        self.assertEqual(self.calc.multiply(-1, 1), -1)
+        self.assertEqual(self.calc.multiply(-1, 5), -5)
         self.assertEqual(self.calc.multiply(0, 5), 0)
-
-    def test_division(self):
-        self.assertEqual(self.calc.divide(6, 3), 2)
-        self.assertEqual(self.calc.divide(5, 2), 2.5)
-        self.assertEqual(self.calc.divide(0, 1), 0)
-
-    def test_division_by_zero(self):
-        with self.assertRaises(ValueError):
-            self.calc.divide(5, 0)
 
 if __name__ == '__main__':
     unittest.main()

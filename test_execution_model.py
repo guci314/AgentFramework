@@ -12,7 +12,7 @@ from datetime import datetime
 
 from static_workflow.workflow_definitions import (
     WorkflowDefinition, WorkflowStep, WorkflowMetadata, ControlFlow, ControlFlowType,
-    StepExecution, WorkflowExecutionContext, StepStatus
+    StepExecution, WorkflowExecutionContext, StepExecutionStatus
 )
 from static_workflow.static_workflow_engine import StaticWorkflowEngine
 
@@ -61,7 +61,7 @@ class TestExecutionModel(unittest.TestCase):
         execution1 = context.create_execution("step1")
         self.assertEqual(execution1.step_id, "step1")
         self.assertEqual(execution1.iteration, 1)
-        self.assertEqual(execution1.status, StepStatus.PENDING)
+        self.assertEqual(execution1.status, StepExecutionStatus.PENDING)
         
         # 测试重复执行同一步骤
         execution2 = context.create_execution("step1")
@@ -85,13 +85,13 @@ class TestExecutionModel(unittest.TestCase):
         
         # 创建多个执行实例并设置状态
         exec1 = context.create_execution("step1")
-        exec1.status = StepStatus.COMPLETED
+        exec1.status = StepExecutionStatus.COMPLETED
         
         exec2 = context.create_execution("step1") 
-        exec2.status = StepStatus.FAILED
+        exec2.status = StepExecutionStatus.FAILED
         
         exec3 = context.create_execution("step2")
-        exec3.status = StepStatus.COMPLETED
+        exec3.status = StepExecutionStatus.COMPLETED
         
         # 测试步骤统计
         step1_stats = context.get_step_statistics("step1")
@@ -126,7 +126,7 @@ class TestExecutionModel(unittest.TestCase):
         # 设置执行时间并完成
         execution.start_time = datetime.now()
         execution.end_time = datetime.now()
-        execution.status = StepStatus.COMPLETED
+        execution.status = StepExecutionStatus.COMPLETED
         
         # 测试完成状态
         self.assertTrue(execution.is_finished)
@@ -146,13 +146,13 @@ class TestExecutionModel(unittest.TestCase):
         
         # 创建未完成的执行实例
         exec1 = context.create_execution("step1")
-        exec1.status = StepStatus.RUNNING
+        exec1.status = StepExecutionStatus.RUNNING
         
         # 有运行中的执行：不应该重复执行
         self.assertFalse(context.should_execute_step("step1"))
         
         # 完成执行
-        exec1.status = StepStatus.COMPLETED
+        exec1.status = StepExecutionStatus.COMPLETED
         
         # 已完成的执行：在循环中可以重新执行
         self.assertTrue(context.should_execute_step("step1"))

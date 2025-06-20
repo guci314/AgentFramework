@@ -16,7 +16,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
-from static_workflow.workflow_definitions import WorkflowDefinition, WorkflowStep, StepStatus
+from static_workflow.workflow_definitions import WorkflowDefinition, WorkflowStep, StepExecutionStatus
 from pythonTask import Agent
 from langchain_openai import ChatOpenAI
 from agent_base import Result
@@ -114,7 +114,7 @@ def test_execution_history():
     
     # 模拟第一步已完成
     step1 = workflow_def.steps[0]
-    step1.status = StepStatus.COMPLETED
+    step1.status = StepExecutionStatus.COMPLETED
     step1.result = Result(
         success=True,
         code="def add(a, b):\n    return a + b",
@@ -159,7 +159,7 @@ def test_execution_history():
     print(f"\n📋 模拟第二步完成，测试第三步...")
     
     # 模拟第二步也完成
-    step2.status = StepStatus.COMPLETED
+    step2.status = StepExecutionStatus.COMPLETED
     step2.result = Result(
         success=True,
         code="assert add(2, 3) == 5\nassert add(0, 0) == 0",
@@ -189,7 +189,7 @@ def test_execution_history():
     # 测试第一步（应该显示无历史）
     print(f"\n📋 测试第一步（无历史）...")
     step1_fresh = workflow_def.steps[0]
-    step1_fresh.status = StepStatus.PENDING  # 重置状态
+    step1_fresh.status = StepExecutionStatus.PENDING  # 重置状态
     enhanced_instruction_1 = agent_v3._build_enhanced_instruction(step1_fresh)
     
     first_step_check = "暂无执行历史" in enhanced_instruction_1 or "这是第一个步骤" in enhanced_instruction_1
