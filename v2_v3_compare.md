@@ -37,7 +37,7 @@ class WorkflowExecutionContext:
 - **特点**：
   - **双模状态存储**：
     - 自然语言描述 (`current_global_state`)
-    - 结构化变量 (`runtime_variables`) # 是否需要添加schema支持？
+    - 结构化变量 (`runtime_variables`)：支持可选schema校验（工业级场景）
   - **完整生命周期管理**：
     - 版本控制 (`state_update_history`)
     - 状态更新接口 (`update_global_state()`)
@@ -95,7 +95,13 @@ def execute_workflow(instruction: Union[str, Path]):
 
 ### v3 优化方向
 1. 增强AI状态更新 (`_llm_state_update`)
-2. 完善跨工作流调用
-3. 优化大工作流执行性能
+2. 添加结构化变量的可选schema支持（类型校验、约束）
+3. 完善跨工作流调用
+4. 优化大工作流执行性能
 
 > **核心结论**：二者互补而非替代，v2 的灵活性与 v3 的规范性共同构成完整的工作流解决方案。
+> 
+> **关于schema的决策**：
+> - 对于工业级可靠性的标准化流程（v3核心场景），推荐添加可选schema支持
+> - 保持非强制使用原则以兼容简单场景
+> - 采用渐进式设计：复杂工作流优先实施，通过`enable_schema_validation`标志控制
