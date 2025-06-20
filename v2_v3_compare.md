@@ -9,45 +9,45 @@
 | **架构哲学**     | "轻量灵活胜于规范"              | "规范可靠胜于灵活"              |
 
 ## 二、状态管理对比
-### 1. v2 (改进后)
+### 1. v2 (当前实现)
 ```python
 class WorkflowState:
     def __init__(self):
-        self.control_state = {}   # 控制流状态
-        self.global_state = ""    # 新增：自然语言全局状态描述
-        self.state_history = []   # 状态变更历史（简版）
-    
-    def update_global_state(self, new_state: str):
-        """更新全局状态（自动保存历史）"""
-        if self.global_state:
-            self.state_history.append(self.global_state)
-        self.global_state = new_state
+        self.control_state = {}   # 仅管理控制流状态
+        # 无全局状态管理
 ```
 - **特点**：
-  - 轻量化（仅字符串描述）
-  - 与步骤执行深度集成
-  - 更新点：`execute_single_step()`结束时
+  - 仅管理控制流状态（循环、跳转等）
+  - 步骤状态分散在`plan`列表中（每个步骤字典含`status`字段）
+  - 无集中式全局状态
 - **价值**：
-  - 提升复杂工作流可观测性
-  - 支持AI修复决策
-  - 调试效率提升
+  - 轻量级设计
+  - 运行时开销低
+  - 适合简单工作流
 
-### 2. v3
+### 2. v3 (当前实现)
 ```python
 @dataclass
 class WorkflowExecutionContext:
-    current_global_state: str = ""              # 当前状态
-    state_update_history: List[str] = []        # 完整历史
+    current_global_state: str = ""              # 自然语言全局状态
+    state_update_history: List[str] = []        # 状态变更历史
     runtime_variables: Dict[str, Any] = {}      # 结构化变量
+    step_executions: Dict[str, StepExecution] = {}  # 步骤执行记录
 ```
 - **特点**：
-  - 双模存储（自然语言+结构化变量）
-  - 专用更新器 (`GlobalStateUpdater`)
-  - 版本控制（完整历史追溯）
+  - **双模状态存储**：
+    - 自然语言描述 (`current_global_state`)
+    - 结构化变量 (`runtime_variables`)
+  - **完整生命周期管理**：
+    - 版本控制 (`state_update_history`)
+    - 状态更新接口 (`update_global_state()`)
+  - **精细步骤跟踪**：
+    - 每个步骤的执行记录 (`step_executions`)
+    - 执行统计 (`get_step_statistics()`)
 - **价值**：
   - 支持跨步骤状态引用
-  - 提供执行统计 (`get_workflow_statistics()`)
-  - 条件评估依赖 (`ControlFlowEvaluator`)
+  - 提供完整工作流观测 (`get_workflow_statistics()`)
+  - 内置历史追溯能力
 
 ## 三、工作流分层设计
 | **层面**       | v2                          | v3                              |
