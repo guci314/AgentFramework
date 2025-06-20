@@ -222,7 +222,13 @@ llm_DeepSeek_R1_Distill_Qwen_32B_siliconflow=ChatOpenAI(
     max_tokens=8192
 )
 
-
+llm_deepseek=ChatOpenAI(
+    temperature=0.6,
+    model="deepseek-chat",  
+    base_url="https://api.deepseek.com",
+    api_key=os.getenv('DEEPSEEK_API_KEY'),
+    max_tokens=8192
+)
 
 llm_deepseek_r1=ChatOpenAI(
     temperature=0.6,
