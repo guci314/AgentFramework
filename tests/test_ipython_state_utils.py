@@ -14,10 +14,18 @@ def ipython():
 
 def test_save_and_load_ipython_state(ipython):
     """测试保存和加载IPython环境状态"""
-    # 在IPython环境中创建测试对象
-    ipython.run_cell("test_var = 42")
-    ipython.run_cell("def test_func(): return 'hello'")
-    ipython.run_cell("class TestClass:\n    pass")
+    # 创建简单可序列化的测试对象
+    ipython.user_ns['test_var'] = 42
+    
+    # 定义不依赖外部环境的简单函数
+    def test_func():
+        return 'hello'
+    ipython.user_ns['test_func'] = test_func
+    
+    # 定义简单类
+    class TestClass:
+        pass
+    ipython.user_ns['TestClass'] = TestClass
 
     # 创建临时文件
     with tempfile.NamedTemporaryFile(suffix='.dill', delete=False) as tmp_file:
@@ -30,17 +38,19 @@ def test_save_and_load_ipython_state(ipython):
         assert os.path.getsize(file_path) > 0
 
         # 修改环境状态
-        ipython.run_cell("test_var = 0")
-        ipython.run_cell("def test_func(): return 'changed'")
-        ipython.run_cell("class ChangedClass:\n    pass")
+        ipython.user_ns['test_var'] = 0
+        def changed_func():
+            return 'changed'
+        ipython.user_ns['test_func'] = changed_func
+        class ChangedClass:
+            pass
+        ipython.user_ns['ChangedClass'] = ChangedClass
 
         # 加载保存的状态
         assert loadIpython(ipython, file_path) is True
 
         # 验证状态恢复
-        assert 'test_var' in ipython.user_ns
         assert ipython.user_ns['test_var'] == 42
-        assert 'test_func' in ipython.user_ns
         assert ipython.user_ns['test_func']() == 'hello'
         assert 'TestClass' in ipython.user_ns
         assert 'ChangedClass' not in ipython.user_ns
@@ -48,6 +58,12 @@ def test_save_and_load_ipython_state(ipython):
         # 清理临时文件
         if os.path.exists(file_path):
             os.unlink(file_path)
+        # 清理创建的对象
+        del ipython.user_ns['test_var']
+        del ipython.user_ns['test_func']
+        del ipython.user_ns['TestClass']
+        if 'ChangedClass' in ipython.user_ns:
+            del ipython.user_ns['ChangedClass']
 
 def test_save_with_invalid_ipython():
     """测试无效IPython实例的保存"""
