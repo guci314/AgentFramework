@@ -109,3 +109,7 @@ def test_skip_unsupported_objects(ipython):
     finally:
         if os.path.exists(file_path):
             os.unlink(file_path)
+
+if __name__ == "__main__":
+    # 当直接执行此脚本时，运行所有测试
+    pytest.main([__file__])
