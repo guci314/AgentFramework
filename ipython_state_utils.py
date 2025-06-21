@@ -1,3 +1,47 @@
+"""
+IPython环境状态保存和恢复工具
+
+功能:
+1. saveIpython: 保存当前IPython环境中的用户定义对象（变量、函数、类）到文件
+2. loadIpython: 从文件恢复IPython环境状态
+
+可行性:
+✅ 已实现核心功能并通过单元测试
+✅ 适合保存简单编程环境状态（基础变量/函数/类）
+✅ 支持Jupyter笔记本和IPython环境
+
+主要缺陷:
+⚠️ 对象序列化限制:
+   - 无法处理特殊对象（数据库连接、文件句柄等）
+   - 日志中会出现警告: "无法序列化对象 xxx: cannot pickle 'yyy' object"
+⚠️ 环境恢复不完全:
+   - 不恢复系统对象（模块、内置对象）
+   - 不清理新增对象（只覆盖同名对象）
+⚠️ 潜在问题:
+   - 依赖冲突（恢复的类可能依赖未恢复的模块）
+   - 大型环境序列化性能问题
+   - 版本兼容性问题（Python/dill版本差异）
+   - 安全风险（加载不可信文件可能执行恶意代码）
+
+最佳实践:
+1. 适用场景:
+   saveIpython(ip, "simple_env.dill")  # 基础变量/函数/类
+   # 避免保存含外部资源的环境
+2. 使用前检查:
+   import dill
+   if not dill.pickles(your_object): print("对象无法序列化")
+3. 恢复后操作:
+   # 手动清理不需要的对象
+   for obj in ['tmp_var']:
+       if obj in ip.user_ns: del ip.user_ns[obj]
+
+改进方向:
+- 增加选择性保存（白名单/黑名单）
+- 添加对象依赖分析
+- 实现增量保存功能
+- 增加版本兼容性检查
+"""
+
 import dill
 import os
 import logging
