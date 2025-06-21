@@ -1,0 +1,51 @@
+# Enhanced Agent v2 Configuration File
+# This file contains all operational parameters for state management, AI optimization, and monitoring
+
+config_version: "1.0"
+environment: "development"  # development, testing, production
+debug_mode: false
+
+# State History Management Configuration
+state_history:
+  max_length: 50                    # Maximum number of state history entries
+  enable_compression: false         # Enable compression for large state entries
+  compression_threshold: 1000       # Compress entries larger than this (characters)
+  auto_cleanup: true               # Automatically clean up old entries
+  cleanup_interval_hours: 24       # Cleanup interval in hours
+
+# AI Updater Configuration
+ai_updater:
+  model_name: "deepseek-chat"                    # AI model name
+  api_base_url: "https://api.deepseek.com"      # API base URL
+  timeout_seconds: 30                           # Request timeout
+  max_retries: 3                                # Maximum retry attempts
+  enable_caching: true                          # Enable response caching
+  cache_ttl_minutes: 30                         # Cache time-to-live
+  temperature: 0.6                              # Model temperature
+  max_tokens: 8192                              # Maximum tokens per request
+  enable_fallback: true                         # Enable fallback mechanisms
+  fallback_strategies:                          # Fallback strategy order
+    - "RETRY_SIMPLIFIED"
+    - "TEMPLATE_BASED"
+    - "RULE_BASED"
+
+# Monitoring and Logging Configuration
+monitoring:
+  log_level: "INFO"                             # Logging level (DEBUG, INFO, WARNING, ERROR)
+  enable_performance_monitoring: true           # Enable performance monitoring
+  reporting_interval_minutes: 60               # Performance reporting interval
+  enable_memory_profiling: false               # Enable memory profiling
+  max_log_file_size_mb: 100                    # Maximum log file size
+  log_rotation_count: 5                        # Number of log files to keep
+  enable_metrics_export: false                 # Enable metrics export
+  metrics_export_path: "./metrics"             # Metrics export directory
+
+# Performance Optimization Configuration
+optimization:
+  enable_instruction_caching: true              # Enable instruction caching
+  cache_size_limit: 1000                       # Maximum cache size
+  enable_conditional_ai_calls: true            # Enable conditional AI calls
+  ai_call_cooldown_seconds: 5                  # Cooldown between AI calls
+  enable_batch_processing: false               # Enable batch processing
+  batch_size: 10                               # Batch processing size
+  enable_async_processing: false               # Enable async processing 
