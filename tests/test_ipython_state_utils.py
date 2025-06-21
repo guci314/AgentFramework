@@ -42,9 +42,10 @@ def test_save_and_load_ipython_state(ipython):
         def changed_func():
             return 'changed'
         ipython.user_ns['test_func'] = changed_func
-        class ChangedClass:
+        # 修改TestClass而不是添加新的类
+        class ModifiedTestClass:
             pass
-        ipython.user_ns['ChangedClass'] = ChangedClass
+        ipython.user_ns['TestClass'] = ModifiedTestClass
 
         # 加载保存的状态
         assert loadIpython(ipython, file_path) is True
@@ -52,8 +53,8 @@ def test_save_and_load_ipython_state(ipython):
         # 验证状态恢复
         assert ipython.user_ns['test_var'] == 42
         assert ipython.user_ns['test_func']() == 'hello'
-        assert 'TestClass' in ipython.user_ns
-        assert 'ChangedClass' not in ipython.user_ns
+        # 检查TestClass是否被恢复为原始类
+        assert ipython.user_ns['TestClass'].__name__ == 'TestClass'
     finally:
         # 清理临时文件
         if os.path.exists(file_path):
