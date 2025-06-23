@@ -228,7 +228,7 @@ class TestCognitiveWorkflowEngine(unittest.TestCase):
             agents=self.mock_agents
         )
         
-        # 模拟规划者返回任务
+        # 模拟管理者返回任务
         mock_tasks = [
             CognitiveTask(
                 id="init_task", name="初始任务", instruction="初始化",
@@ -237,7 +237,7 @@ class TestCognitiveWorkflowEngine(unittest.TestCase):
                 precondition="无"
             )
         ]
-        engine.planner.generate_task_list = Mock(return_value=mock_tasks)
+        engine.manager.generate_initial_tasks = Mock(return_value=mock_tasks)
         
         # 测试初始化
         engine._initialize_workflow("测试目标")

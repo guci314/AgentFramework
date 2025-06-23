@@ -715,7 +715,13 @@ class CognitiveDecider:
         executable_tasks = []
         
         # 创建全局状态的快照，避免并发修改问题
-        global_state_snapshot = copy.deepcopy(global_state)
+        # 避免深拷贝LLM对象（包含不可序列化的线程锁）
+        global_state_snapshot = GlobalState(
+            current_state=global_state.current_state,
+            state_history=copy.deepcopy(global_state.state_history),
+            context_variables=copy.deepcopy(global_state.context_variables),
+            original_goal=global_state.original_goal
+        )
         
         # 限制并发数量，避免API限制
         max_workers = min(5, len(pending_tasks))
@@ -912,6 +918,25 @@ class CognitiveDecider:
         Returns:
             计划修正决策
         """
+        logger.info("🔄 开始动态计划修正决策分析")
+        logger.info(f"   📊 当前任务列表包含 {len(task_list)} 个任务")
+        
+        # 统计任务状态
+        task_status_counts = {}
+        for task in task_list:
+            status = task.status.value
+            task_status_counts[status] = task_status_counts.get(status, 0) + 1
+        
+        logger.info(f"   📋 任务状态分布: {dict(task_status_counts)}")
+        
+        if last_execution_result:
+            result_status = "✅ 成功" if last_execution_result.success else "❌ 失败"
+            logger.info(f"   🎯 上次执行结果: {result_status}")
+        else:
+            logger.info("   🎯 上次执行结果: 无")
+        
+        logger.info(f"   🌐 当前全局状态: {global_state.current_state[:100]}{'...' if len(global_state.current_state) > 100 else ''}")
+        
         system_message = """你是一个动态计划修正专家，负责分析当前情况并决定是否需要修改工作流计划。
 
 可能的修正动作：
@@ -930,6 +955,595 @@ class CognitiveDecider:
                     result_info = last_execution_result.to_dict()
                 else:
                     # 如果没有to_dict方法，构造基本信息
+                    result_info = {
+                        'success': getattr(last_execution_result, 'success', False),
+                        'stdout': getattr(last_execution_result, 'stdout', ''),
+                        'stderr': getattr(last_execution_result, 'stderr', ''),
+                        'return_value': getattr(last_execution_result, 'return_value', '')
+                    }
+            except Exception as e:
+                result_info = f"结果获取失败: {str(e)}"
+                logger.warning(f"   ⚠️ 执行结果获取失败: {e}")
+
+        user_message = f"""## 当前任务状态
+{self._format_task_status(task_list)}
+
+## 全局状态
+{global_state.get_state_summary()}
+
+## 最后执行结果
+{result_info}
+
+请决定是否需要修正计划，返回格式：
+{{
+  "action": "add_tasks/remove_tasks/modify_tasks/no_change",
+  "reason": "决策理由",
+  "details": "具体修正内容"
+}}"""
+
+        try:
+            logger.info("   🤖 正在调用LLM进行计划修正决策...")
+            
+            messages = [
+                SystemMessage(content=system_message),
+                HumanMessage(content=user_message)
+            ]
+            
+            response = self.llm.invoke(messages)
+            result_text = response.content.strip()
+            
+            logger.info(f"   📝 LLM响应长度: {len(result_text)} 字符")
+            
+            # 解析决策结果
+            json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+            if json_match:
+                result_json = json.loads(json_match.group())
+                
+                decision = {
+                    'action': result_json.get('action', 'no_change'),
+                    'reason': result_json.get('reason', '无理由'),
+                    'details': result_json.get('details', ''),
+                    'timestamp': dt.now()
+                }
+                
+                logger.info(f"   🎯 计划修正决策结果: {decision['action']}")
+                logger.info(f"   💡 决策理由: {decision['reason']}")
+                
+                if decision['action'] != 'no_change':
+                    logger.info(f"   📋 修正详情: {str(decision['details'])[:200]}{'...' if len(str(decision['details'])) > 200 else ''}")
+                
+                self.decision_history.append(decision)
+                logger.info("✅ 计划修正决策分析完成")
+                return decision
+            else:
+                logger.error("   ❌ LLM响应中未找到有效的JSON格式")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"   ❌ JSON解析失败: {e}")
+        except Exception as e:
+            logger.error(f"   ❌ 计划修正决策失败: {e}")
+            
+        logger.warning("⚠️ 计划修正决策失败，返回默认决策")
+        return {
+            'action': 'no_change',
+            'reason': '决策失败，保持现状',
+            'details': '',
+            'timestamp': dt.now()
+        }
+    
+    def _format_execution_history(self, execution_history: List[Dict]) -> str:
+        """格式化执行历史"""
+        if not execution_history:
+            return "无执行历史"
+            
+        history_lines = []
+        for i, record in enumerate(execution_history[-5:]):  # 只显示最近5条
+            task = record.get('task')
+            if task:
+                # task 是 CognitiveTask 对象，直接访问其属性
+                task_name = task.name if hasattr(task, 'name') else '未知任务'
+            else:
+                task_name = '未知任务'
+                
+            result = record.get('result')
+            if result:
+                status = "成功" if result.success else "失败"
+                history_lines.append(f"{i+1}. {task_name} - {status}")
+            else:
+                history_lines.append(f"{i+1}. {task_name} - 未知状态")
+                
+        return "\n".join(history_lines)
+    
+    def _format_task_status(self, task_list: List[CognitiveTask]) -> str:
+        """格式化任务状态"""
+        status_lines = []
+        for task in task_list:
+            status_lines.append(f"- {task.id} ({task.name}): {task.status.value}")
+        return "\n".join(status_lines)
+
+class CognitiveManager:
+    """认知管理者 - 统一的工作流认知管理
+    
+    整合了原 CognitivePlanner 和 CognitiveDecider 的功能：
+    1. 任务规划管理：初始任务生成、修复任务、动态任务
+    2. 任务决策管理：可执行任务查找、下一任务选择
+    3. 工作流状态管理：状态评估、修正需求分析
+    """
+    
+    def __init__(self, llm: BaseChatModel, available_agents: Dict[str, 'Agent'], 
+                 condition_checker: StateConditionChecker, interactive_mode: bool = False):
+        """
+        初始化认知管理者
+        
+        Args:
+            llm: 语言模型
+            available_agents: 可用智能体字典
+            condition_checker: 状态条件检查器
+            interactive_mode: 是否启用交互模式
+        """
+        self.llm = llm
+        self.available_agents = available_agents
+        self.condition_checker = condition_checker
+        self.interactive_mode = interactive_mode
+        self.decision_history: List[Dict[str, Any]] = []
+        self.management_statistics = {
+            'tasks_generated': 0,
+            'decisions_made': 0,
+            'recovery_attempts': 0,
+            'dynamic_tasks_added': 0
+        }
+        
+    # ====== 任务规划管理 ======
+    
+    def generate_initial_tasks(self, goal: str, context: Dict[str, Any] = None) -> List[CognitiveTask]:
+        """
+        生成初始任务列表 - 整合原CognitivePlanner.generate_task_list()
+        
+        Args:
+            goal: 高层次目标描述
+            context: 额外上下文信息
+            
+        Returns:
+            任务列表
+        """
+        logger.info(f"🎯 认知管理者开始生成初始任务列表")
+        logger.info(f"   📋 目标: {goal}")
+        
+        # 根据交互模式调整系统提示词
+        interaction_guidance = ""
+        if not self.interactive_mode:
+            interaction_guidance = """
+**重要约束：非交互模式**
+- 不要生成任何询问用户、咨询用户、收集用户需求的任务
+- 所有任务都应该基于已有信息或合理假设来执行
+- 如果需要信息，应该通过分析、推理或使用默认值来获取
+- 专注于自动化执行，避免人工干预
+"""
+        else:
+            interaction_guidance = """
+**交互模式启用**
+- 可以生成询问用户、收集需求的信息型任务
+- 通过用户交互来明确需求和获取反馈
+"""
+
+        system_message = f"""你是一个认知工作流规划专家，专注于将高层次目标分解为精准、必要的任务列表。
+
+核心原则：
+1. **严格按照用户目标规划**：只生成实现用户明确目标所必需的任务
+2. **避免过度工程化**：不要添加用户未要求的"最佳实践"或"额外功能"
+3. **保持简洁高效**：优先考虑最直接的实现路径
+4. **三阶段规划模式**：按照"收集→执行→验证"的标准流程组织任务
+
+## 三阶段规划模式详解
+
+**阶段1：信息收集（information）**
+- 目标：收集实现目标所需的所有必要信息
+- 任务类型：需求分析、环境检查、资源准备、技术调研等
+- 输出：为后续执行提供明确的指导和依据
+- 先决条件：通常基于用户提供的初始信息
+
+**阶段2：核心执行（execution）**  
+- 目标：基于收集的信息，执行核心业务逻辑
+- 任务类型：代码编写、文件操作、数据处理、系统配置等
+- 输出：实现用户目标的具体成果
+- 先决条件：信息收集阶段完成，必要信息已获取
+
+**阶段3：结果验证（verification）**
+- 目标：确保执行结果符合用户期望和质量标准
+- 任务类型：功能测试、结果检查、输出验证、质量评估等
+- 输出：验证报告和最终确认
+- 先决条件：核心执行阶段完成，有具体成果可验证
+
+{interaction_guidance}
+
+指令类型详解：
+- **information（信息型）**：调用智能体的 chat_sync() 方法，纯对话交互
+- **execution（执行型）**：调用智能体的 execute_sync() 方法，生成并执行Python代码
+
+任务结构要求：
+- id: 唯一标识符（建议格式：阶段前缀_序号，如collect_1, exec_1, verify_1）
+- name: 简短名称  
+- instruction: 详细指令（根据instruction_type和阶段特点编写）
+- agent_name: 执行者（从可用智能体中选择最适合的）
+- instruction_type: execution/information（根据任务性质选择）
+- phase: information/execution/verification（严格按照三阶段分配）
+- expected_output: 预期输出（要明确、可验证）
+- precondition: 自然语言描述的先决条件（体现阶段间的逻辑关系）
+
+重要：不要使用传统的依赖关系（dependencies），而是用自然语言描述什么状态下该任务才能执行。"""
+
+        try:
+            # 构建智能体信息
+            available_agents_str = self._build_agent_info_string()
+            
+            user_message = f"""## 高层次目标
+{goal}
+
+## 可用智能体
+{available_agents_str}
+
+## 额外上下文
+{json.dumps(context or {}, ensure_ascii=False, indent=2)}
+
+请按照"收集→执行→验证"三阶段模式生成任务列表，以JSON格式返回：
+{{
+  "tasks": [
+    {{
+      "id": "collect_1",
+      "name": "需求信息收集",
+      "instruction": "分析用户目标，明确具体需求和技术要求...",
+      "agent_name": "analyst",
+      "instruction_type": "information",
+      "phase": "information", 
+      "expected_output": "明确的需求规格说明",
+      "precondition": "用户已提供初始目标描述"
+    }}
+  ]
+}}"""
+
+            tasks = self._generate_tasks_from_prompt(system_message, user_message, "initial")
+            self.management_statistics['tasks_generated'] += len(tasks)
+            
+            logger.info(f"   ✅ 成功生成 {len(tasks)} 个初始任务")
+            return tasks
+            
+        except Exception as e:
+            logger.error(f"   ❌ 初始任务生成失败: {e}")
+            return []
+    
+    def generate_recovery_tasks(self, failed_task: CognitiveTask, error_context: str, 
+                              global_state: GlobalState) -> List[CognitiveTask]:
+        """
+        生成修复任务 - 整合原CognitivePlanner.generate_recovery_tasks()
+        
+        Args:
+            failed_task: 失败的任务
+            error_context: 错误上下文
+            global_state: 当前全局状态
+            
+        Returns:
+            修复任务列表
+        """
+        logger.info(f"🔧 认知管理者开始生成修复任务")
+        logger.info(f"   📋 失败任务: {failed_task.name} (ID: {failed_task.id})")
+        
+        # 根据交互模式调整修复策略
+        interaction_constraint = ""
+        if not self.interactive_mode:
+            interaction_constraint = """
+**重要约束：非交互模式**
+- 修复任务不能包含询问用户或需要用户干预的步骤
+- 应该通过自动化方式解决问题，如重试、调整参数、使用默认值等
+"""
+
+        system_message = f"""你是一个错误修复专家，负责为失败的任务生成修复任务序列。
+
+修复策略：
+1. 分析失败原因
+2. 生成针对性的修复任务
+3. 确保修复任务能够解决根本问题
+4. 考虑重试原任务的可能性
+
+{interaction_constraint}"""
+
+        # 构建智能体信息
+        available_agents_str = self._build_agent_info_string()
+
+        user_message = f"""## 失败任务信息
+任务ID: {failed_task.id}
+任务名称: {failed_task.name}
+原始指令: {failed_task.instruction}
+先决条件: {failed_task.precondition}
+
+## 错误上下文
+{error_context}
+
+## 当前全局状态
+{global_state.get_state_summary()}
+
+## 可用智能体
+{available_agents_str}
+
+请生成修复任务序列，解决失败问题并允许重试原任务。"""
+
+        try:
+            # TODO: [优先级：中] 智能修复任务解析 - 完善修复任务生成
+            # 当前实现：简化版本，只生成基本重试任务
+            # 返回一个基本的重试任务
+            retry_task = CognitiveTask(
+                id=f"retry_{failed_task.id}_{dt.now().strftime('%H%M%S')}",
+                name=f"重试：{failed_task.name}",
+                instruction=f"重新执行失败的任务：{failed_task.instruction}",
+                agent_name=failed_task.agent_name,
+                instruction_type=failed_task.instruction_type,
+                phase=failed_task.phase,
+                expected_output=failed_task.expected_output,
+                precondition=f"错误已修复，原先决条件满足：{failed_task.precondition}"
+            )
+            
+            self.management_statistics['recovery_attempts'] += 1
+            logger.info(f"   ✅ 生成了 1 个修复任务: {retry_task.id}")
+            return [retry_task]
+            
+        except Exception as e:
+            logger.error(f"   ❌ 修复任务生成失败: {e}")
+            return []
+    
+    def generate_dynamic_tasks(self, modification_context: Dict[str, Any], 
+                             global_state: GlobalState) -> List[CognitiveTask]:
+        """
+        生成动态任务 - 新增方法，整合动态任务生成逻辑
+        
+        Args:
+            modification_context: 修正上下文信息
+            global_state: 当前全局状态
+            
+        Returns:
+            动态任务列表
+        """
+        logger.info(f"🚀 认知管理者开始生成动态任务")
+        
+        try:
+            details = modification_context.get('details', {})
+            new_tasks_data = details.get('new_tasks', [])
+            
+            if not new_tasks_data:
+                logger.warning("   ⚠️ 没有提供新任务数据")
+                return []
+            
+            dynamic_tasks = []
+            for task_data in new_tasks_data:
+                try:
+                    # 验证任务数据
+                    is_valid, errors = self._validate_new_task_data(task_data)
+                    if not is_valid:
+                        logger.error(f"   ❌ 任务数据验证失败: {errors}")
+                        continue
+                    
+                    # 创建任务对象
+                    new_task = self._create_task_from_data(task_data)
+                    dynamic_tasks.append(new_task)
+                    
+                except Exception as e:
+                    logger.error(f"   ❌ 创建动态任务失败: {e}")
+                    continue
+            
+            self.management_statistics['dynamic_tasks_added'] += len(dynamic_tasks)
+            logger.info(f"   ✅ 成功生成 {len(dynamic_tasks)} 个动态任务")
+            return dynamic_tasks
+            
+        except Exception as e:
+            logger.error(f"   ❌ 动态任务生成失败: {e}")
+            return []
+    
+    # ====== 任务决策管理 ======
+    
+    def find_executable_tasks(self, task_list: List[CognitiveTask], 
+                            global_state: GlobalState) -> List[Tuple[CognitiveTask, float]]:
+        """
+        找到所有可执行的任务 - 整合原CognitiveDecider.find_executable_tasks()
+        
+        Args:
+            task_list: 任务列表
+            global_state: 全局状态
+            
+        Returns:
+            (任务, 置信度) 列表，按置信度排序
+        """
+        pending_tasks = [task for task in task_list if task.status == TaskStatus.PENDING]
+        
+        if not pending_tasks:
+            return []
+        
+        # 少于3个任务时使用串行执行
+        if len(pending_tasks) <= 2:
+            return self._find_executable_tasks_serial(pending_tasks, global_state)
+        
+        # 多任务时使用并行执行
+        return self._find_executable_tasks_parallel(pending_tasks, global_state)
+    
+    def select_next_task(self, executable_tasks: List[Tuple[CognitiveTask, float]], 
+                        global_state: GlobalState, execution_history: List[Dict]) -> Optional[CognitiveTask]:
+        """
+        从可执行任务中选择下一个要执行的任务 - 整合原CognitiveDecider.select_next_task()
+        
+        Args:
+            executable_tasks: 可执行任务列表
+            global_state: 全局状态
+            execution_history: 执行历史
+            
+        Returns:
+            选择的任务，如果没有则返回None
+        """
+        if not executable_tasks:
+            return None
+            
+        if len(executable_tasks) == 1:
+            return executable_tasks[0][0]
+            
+        # 多个可执行任务时，使用LLM进行智能选择
+        system_message = """你是一个认知决策专家，负责从多个可执行任务中选择最适合当前情况的下一步。
+
+选择原则：
+1. 考虑任务的紧急性和重要性
+2. 考虑任务间的逻辑关系
+3. 优先选择能够推进整体目标的任务
+4. 考虑执行历史和当前状态
+
+返回选择的任务ID和理由。"""
+
+        task_options = []
+        for i, (task, confidence) in enumerate(executable_tasks):
+            task_options.append(f"{i+1}. {task.id} - {task.name} (置信度: {confidence:.2f})")
+            task_options.append(f"   指令: {task.instruction}")
+            task_options.append(f"   阶段: {task.phase.value}")
+            task_options.append("")
+            
+        user_message = f"""## 当前全局状态
+{global_state.get_state_summary()}
+
+## 可执行任务选项
+{chr(10).join(task_options)}
+
+## 执行历史
+{self._format_execution_history(execution_history)}
+
+请选择最适合的下一个任务，返回格式：
+{{
+  "selected_task_id": "task_id",
+  "reason": "选择理由"
+}}"""
+
+        try:
+            messages = [
+                SystemMessage(content=system_message),
+                HumanMessage(content=user_message)
+            ]
+            
+            response = self.llm.invoke(messages)
+            result_text = response.content.strip()
+            
+            # 解析选择结果
+            json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+            if json_match:
+                result_json = json.loads(json_match.group())
+                selected_id = result_json.get('selected_task_id')
+                reason = result_json.get('reason', '无理由')
+                
+                # 找到选中的任务
+                for task, confidence in executable_tasks:
+                    if task.id == selected_id:
+                        self._record_decision('task_selection', {
+                            'selected_task': selected_id,
+                            'reason': reason,
+                            'options_count': len(executable_tasks)
+                        })
+                        logger.info(f"决策者选择任务 {selected_id}: {reason}")
+                        return task
+                        
+            # 如果解析失败，返回置信度最高的任务
+            logger.warning("决策解析失败，返回置信度最高的任务")
+            return executable_tasks[0][0]
+            
+        except Exception as e:
+            logger.error(f"任务选择失败: {e}")
+            return executable_tasks[0][0]  # 返回置信度最高的任务
+    
+    # ====== 工作流状态管理 ======
+    
+    def evaluate_workflow_status(self, task_list: List[CognitiveTask], 
+                               global_state: GlobalState) -> Dict[str, Any]:
+        """
+        评估工作流状态 - 整合原CognitiveDecider.evaluate_workflow_status()
+        
+        Args:
+            task_list: 任务列表
+            global_state: 全局状态
+            
+        Returns:
+            工作流状态评估结果
+        """
+        status_counts = {}
+        for task in task_list:
+            status = task.status.value
+            status_counts[status] = status_counts.get(status, 0) + 1
+            
+        total_tasks = len(task_list)
+        completed_tasks = status_counts.get('completed', 0)
+        failed_tasks = status_counts.get('failed', 0)
+        pending_tasks = status_counts.get('pending', 0)
+        
+        # 检查是否有可执行任务
+        executable_tasks = self.find_executable_tasks(task_list, global_state)
+        has_executable = len(executable_tasks) > 0
+        
+        evaluation = {
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'failed_tasks': failed_tasks,
+            'pending_tasks': pending_tasks,
+            'has_executable_tasks': has_executable,
+            'completion_rate': completed_tasks / total_tasks if total_tasks > 0 else 0,
+            'status_counts': status_counts
+        }
+        
+        # 判断工作流状态
+        if completed_tasks == total_tasks:
+            evaluation['workflow_status'] = 'completed'
+            evaluation['recommendation'] = 'workflow_complete'
+        elif has_executable:
+            evaluation['workflow_status'] = 'active'
+            evaluation['recommendation'] = 'continue_execution'
+        elif pending_tasks > 0:
+            evaluation['workflow_status'] = 'blocked'
+            evaluation['recommendation'] = 'generate_new_tasks'
+        else:
+            evaluation['workflow_status'] = 'failed'
+            evaluation['recommendation'] = 'workflow_failed'
+            
+        return evaluation
+    
+    def analyze_modification_needs(self, task_list: List[CognitiveTask], 
+                                 global_state: GlobalState, 
+                                 last_execution_result: Optional[Result] = None) -> Dict[str, Any]:
+        """
+        分析修正需求 - 整合原plan_modification_decision()逻辑
+        
+        Args:
+            task_list: 当前任务列表
+            global_state: 全局状态
+            last_execution_result: 最后执行结果
+            
+        Returns:
+            修正需求分析结果
+        """
+        logger.info("🔄 开始分析工作流修正需求")
+        
+        # 统计任务状态
+        task_status_counts = {}
+        for task in task_list:
+            status = task.status.value
+            task_status_counts[status] = task_status_counts.get(status, 0) + 1
+        
+        logger.info(f"   📋 任务状态分布: {dict(task_status_counts)}")
+        
+        system_message = """你是一个动态计划修正专家，负责分析当前情况并决定是否需要修改工作流计划。
+
+可能的修正动作：
+1. add_tasks - 添加新任务序列
+2. remove_tasks - 移除无效任务
+3. modify_tasks - 修改现有任务
+4. no_change - 不需要修改
+
+请综合考虑执行结果、当前状态和任务情况做出决策。"""
+
+        # 安全地获取执行结果的字典表示
+        result_info = "无"
+        if last_execution_result:
+            try:
+                if hasattr(last_execution_result, 'to_dict'):
+                    result_info = last_execution_result.to_dict()
+                else:
                     result_info = {
                         'success': getattr(last_execution_result, 'success', False),
                         'stdout': getattr(last_execution_result, 'stdout', ''),
@@ -976,21 +1590,94 @@ class CognitiveDecider:
                     'timestamp': dt.now()
                 }
                 
-                self.decision_history.append(decision)
+                self._record_decision('modification_analysis', decision)
+                logger.info(f"   🎯 修正需求分析结果: {decision['action']}")
+                logger.info(f"   💡 分析理由: {decision['reason']}")
+                
                 return decision
+            else:
+                logger.error("   ❌ LLM响应中未找到有效的JSON格式")
                 
         except Exception as e:
-            logger.error(f"计划修正决策失败: {e}")
+            logger.error(f"   ❌ 修正需求分析失败: {e}")
             
+        # 返回默认决策
         return {
             'action': 'no_change',
-            'reason': '决策失败，保持现状',
+            'reason': '分析失败，保持现状',
             'details': '',
             'timestamp': dt.now()
         }
     
+    # ====== 内部工具方法 ======
+    
+    def _generate_tasks_from_prompt(self, system_prompt: str, user_prompt: str, 
+                                   task_type: str = "general") -> List[CognitiveTask]:
+        """通用任务生成方法 - 统一LLM调用和JSON解析逻辑"""
+        try:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+            
+            response = self.llm.invoke(messages)
+            result_text = response.content.strip()
+            
+            # 提取JSON部分
+            json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+            if json_match:
+                result_json = json.loads(json_match.group())
+                tasks_data = result_json.get('tasks', [])
+                
+                tasks = []
+                for task_data in tasks_data:
+                    task = self._create_task_from_data(task_data)
+                    tasks.append(task)
+                
+                return tasks
+            else:
+                logger.error(f"{task_type}任务生成返回结果中没有找到有效的JSON")
+                return []
+                
+        except Exception as e:
+            logger.error(f"{task_type}任务生成失败: {e}")
+            return []
+    
+    def _create_task_from_data(self, task_data: Dict[str, Any]) -> CognitiveTask:
+        """从数据字典创建 CognitiveTask 对象 - 统一任务对象创建逻辑"""
+        return CognitiveTask(
+            id=task_data.get('id', f"task_{dt.now().strftime('%H%M%S')}"),
+            name=task_data['name'],
+            instruction=task_data['instruction'],
+            agent_name=task_data['agent_name'],
+            instruction_type=task_data.get('instruction_type', 'execution'),
+            phase=TaskPhase(task_data.get('phase', 'execution')),
+            expected_output=task_data['expected_output'],
+            precondition=task_data.get('precondition', '无特殊先决条件')
+        )
+    
+    def _build_agent_info_string(self) -> str:
+        """构建智能体信息字符串 - 复用代码"""
+        available_agents_info = []
+        for agent_name, agent in self.available_agents.items():
+            agent_info = f"{agent_name}"
+            if hasattr(agent, 'api_specification') and agent.api_specification:
+                agent_info += f": {agent.api_specification}"
+            elif hasattr(agent, 'name') and agent.name:
+                agent_info += f" ({agent.name})"
+            available_agents_info.append(agent_info)
+        
+        return "、".join(available_agents_info)
+    
+    def _format_task_status(self, task_list: List[CognitiveTask]) -> str:
+        """格式化任务状态 - 复用代码"""
+        status_lines = []
+        for task in task_list:
+            status_lines.append(f"- {task.id} ({task.name}): {task.status.value}")
+        return "\n".join(status_lines)
+    
     def _format_execution_history(self, execution_history: List[Dict]) -> str:
-        """格式化执行历史"""
+        """格式化执行历史 - 复用代码"""
         if not execution_history:
             return "无执行历史"
             
@@ -998,7 +1685,6 @@ class CognitiveDecider:
         for i, record in enumerate(execution_history[-5:]):  # 只显示最近5条
             task = record.get('task')
             if task:
-                # task 是 CognitiveTask 对象，直接访问其属性
                 task_name = task.name if hasattr(task, 'name') else '未知任务'
             else:
                 task_name = '未知任务'
@@ -1012,12 +1698,130 @@ class CognitiveDecider:
                 
         return "\n".join(history_lines)
     
-    def _format_task_status(self, task_list: List[CognitiveTask]) -> str:
-        """格式化任务状态"""
-        status_lines = []
-        for task in task_list:
-            status_lines.append(f"- {task.id} ({task.name}): {task.status.value}")
-        return "\n".join(status_lines)
+    def _record_decision(self, decision_type: str, decision_data: Dict[str, Any]):
+        """记录决策历史 - 统一决策记录"""
+        self.decision_history.append({
+            'timestamp': dt.now(),
+            'decision_type': decision_type,
+            'data': decision_data
+        })
+        self.management_statistics['decisions_made'] += 1
+    
+    def _find_executable_tasks_serial(self, pending_tasks: List[CognitiveTask], 
+                                    global_state: GlobalState) -> List[Tuple[CognitiveTask, float]]:
+        """串行版本的可执行任务查找"""
+        executable_tasks = []
+        
+        for task in pending_tasks:
+            satisfied, confidence, explanation = self.condition_checker.check_precondition_satisfied(
+                task.precondition, global_state
+            )
+            
+            if satisfied and confidence > 0.5:
+                executable_tasks.append((task, confidence))
+                logger.debug(f"任务 {task.id} 可执行 (置信度: {confidence:.2f}): {explanation}")
+            else:
+                logger.debug(f"任务 {task.id} 不可执行 (置信度: {confidence:.2f}): {explanation}")
+                
+        # 按置信度排序
+        executable_tasks.sort(key=lambda x: x[1], reverse=True)
+        return executable_tasks
+    
+    def _find_executable_tasks_parallel(self, pending_tasks: List[CognitiveTask], 
+                                      global_state: GlobalState) -> List[Tuple[CognitiveTask, float]]:
+        """并行版本的可执行任务查找"""
+        executable_tasks = []
+        
+        # 创建全局状态的快照，避免并发修改问题
+        # 避免深拷贝LLM对象（包含不可序列化的线程锁）
+        global_state_snapshot = GlobalState(
+            current_state=global_state.current_state,
+            state_history=copy.deepcopy(global_state.state_history),
+            context_variables=copy.deepcopy(global_state.context_variables),
+            original_goal=global_state.original_goal
+        )
+        
+        # 限制并发数量，避免API限制
+        max_workers = min(5, len(pending_tasks))
+        
+        def check_single_task(task):
+            """检查单个任务的可执行性"""
+            try:
+                satisfied, confidence, explanation = self.condition_checker.check_precondition_satisfied(
+                    task.precondition, global_state_snapshot
+                )
+                return task, satisfied, confidence, explanation
+            except Exception as e:
+                logger.error(f"检查任务 {task.id} 时发生错误: {e}")
+                return task, False, 0.0, f"检查失败: {str(e)}"
+        
+        # 使用线程池并行执行
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_task = {executor.submit(check_single_task, task): task for task in pending_tasks}
+            
+            # 收集结果
+            for future in as_completed(future_to_task):
+                try:
+                    task, satisfied, confidence, explanation = future.result()
+                    
+                    if satisfied and confidence > 0.5:
+                        executable_tasks.append((task, confidence))
+                        logger.debug(f"任务 {task.id} 可执行 (置信度: {confidence:.2f}): {explanation}")
+                    else:
+                        logger.debug(f"任务 {task.id} 不可执行 (置信度: {confidence:.2f}): {explanation}")
+                        
+                except Exception as e:
+                    task = future_to_task[future]
+                    logger.error(f"处理任务 {task.id} 结果时发生错误: {e}")
+        
+        # 按置信度排序
+        executable_tasks.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.info(f"并行检查 {len(pending_tasks)} 个任务，找到 {len(executable_tasks)} 个可执行任务")
+        return executable_tasks
+    
+    def _validate_new_task_data(self, task_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """验证新任务数据的有效性"""
+        errors = []
+        
+        # 必填字段检查
+        required_fields = ['name', 'instruction', 'agent_name', 'expected_output']
+        for field in required_fields:
+            if field not in task_data or not task_data[field]:
+                errors.append(f"缺少必填字段: {field}")
+        
+        # Agent存在性检查
+        agent_name = task_data.get('agent_name')
+        if agent_name and agent_name not in self.available_agents:
+            available_agents = ', '.join(self.available_agents.keys())
+            errors.append(f"智能体 '{agent_name}' 不存在，可用智能体: {available_agents}")
+        
+        # 任务阶段检查
+        phase = task_data.get('phase')
+        if phase:
+            try:
+                TaskPhase(phase)
+            except ValueError:
+                valid_phases = ', '.join([p.value for p in TaskPhase])
+                errors.append(f"无效的任务阶段 '{phase}'，有效值: {valid_phases}")
+        
+        # 指令类型检查
+        instruction_type = task_data.get('instruction_type')
+        if instruction_type:
+            valid_types = ['execution', 'information']
+            if instruction_type not in valid_types:
+                errors.append(f"无效的指令类型 '{instruction_type}'，有效值: {', '.join(valid_types)}")
+        
+        return len(errors) == 0, errors
+    
+    def get_management_statistics(self) -> Dict[str, Any]:
+        """获取管理统计信息"""
+        return {
+            **self.management_statistics,
+            'total_decisions': len(self.decision_history),
+            'interactive_mode': self.interactive_mode
+        }
 
 class CognitiveExecutor:
     """认知执行者 - 纯粹的执行单元"""
@@ -1148,11 +1952,14 @@ class CognitiveWorkflowEngine:
         self.enable_auto_recovery = enable_auto_recovery
         self.interactive_mode = interactive_mode
         
-        # 初始化三大角色
-        self.planner = CognitivePlanner(llm, agents, interactive_mode)
+        # 初始化两大角色 - 重构后的架构
         self.condition_checker = StateConditionChecker(llm)
-        self.decider = CognitiveDecider(llm, self.condition_checker, self.planner)
+        self.manager = CognitiveManager(llm, agents, self.condition_checker, interactive_mode)
         self.executor = CognitiveExecutor(agents)
+        
+        # 保持向后兼容性 - 临时属性
+        self.planner = self.manager  # 向后兼容
+        self.decider = self.manager  # 向后兼容
         
         # 工作流状态 - 启用智能状态生成
         self.global_state = GlobalState(current_state="工作流初始化")
@@ -1171,7 +1978,7 @@ class CognitiveWorkflowEngine:
             interactive: True启用交互模式，False禁用用户交互
         """
         self.interactive_mode = interactive
-        self.planner.interactive_mode = interactive
+        self.manager.interactive_mode = interactive
         logger.info(f"交互模式已设置为: {'启用' if interactive else '禁用'}")
         
     def is_interactive_mode(self) -> bool:
@@ -1205,11 +2012,11 @@ class CognitiveWorkflowEngine:
             logger.debug(f"工作流迭代 {self.iteration_count}")
             
             # 2.1 找到可执行任务（状态满足性检查）
-            executable_tasks = self.decider.find_executable_tasks(self.task_list, self.global_state)
+            executable_tasks = self.manager.find_executable_tasks(self.task_list, self.global_state)
             
             if not executable_tasks:
                 # 没有可执行任务，评估工作流状态
-                status_eval = self.decider.evaluate_workflow_status(self.task_list, self.global_state)
+                status_eval = self.manager.evaluate_workflow_status(self.task_list, self.global_state)
                 
                 if status_eval['recommendation'] == 'workflow_complete':
                     logger.info("工作流完成")
@@ -1225,13 +2032,13 @@ class CognitiveWorkflowEngine:
                     logger.warning(f"工作流状态异常: {status_eval['workflow_status']}")
                     break
             
-            # 2.2 决策者选择下一个任务（认知导航）
-            selected_task = self.decider.select_next_task(
+            # 2.2 管理者选择下一个任务（认知导航）
+            selected_task = self.manager.select_next_task(
                 executable_tasks, self.global_state, self.execution_log
             )
             
             if not selected_task:
-                logger.warning("决策者未能选择任务")
+                logger.warning("管理者未能选择任务")
                 break
                 
             # 2.3 执行者执行任务
@@ -1249,17 +2056,28 @@ class CognitiveWorkflowEngine:
             })
             
             # 2.6 动态计划修正决策
-            modification_decision = self.decider.plan_modification_decision(
+            logger.info(f"🤔 开始第 {self.iteration_count} 轮动态计划修正决策")
+            logger.info(f"   📝 刚完成任务: {selected_task.name} (ID: {selected_task.id})")
+            logger.info(f"   🎯 执行结果: {'✅ 成功' if result.success else '❌ 失败'}")
+            
+            modification_decision = self.manager.analyze_modification_needs(
                 self.task_list, self.global_state, result
             )
             
             if modification_decision['action'] != 'no_change':
+                logger.info(f"   🚨 检测到需要计划修正: {modification_decision['action']}")
                 self._apply_plan_modification(modification_decision)
+            else:
+                logger.info("   ✅ 计划无需修正，继续当前流程")
             
             # 2.7 错误恢复处理
             if not result.success and self.enable_auto_recovery:
+                logger.info(f"   🔧 任务失败，启动自动恢复机制")
                 self._handle_task_failure(selected_task, result)
+            else:
+                logger.info(f"   ➡️ 继续执行下一轮迭代")
         
+        logger.info(f"🏁 工作流执行完成，共进行了 {self.iteration_count} 次迭代")
         # 3. 生成执行摘要
         return self._generate_workflow_summary()
         
@@ -1273,8 +2091,8 @@ class CognitiveWorkflowEngine:
             source="user"
         )
         
-        # 规划者生成初始任务列表
-        self.task_list = self.planner.generate_task_list(goal, context)
+        # 管理者生成初始任务列表
+        self.task_list = self.manager.generate_initial_tasks(goal, context)
         # 记录初始任务列表到日志
         logger.info("=== 初始任务列表 ===")
         for i, task in enumerate(self.task_list, 1):
@@ -1287,12 +2105,12 @@ class CognitiveWorkflowEngine:
             logger.info(f"  类型: {task.instruction_type}")
             logger.info("---")
         
-        logger.info(f"规划者生成了 {len(self.task_list)} 个初始任务")
+        logger.info(f"管理者生成了 {len(self.task_list)} 个初始任务")
         
         # 恢复智能状态更新
         self.global_state.update_state(
             new_state=f"已生成 {len(self.task_list)} 个任务，准备开始执行",
-            source="planner"
+            source="manager"
         )
         
     def _update_global_state(self, task: CognitiveTask, result: Result):
@@ -1343,7 +2161,7 @@ class CognitiveWorkflowEngine:
             if latest_failed.result:
                 error_context = safe_get_result_error(latest_failed.result) or safe_get_result_return_value(latest_failed.result) or "未知错误"
             
-            recovery_tasks = self.planner.generate_recovery_tasks(
+            recovery_tasks = self.manager.generate_recovery_tasks(
                 latest_failed, 
                 error_context,
                 self.global_state
@@ -1383,81 +2201,41 @@ class CognitiveWorkflowEngine:
         action = modification_decision['action']
         reason = modification_decision['reason']
         
-        logger.info(f"应用计划修正: {action} - {reason}")
+        logger.info(f"🚀 开始应用计划修正: {action}")
+        logger.info(f"   📋 修正原因: {reason}")
         
         if action == 'add_tasks':
-            # TODO: [优先级：高] 动态任务添加 - 计划修正的核心功能
-            # 当前实现：空实现，无法添加新任务
-            # 需要实现：
-            # 1. 解析modification_decision中的新任务数据
-            # 2. 创建CognitiveTask对象并添加到task_list
-            # 3. 验证新任务的有效性（agent存在、先决条件合理等）
-            # 4. 重新计算任务ID以避免冲突
-            # 5. 记录任务添加的审计日志
-            # 示例实现：
-            # new_tasks_data = modification_decision.get('details', {}).get('new_tasks', [])
-            # for task_data in new_tasks_data:
-            #     new_task = CognitiveTask(
-            #         id=f"dynamic_{len(self.task_list)+1}",
-            #         name=task_data['name'],
-            #         instruction=task_data['instruction'],
-            #         ...
-            #     )
-            #     self.task_list.append(new_task)
-            #     logger.info(f"添加新任务: {new_task.id}")
-            pass
+            logger.info("   🔥 触发动态任务添加流程")
+            # 使用管理者进行动态任务添加
+            dynamic_tasks = self.manager.generate_dynamic_tasks(modification_decision, self.global_state)
+            if dynamic_tasks:
+                self.task_list.extend(dynamic_tasks)
+                task_names = [task.name for task in dynamic_tasks]
+                logger.info(f"   ✅ 动态任务添加成功: {', '.join(task_names)}")
+            else:
+                logger.warning("   ⚠️ 动态任务添加失败")
         elif action == 'remove_tasks':
+            logger.info("   🗑️ 触发动态任务移除流程（TODO：未实现）")
             # TODO: [优先级：中] 动态任务移除 - 计划优化功能
-            # 当前实现：空实现，无法移除无效任务
-            # 需要实现：
-            # 1. 解析要移除的任务ID列表
-            # 2. 检查任务依赖关系，确保移除安全
-            # 3. 更新相关任务的先决条件
-            # 4. 从task_list中移除指定任务
-            # 5. 记录任务移除的原因和影响
-            # 示例实现：
-            # task_ids_to_remove = modification_decision.get('details', {}).get('task_ids', [])
-            # for task_id in task_ids_to_remove:
-            #     task_to_remove = next((t for t in self.task_list if t.id == task_id), None)
-            #     if task_to_remove and task_to_remove.status == TaskStatus.PENDING:
-            #         self.task_list.remove(task_to_remove)
-            #         logger.info(f"移除任务: {task_id}")
             pass
         elif action == 'modify_tasks':
+            logger.info("   ✏️ 触发动态任务修改流程（TODO：未实现）")
             # TODO: [优先级：中] 动态任务修改 - 计划适应功能
-            # 当前实现：空实现，无法修改现有任务
-            # 需要实现：
-            # 1. 解析要修改的任务ID和修改内容
-            # 2. 支持修改任务的指令、先决条件、预期输出等
-            # 3. 验证修改后的任务仍然有效
-            # 4. 更新任务的updated_at时间戳
-            # 5. 记录任务修改的历史版本
-            # 示例实现：
-            # modifications = modification_decision.get('details', {}).get('modifications', [])
-            # for mod in modifications:
-            #     task_id = mod['task_id']
-            #     task = next((t for t in self.task_list if t.id == task_id), None)
-            #     if task and task.status == TaskStatus.PENDING:
-            #         if 'instruction' in mod:
-            #             task.instruction = mod['instruction']
-            #         if 'precondition' in mod:
-            #             task.precondition = mod['precondition']
-            #         task.updated_at = dt.now()
-            #         logger.info(f"修改任务: {task_id}")
             pass
             
         self.global_state.update_state(
             new_state=f"计划修正: {reason}",
-            source="decider"
+            source="manager"
         )
-        
+        logger.info("✅ 计划修正应用完成")
+    
     def _handle_task_failure(self, failed_task: CognitiveTask, result: Result):
         """处理任务失败 - 自动恢复机制"""
         logger.warning(f"任务失败，启动自动恢复: {failed_task.id}")
         
         # 生成修复任务
         error_context = safe_get_result_error(result) or safe_get_result_return_value(result) or "未知错误"
-        recovery_tasks = self.planner.generate_recovery_tasks(
+        recovery_tasks = self.manager.generate_recovery_tasks(
             failed_task, 
             error_context,
             self.global_state
@@ -1484,7 +2262,7 @@ class CognitiveWorkflowEngine:
             'final_state': self.global_state.current_state,
             'execution_time': self.execution_log[-1]['timestamp'] - self.execution_log[0]['timestamp'] if self.execution_log else None,
             'executor_stats': self.executor.get_execution_statistics(),
-            'decision_count': len(self.decider.decision_history),
+            'decision_count': len(self.manager.decision_history),
             'interactive_mode': self.interactive_mode
         }
         
@@ -1520,10 +2298,13 @@ if __name__ == "__main__":
     # 基本测试代码
     print("认知工作流系统模块已加载")
     print("核心组件:")
-    print("- CognitivePlanner (规划者)")
-    print("- CognitiveDecider (决策者)")  
+    print("- CognitiveManager (认知管理者) [重构后的统一管理组件]")
     print("- CognitiveExecutor (执行者)")
     print("- StateConditionChecker (状态满足性检查器)")
     print("- CognitiveTask (认知任务)")
     print("- GlobalState (全局状态)")
     print("- CognitiveWorkflowEngine (认知工作流引擎)")
+    print()
+    print("兼容性组件 (已整合到CognitiveManager):")
+    print("- CognitivePlanner (规划者)")
+    print("- CognitiveDecider (决策者)")
