@@ -129,9 +129,8 @@ llm_gemini_2_flash_openrouter = ChatOpenAI(
     temperature=0,
     model="google/gemini-2.0-flash-001", 
     base_url='https://openrouter.ai/api/v1',
-    api_key=os.getenv('OPENROUTER_API_KEY',
-
-    response_format={"type": "text"})
+    api_key=os.getenv('OPENROUTER_API_KEY'),
+    response_format={"type": "text"}
 )
 
 # 从语言模型的输出中提取代码或者patch

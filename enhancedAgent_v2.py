@@ -22,6 +22,17 @@ import sys
 from enum import Enum
 from string import Template
 
+# 导入多方案响应解析器
+try:
+    from response_parser_v2 import (
+        ParserFactory, ParserMethod, ParserConfig,
+        MultiMethodResponseParser, ParsedStateInfo, ResponseQuality
+    )
+    RESPONSE_PARSER_AVAILABLE = True
+except ImportError as e:
+    RESPONSE_PARSER_AVAILABLE = False
+    logging.warning(f"多方案响应解析器不可用: {e}")
+
 # 配置日志输出到控制台 - 只在没有配置过时才配置
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -4054,6 +4065,16 @@ class WorkflowState:
         if not hasattr(self, '_ai_updater') or self._ai_updater is None:
             try:
                 self._ai_updater = AIStateUpdaterService(llm_deepseek)
+                
+                # 如果启用了新的响应解析器，将其传递给AI状态更新器
+                if (hasattr(self, 'enable_response_analysis') and 
+                    self.enable_response_analysis and 
+                    hasattr(self, 'response_parser') and 
+                    self.response_parser is not None):
+                    # 替换AI状态更新器的解析器为新的多方案解析器
+                    self._ai_updater.response_parser = self.response_parser
+                    self._logger.info("AI状态更新器已同步使用新的多方案响应解析器")
+                
                 self._logger.info("AI状态更新器初始化成功")
             except Exception as e:
                 self._logger.error(f"AI状态更新器初始化失败: {e}")
@@ -4569,6 +4590,90 @@ while true {{
 }}
 ```
 """
+        
+        # 初始化多方案响应解析器
+        self._init_response_parser()
+
+    def _init_response_parser(self, 
+                             parser_method: Union[str, ParserMethod] = "rule",
+                             parser_config: Optional[Dict[str, Any]] = None,
+                             enable_response_analysis: bool = True,
+                             enable_execution_monitoring: bool = True):
+        """
+        初始化多方案响应解析器
+        
+        Args:
+            parser_method: 解析器方法 ("rule", "transformer", "deepseek", "embedding", "hybrid")
+            parser_config: 解析器配置参数
+            enable_response_analysis: 是否启用响应分析
+            enable_execution_monitoring: 是否启用执行监控
+        """
+        # 解析器配置
+        self.enable_response_analysis = enable_response_analysis
+        self.enable_execution_monitoring = enable_execution_monitoring
+        
+        if not RESPONSE_PARSER_AVAILABLE:
+            logger.warning("多方案响应解析器不可用，跳过初始化")
+            self.response_parser = None
+            self.parsed_responses_history = []
+            return
+        
+        try:
+            # 初始化解析器
+            if isinstance(parser_method, str):
+                parser_method = ParserMethod(parser_method) if parser_method in ["rule", "transformer", "deepseek", "embedding", "hybrid"] else ParserMethod.RULE
+            
+            parser_config = parser_config or {}
+            
+            # 根据方法类型创建解析器
+            if parser_method == ParserMethod.RULE:
+                self.response_parser = ParserFactory.create_rule_parser(**parser_config)
+            elif parser_method == ParserMethod.TRANSFORMER:
+                model_name = parser_config.get('model_name', 'hfl/chinese-bert-wwm-ext')
+                # 从parser_config中移除model_name以避免重复传递
+                transformer_config = {k: v for k, v in parser_config.items() if k != 'model_name'}
+                self.response_parser = ParserFactory.create_transformer_parser(model_name=model_name, **transformer_config)
+            elif parser_method == ParserMethod.DEEPSEEK:
+                api_key = parser_config.get('api_key') or parser_config.get('DEEPSEEK_API_KEY')
+                if not api_key:
+                    import os
+                    api_key = os.getenv('DEEPSEEK_API_KEY')
+                if api_key:
+                    # 从parser_config中移除api_key和api_base以避免重复传递
+                    deepseek_config = {k: v for k, v in parser_config.items() if k not in ['api_key', 'api_base', 'DEEPSEEK_API_KEY']}
+                    api_base = parser_config.get('api_base')
+                    self.response_parser = ParserFactory.create_deepseek_parser(api_key=api_key, api_base=api_base, **deepseek_config)
+                else:
+                    logger.warning("DeepSeek API密钥未配置，降级到规则解析器")
+                    self.response_parser = ParserFactory.create_rule_parser(**parser_config)
+            elif parser_method == ParserMethod.EMBEDDING:
+                model_name = parser_config.get('model_name', 'paraphrase-multilingual-MiniLM-L12-v2')
+                # 从parser_config中移除model_name以避免重复传递
+                embedding_config = {k: v for k, v in parser_config.items() if k != 'model_name'}
+                self.response_parser = ParserFactory.create_embedding_parser(model_name=model_name, **embedding_config)
+            else:  # hybrid
+                primary_method = parser_config.get('primary_method', ParserMethod.RULE)
+                fallback_chain = parser_config.get('fallback_chain', [ParserMethod.RULE])
+                filtered_config = {k: v for k, v in parser_config.items() if k not in ['primary_method', 'fallback_chain']}
+                self.response_parser = ParserFactory.create_hybrid_parser(
+                    primary_method=primary_method,
+                    fallback_chain=fallback_chain,
+                    **filtered_config
+                )
+                
+            # 初始化解析历史
+            self.parsed_responses_history = []
+            
+            # 解析器参数
+            self.confidence_threshold = parser_config.get('confidence_threshold', 0.6)
+            self.auto_retry_on_low_confidence = parser_config.get('auto_retry', False)
+            
+            logger.info(f"多方案响应解析器初始化完成，方法: {parser_method}")
+            
+        except Exception as e:
+            logger.error(f"响应解析器初始化失败: {e}，禁用解析功能")
+            self.response_parser = None
+            self.parsed_responses_history = []
 
     def register_agent(self, name: str, instance: Agent):
         """注册一个新的 Agent。"""
@@ -5084,18 +5189,27 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                     
             # 根据指令类型解析结果
             if instruction_type == "information":
-                return Result(True, instruction, response_text, "", response_text)
+                result_obj = Result(True, instruction, response_text, "", response_text)
             else:
                 if isinstance(result, Result):
-                    return result
+                    result_obj = result
                 elif hasattr(result, "return_value") and isinstance(result.return_value, Result):
-                    return result.return_value
+                    result_obj = result.return_value
                 else:
                     stdout = getattr(result, "stdout", str(result))
                     stderr = getattr(result, "stderr", None)
-                    return Result(False, instruction, stdout, stderr, None)
+                    result_obj = Result(False, instruction, stdout, stderr, None)
+            
+            # 进行响应分析（如果启用）
+            result_obj = self._analyze_step_response(result_obj, step, response_text)
+            
+            return result_obj
+            
         except Exception as e:
-            return Result(False, instruction, "", str(e), None)
+            error_result = Result(False, instruction, "", str(e), None)
+            # 分析错误响应
+            error_result = self._analyze_step_response(error_result, step, str(e))
+            return error_result
 
     #TODO: 整合到agent的execute方法
     @reduce_memory_decorator_compress
@@ -6060,13 +6174,14 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
         logger.info("决策统计信息已重置")
     
     def _generate_execution_summary(self, context: Dict[str, Any]) -> str:
-        """生成最终执行摘要"""
+        """生成最终执行摘要（增强版，包含响应分析）"""
         all_steps = context['plan']
         completed_steps = [s for s in all_steps if s.get("status") == "completed"]
         failed_steps = [s for s in all_steps if s.get("status") == "failed"]
         pending_steps = [s for s in all_steps if s.get("status") not in ("completed", "failed", "skipped")]
         
-        return f"""
+        # 基础摘要
+        summary = f"""
 ## 执行摘要
 - 总步骤数: {len(all_steps)}
 - 已完成: {len(completed_steps)}
@@ -6075,6 +6190,13 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
 
 {context['summary']}
 """
+        
+        # 添加响应分析摘要
+        if self.enable_response_analysis and self.response_parser and self.parsed_responses_history:
+            analysis_summary = self._generate_response_analysis_summary()
+            summary += f"\n## 🤖 智能分析摘要\n{analysis_summary}"
+        
+        return summary
     
 
     def make_decision(self, current_result, task_history=None, context=None):
@@ -6673,4 +6795,235 @@ current_plan[{step_idx}]["end_time"] = "{dt.now().isoformat()}"
                 'reason': f'决策解析失败: {e}',
                 'new_tasks': []
             }
+
+    # ===== 多方案响应解析器相关方法 =====
+    
+    def _analyze_step_response(self, result: Result, step: Dict[str, Any], response_text: str) -> Result:
+        """
+        分析步骤响应并增强结果
+        
+        Args:
+            result: 原始执行结果
+            step: 步骤信息
+            response_text: 响应文本
+            
+        Returns:
+            增强后的结果对象
+        """
+        if not self.enable_response_analysis or not self.response_parser:
+            return result
+        
+        try:
+            # 准备上下文信息
+            context = {
+                'step_name': step.get('name', ''),
+                'step_type': step.get('instruction_type', ''),
+                'agent_name': step.get('agent_name', ''),
+                'instruction': step.get('instruction', ''),
+                'execution_success': result.success
+            }
+            
+            # 解析响应
+            parsed_info = self.response_parser.parse_response(response_text, context)
+            
+            # 记录解析历史
+            self.parsed_responses_history.append({
+                'timestamp': dt.now().isoformat(),
+                'step_name': step.get('name', ''),
+                'instruction': step.get('instruction', ''),
+                'response_text': response_text,
+                'parsed_info': parsed_info,
+                'original_success': result.success
+            })
+            
+            # 增强结果对象
+            if hasattr(result, 'details') and isinstance(result.details, dict):
+                result.details['response_analysis'] = {
+                    'main_content': parsed_info.main_content,
+                    'confidence_score': parsed_info.confidence_score,
+                    'extracted_entities': parsed_info.extracted_entities,
+                    'sentiment': parsed_info.sentiment,
+                    'intent': parsed_info.intent,
+                    'quality_metrics': parsed_info.quality_metrics
+                }
+            else:
+                # 如果 result.details 不存在或不是字典，创建新的
+                result.details = {
+                    'response_analysis': {
+                        'main_content': parsed_info.main_content,
+                        'confidence_score': parsed_info.confidence_score,
+                        'extracted_entities': parsed_info.extracted_entities,
+                        'sentiment': parsed_info.sentiment,
+                        'intent': parsed_info.intent,
+                        'quality_metrics': parsed_info.quality_metrics
+                    }
+                }
+            
+            # 检查置信度并记录警告
+            if parsed_info.confidence_score < self.confidence_threshold:
+                logger.warning(f"步骤 '{step.get('name', '')}' 响应置信度较低: {parsed_info.confidence_score:.2f}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"响应分析失败: {e}")
+            return result
+    
+    def _generate_response_analysis_summary(self) -> str:
+        """生成响应分析摘要"""
+        if not self.parsed_responses_history:
+            return "暂无响应分析数据"
+        
+        # 计算统计信息
+        total_responses = len(self.parsed_responses_history)
+        confidence_scores = [entry['parsed_info'].confidence_score for entry in self.parsed_responses_history]
+        avg_confidence = sum(confidence_scores) / len(confidence_scores)
+        
+        # 统计状态类型
+        status_types = [entry['parsed_info'].extracted_entities.get('status_type', 'unknown') 
+                       for entry in self.parsed_responses_history]
+        status_counts = {}
+        for status in status_types:
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        # 统计情感倾向
+        sentiments = [entry['parsed_info'].sentiment for entry in self.parsed_responses_history 
+                     if entry['parsed_info'].sentiment]
+        sentiment_counts = {}
+        for sentiment in sentiments:
+            sentiment_counts[sentiment] = sentiment_counts.get(sentiment, 0) + 1
+        
+        # 获取解析器统计
+        parser_stats = self.response_parser.get_stats() if self.response_parser else {}
+        
+        # 生成摘要
+        summary = f"📊 **响应分析统计**\n"
+        summary += f"- 总响应数: {total_responses}\n"
+        summary += f"- 平均置信度: {avg_confidence:.1%}\n"
+        summary += f"- 解析成功率: {parser_stats.get('success_rate', 0):.1%}\n"
+        
+        if status_counts:
+            summary += f"- 状态分布: "
+            status_desc = {"success": "成功", "error": "错误", "progress": "进行中", "neutral": "中性"}
+            status_parts = [f"{status_desc.get(k, k)}({v})" for k, v in status_counts.items()]
+            summary += ", ".join(status_parts) + "\n"
+        
+        if sentiment_counts:
+            summary += f"- 情感分布: "
+            sentiment_desc = {"positive": "积极", "negative": "消极", "neutral": "中性"}
+            sentiment_parts = [f"{sentiment_desc.get(k, k)}({v})" for k, v in sentiment_counts.items()]
+            summary += ", ".join(sentiment_parts) + "\n"
+        
+        # 最近一次分析结果
+        if self.parsed_responses_history:
+            last_entry = self.parsed_responses_history[-1]
+            last_info = last_entry['parsed_info']
+            summary += f"- 最近分析: {last_info.extracted_entities.get('status_type', '未知')}状态，"
+            summary += f"置信度{last_info.confidence_score:.1%}\n"
+        
+        return summary
+    
+    def get_response_analysis_stats(self) -> Dict[str, Any]:
+        """获取响应分析统计信息"""
+        if not self.response_parser:
+            return {"error": "响应解析器未初始化"}
+        
+        base_stats = self.response_parser.get_stats()
+        
+        if self.parsed_responses_history:
+            # 计算额外统计信息
+            confidence_scores = [entry['parsed_info'].confidence_score for entry in self.parsed_responses_history]
+            base_stats.update({
+                'total_analyzed_responses': len(self.parsed_responses_history),
+                'average_confidence': sum(confidence_scores) / len(confidence_scores),
+                'min_confidence': min(confidence_scores),
+                'max_confidence': max(confidence_scores),
+                'low_confidence_count': sum(1 for score in confidence_scores if score < self.confidence_threshold)
+            })
+        
+        return base_stats
+    
+    def configure_response_parser(self, 
+                                 parser_method: Union[str, ParserMethod] = None,
+                                 parser_config: Dict[str, Any] = None,
+                                 enable_response_analysis: bool = None,
+                                 enable_execution_monitoring: bool = None):
+        """
+        重新配置响应解析器
+        
+        Args:
+            parser_method: 新的解析器方法
+            parser_config: 新的解析器配置
+            enable_response_analysis: 是否启用响应分析
+            enable_execution_monitoring: 是否启用执行监控
+        """
+        if enable_response_analysis is not None:
+            self.enable_response_analysis = enable_response_analysis
+        
+        if enable_execution_monitoring is not None:
+            self.enable_execution_monitoring = enable_execution_monitoring
+        
+        if parser_method is not None or parser_config is not None:
+            # 重新初始化解析器
+            self._init_response_parser(
+                parser_method=parser_method or "rule",
+                parser_config=parser_config or {},
+                enable_response_analysis=self.enable_response_analysis,
+                enable_execution_monitoring=self.enable_execution_monitoring
+            )
+            
+            # 同步更新AI状态更新器的解析器
+            if (hasattr(self, '_ai_updater') and self._ai_updater is not None and
+                hasattr(self, 'response_parser') and self.response_parser is not None):
+                self._ai_updater.response_parser = self.response_parser
+                logger.info("AI状态更新器的响应解析器已同步更新")
+        
+        logger.info(f"响应解析器配置已更新")
+    
+    def clear_response_analysis_history(self):
+        """清空响应分析历史"""
+        self.parsed_responses_history = []
+        logger.info("响应分析历史已清空")
+    
+    def get_natural_language_analysis_summary(self) -> str:
+        """获取自然语言形式的分析摘要"""
+        if not self.parsed_responses_history:
+            return "智能体尚未执行任何任务，暂无分析数据。"
+        
+        total_responses = len(self.parsed_responses_history)
+        confidence_scores = [entry['parsed_info'].confidence_score for entry in self.parsed_responses_history]
+        avg_confidence = sum(confidence_scores) / len(confidence_scores)
+        
+        # 分析最近的趋势
+        if len(self.parsed_responses_history) >= 3:
+            recent_confidences = confidence_scores[-3:]
+            if recent_confidences[-1] > recent_confidences[0]:
+                trend = "呈上升趋势"
+            elif recent_confidences[-1] < recent_confidences[0]:
+                trend = "呈下降趋势"
+            else:
+                trend = "保持稳定"
+        else:
+            trend = "数据不足"
+        
+        # 获取主要状态类型
+        status_types = [entry['parsed_info'].extracted_entities.get('status_type', 'unknown') 
+                       for entry in self.parsed_responses_history]
+        if status_types:
+            most_common_status = max(set(status_types), key=status_types.count)
+            status_desc = {"success": "成功", "error": "错误", "progress": "进行中", "neutral": "中性"}.get(most_common_status, most_common_status)
+        else:
+            status_desc = "未知"
+        
+        summary = f"智能体已完成 {total_responses} 个任务的响应分析，"
+        summary += f"平均解析置信度为 {avg_confidence:.1%}，置信度{trend}。"
+        summary += f"主要任务状态类型为{status_desc}。"
+        
+        # 获取解析器性能
+        if self.response_parser:
+            parser_stats = self.response_parser.get_stats()
+            success_rate = parser_stats.get('success_rate', 0)
+            summary += f"解析器整体成功率为 {success_rate:.1%}。"
+        
+        return summary
 

@@ -57,6 +57,16 @@ class Result:
     
     def __repr__(self) -> str:
         return self.__str__()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'success': self.success,
+            'code': self.code,
+            'stdout': self.stdout,
+            'stderr': self.stderr,
+            'return_value': self.return_value
+        }
 #endregion
 
 #region reduce_memory_decorator (修改后)

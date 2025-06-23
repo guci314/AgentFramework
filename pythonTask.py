@@ -1264,6 +1264,7 @@ class Agent(AgentBase):
                  thinker_chat_system_message:str=None):
         self.llm = llm
         self.name=''
+        self.api_specification = None  # 初始化 API specification
         if not evaluate_llm:
             self.evaluate_llm=self.llm
         else:
@@ -1763,6 +1764,26 @@ class Agent(AgentBase):
             # 如果没有提供评估消息，添加一个默认评估器
             self.evaluators.append(Evaluator(llm=self.llm, systemMessage=default_evaluate_message, thinker=self.thinker))
             logging.info(f"已创建默认评估器，当前评估器数量: {len(self.evaluators)}")
+
+    def set_api_specification(self, api_spec: str):
+        '''
+        设置智能体的 API 规范说明
+        
+        参数:
+        api_spec (str): API 规范说明，描述智能体的功能和使用方法
+        '''
+        self.api_specification = api_spec
+        logging.info(f"已设置 API 规范: {api_spec}")
+        
+    def set_agent_name(self, name: str):
+        '''
+        设置智能体的名称
+        
+        参数:
+        name (str): 智能体名称
+        '''
+        self.name = name
+        logging.info(f"已设置智能体名称: {name}")
 
 
 
