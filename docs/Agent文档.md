@@ -65,10 +65,10 @@ graph TB
     AgentBase --> Compress
     
     %% 样式定义
-    classDef agentClass fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
-    classDef coreClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef baseClass fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef supportClass fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef agentClass fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000000
+    classDef coreClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000
+    classDef baseClass fill:#e8f5e8,stroke:#388e3c,stroke-width:2px,color:#000000
+    classDef supportClass fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000000
     
     class Agent agentClass
     class Thinker,Evaluator,Device,StatefulExecutor coreClass
