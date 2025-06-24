@@ -375,6 +375,69 @@ class Agent(AgentBase):
 | `device` | `Device/StatefulExecutor` | 代码执行器 |
 | `evaluators` | `List[Evaluator]` | 多个评估器 |
 
+#### 核心方法
+
+##### 6.1 execute_sync - 同步执行方法
+
+```python
+def execute_sync(self, instruction: str) -> Result:
+    """同步执行智能体任务"""
+```
+
+**功能说明：**
+- 完整的同步执行流程：代码生成 → 执行 → 评估 → 结果生成
+- 适用于简单、快速的任务执行
+- 阻塞式调用，等待所有步骤完成
+- 返回最终的`Result`对象
+
+**参数：**
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `instruction` | `str` | 自然语言指令 |
+
+**返回：**
+- `Result`对象，包含：
+  - `success`: 任务是否成功
+  - `code`: 生成的代码
+  - `stdout`: 标准输出
+  - `stderr`: 标准错误
+  - `return_value`: 最终生成的用户友好回复
+
+##### 6.2 execute_stream - 流式执行方法
+
+```python
+def execute_stream(self, instruction: str) -> Iterator[object]:
+    """流式执行智能体任务"""
+```
+
+**功能说明：**
+- 实时流式返回执行过程
+- 包含代码生成、执行和评估的中间状态
+- 适用于长时间运行的任务
+- 非阻塞式调用，适合交互式场景
+
+**参数：**
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `instruction` | `str` | 自然语言指令 |
+
+**返回：**
+- 迭代器，按顺序包含：
+  1. 代码生成过程的文本片段
+  2. 执行状态和日志信息
+  3. 评估过程的反馈
+  4. 最终生成的用户友好回复（流式）
+  5. 最终的`Result`对象
+
+**流式返回解析示例：**
+```python
+for item in agent.execute_stream("计算1+1"):
+    if isinstance(item, str):
+        print(f"过程: {item}")  # 中间文本片段
+    elif isinstance(item, Result):
+        print(f"结果: {item}")  # 最终执行结果
+```
+
 #### 执行流程
 
 **同步执行流程：**
