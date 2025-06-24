@@ -10,7 +10,77 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import psutil_patch: {e}")
 
-from autogen.code_utils import extract_code,execute_code
+# 替换 autogen 导入，使用本地实现
+import re
+def extract_code(text: str, lang: str = None):
+    """
+    从文本中提取代码块
+    返回 [(语言, 代码)] 的列表
+    """
+    # 匹配 ```language 或 ``` 开头的代码块
+    pattern = r'```(?:(\w+)\s*)?\n(.*?)```'
+    matches = re.findall(pattern, text, re.DOTALL)
+    
+    if matches:
+        result = []
+        for language, code in matches:
+            # 如果没有指定语言，默认为 python
+            if not language:
+                language = 'python'
+            result.append((language, code.strip()))
+        return result
+    else:
+        # 如果没有找到代码块，尝试查找简单的代码模式
+        # 查找看起来像 Python 代码的行
+        lines = text.split('\n')
+        code_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if (stripped.startswith('import ') or 
+                stripped.startswith('from ') or
+                stripped.startswith('def ') or
+                stripped.startswith('class ') or
+                stripped.startswith('print(') or
+                '=' in stripped and not stripped.startswith('#')):
+                code_lines.append(line)
+        
+        if code_lines:
+            return [('python', '\n'.join(code_lines))]
+        else:
+            return [('python', text)]
+
+# 简单的代码执行函数（这个在项目中似乎没有直接使用 autogen 的版本）
+def execute_code(code: str, work_dir: str = None):
+    """简单的代码执行函数，主要用于兼容性"""
+    import subprocess
+    import tempfile
+    
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(code)
+            temp_file = f.name
+        
+        result = subprocess.run(
+            ['python', temp_file], 
+            capture_output=True, 
+            text=True,
+            cwd=work_dir
+        )
+        
+        os.unlink(temp_file)
+        
+        return {
+            'exitcode': result.returncode,
+            'stdout': result.stdout,
+            'stderr': result.stderr
+        }
+    except Exception as e:
+        return {
+            'exitcode': 1,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage,SystemMessage,BaseMessage,FunctionMessage
 from langchain_core.language_models import BaseChatModel

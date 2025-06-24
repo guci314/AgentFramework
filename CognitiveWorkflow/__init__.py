@@ -30,8 +30,7 @@ from .cognitive_workflow import (
     CognitiveWorkflowEngine,
     
     # 三大角色
-    CognitivePlanner,
-    CognitiveDecider, 
+    CognitiveManager,
     CognitiveExecutor,
     
     # 核心数据结构
@@ -62,8 +61,7 @@ __all__ = [
     "CognitiveWorkflowEngine",
     
     # 三大角色
-    "CognitivePlanner",
-    "CognitiveDecider",
+    "CognitiveManager",
     "CognitiveExecutor",
     
     # 数据结构

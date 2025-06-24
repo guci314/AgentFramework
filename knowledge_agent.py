@@ -135,7 +135,7 @@ llm_gemini_2_flash_openrouter = ChatOpenAI(
 
 # 从语言模型的输出中提取代码或者patch
 
-from autogen.code_utils import extract_code
+from pythonTask import extract_code
 
 Extract code from a text.
 
@@ -203,7 +203,7 @@ unittest单元测试的测试结果在stderr中。stdout中是测试过程中打
 把[x]打印出来，系统会把[x]的内容反馈到你的记忆
     
 ## 从文本中提取python代码的方法
-from autogen.code_utils import extract_code
+from pythonTask import extract_code
 python_code = extract_code(python_code)[0][1]
 
 ## 调用语言模型示例
@@ -222,7 +222,7 @@ print(x)
 ## 调用语言模型从文本中提取数据以json格式返回
 import json
 from pythonTask import llm_gemini_2_flash_openrouter
-from autogen.code_utils import extract_code
+from pythonTask import extract_code
 
 # 构建提示 要求输出JSON格式
 prompt = "请分析以下文本 判断其情感是积极还是消极 并以JSON格式返回结果。json有两个个字段，分别是sentiment,confidence。文本 '我今天非常开心'"

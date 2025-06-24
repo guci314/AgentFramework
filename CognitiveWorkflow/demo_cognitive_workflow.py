@@ -62,11 +62,10 @@ def create_mock_agents() -> Dict[str, Agent]:
         "analyst": analyst
     }
 
-def demo_simple_calculator():
-    """演示：简单计算器开发 - 认知工作流vs传统工作流的对比"""
-    
-    print("🧠 === 认知工作流演示：智能计算器开发 ===")
-    print()
+def demo():
+    """
+    演示认知工作流系统
+    """
     
     # 创建智能体
     agents = create_mock_agents()
@@ -81,7 +80,16 @@ def demo_simple_calculator():
     
     # 定义高层次目标 - 用户只需提供这个
     goal = """
-    开发一个简单的python hello world程序
+    开发一个简单的python hello world程序，打印“hello world 123 ”，保存到当前目录下，文件名为hello_world.py
+    """
+    
+    goal="""
+    
+1.  实现一个简单的计算器类，包含加减乘除功能和完整单元测试
+2.  把代码保存到simple_calculator.py
+3.  运行simple_calculator.py，执行所有测试
+4.  分析测试结果，测试通过则完成工作流，测试失败则修复代码并重新测试
+
     """
     
     print(f"🎯 目标: {goal}")
@@ -251,7 +259,7 @@ def main():
         
         # 4. 实际工作流演示
         # input("\n按回车键开始实际工作流演示...")
-        result = demo_simple_calculator()
+        result = demo()
         
         if result:
             print()
