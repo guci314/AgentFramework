@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 import uuid
 
-from ..domain.entities import GlobalState, Result, ProductionRule
+from ..domain.entities import GlobalState, WorkflowResult, ProductionRule
 from ..domain.repositories import StateRepository
 from ..domain.value_objects import StateChangeAnalysis, MatchingResult
 from .language_model_service import LanguageModelService
@@ -36,7 +36,7 @@ class StateService:
         self.state_repository = state_repository
         self._current_state: Optional[GlobalState] = None
         
-    def update_state(self, execution_result: Result, global_state: GlobalState) -> GlobalState:
+    def update_state(self, execution_result: WorkflowResult, global_state: GlobalState) -> GlobalState:
         """
         更新全局状态
         
@@ -55,11 +55,11 @@ class StateService:
             
             # 创建新的状态实例
             new_state = GlobalState(
-                id=str(uuid.uuid4()),
+                id=f"{global_state.id}_iter_{global_state.iteration_count + 1}",  # Use deterministic ID
                 description=new_description,
                 context_variables=global_state.context_variables.copy(),
                 execution_history=global_state.execution_history.copy(),
-                timestamp=datetime.now(),
+                # timestamp=datetime.now(),  # Removed for LLM caching
                 workflow_id=global_state.workflow_id,
                 iteration_count=global_state.iteration_count + 1,
                 goal_achieved=global_state.goal_achieved
@@ -269,7 +269,7 @@ class StateService:
                 key_changes=key_changes,
                 semantic_similarity=similarity,
                 change_significance=change_significance,
-                timestamp=datetime.now()
+                timestamp=datetime.now()  # Keep this as it's part of analysis, not state
             )
             
         except Exception as e:
@@ -280,7 +280,7 @@ class StateService:
                 key_changes=[],
                 semantic_similarity=0.0,
                 change_significance='unknown',
-                timestamp=datetime.now()
+                timestamp=datetime.now()  # Keep this as it's part of analysis, not state
             )
     
     def create_initial_state(self, goal: str, workflow_id: str) -> GlobalState:
@@ -297,11 +297,11 @@ class StateService:
         initial_description = f"工作流已启动，目标：{goal}。当前处于初始状态，等待规则生成和执行。"
         
         initial_state = GlobalState(
-            id=str(uuid.uuid4()),
+            id=f"{workflow_id}_initial",  # Use deterministic ID
             description=initial_description,
             context_variables={'goal': goal},
-            execution_history=[f"[{datetime.now().isoformat()}] 工作流启动"],
-            timestamp=datetime.now(),
+            execution_history=[f"[iter_0] 工作流启动"],  # Use iteration instead of timestamp
+            # timestamp=datetime.now(),  # Removed for LLM caching
             workflow_id=workflow_id,
             iteration_count=0,
             goal_achieved=False
@@ -314,7 +314,7 @@ class StateService:
         return initial_state
     
     def _generate_new_state_description(self, 
-                                       execution_result: Result, 
+                                       execution_result: WorkflowResult, 
                                        current_state: GlobalState) -> str:
         """
         生成新的状态描述
@@ -359,7 +359,7 @@ class StateService:
             status = "成功" if execution_result.success else "失败"
             return f"上一步执行{status}: {execution_result.message}"
     
-    def _create_history_entry(self, execution_result: Result) -> str:
+    def _create_history_entry(self, execution_result: WorkflowResult) -> str:
         """
         创建历史记录条目
         
@@ -369,11 +369,11 @@ class StateService:
         Returns:
             str: 历史记录条目
         """
-        timestamp = execution_result.timestamp.isoformat()
+        # Use deterministic identifier instead of timestamp
         status = "成功" if execution_result.success else "失败"
-        return f"[{timestamp}] 执行{status}: {execution_result.message}"
+        return f"[执行{status}] {execution_result.message}"
     
-    def _update_context_variables(self, state: GlobalState, execution_result: Result) -> None:
+    def _update_context_variables(self, state: GlobalState, execution_result: WorkflowResult) -> None:
         """
         更新上下文变量
         
@@ -391,7 +391,7 @@ class StateService:
         
         # 更新执行统计
         state.context_variables['last_execution_success'] = execution_result.success
-        state.context_variables['last_execution_time'] = execution_result.timestamp.isoformat()
+        # state.context_variables['last_execution_time'] = execution_result.timestamp.isoformat()  # Removed for LLM caching
         
         # 如果执行结果包含数据，可能需要更新特定的上下文变量
         if execution_result.data and isinstance(execution_result.data, dict):

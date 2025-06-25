@@ -9,6 +9,9 @@
 from typing import Dict, List, Any, Optional, Tuple
 import logging
 from datetime import datetime
+import concurrent.futures
+import threading
+from functools import partial
 
 from ..domain.entities import ProductionRule, GlobalState, DecisionResult, RuleSet
 from ..domain.value_objects import DecisionType, MatchingConstants
@@ -20,20 +23,23 @@ logger = logging.getLogger(__name__)
 class RuleMatchingService:
     """规则匹配服务 - 专注于语义匹配和规则选择"""
     
-    def __init__(self, llm_service: LanguageModelService):
+    def __init__(self, llm_service: LanguageModelService, max_workers: int = 4):
         """
         初始化规则匹配服务
         
         Args:
             llm_service: 语言模型服务
+            max_workers: 并行执行的最大工作线程数
         """
         self.llm_service = llm_service
+        self.max_workers = max_workers
+        self._execution_lock = threading.Lock()  # 保护共享资源
         
     def find_applicable_rules(self, 
                             global_state: GlobalState, 
                             rule_set: RuleSet) -> List[ProductionRule]:
         """
-        查找适用的规则
+        查找适用的规则（并行优化版本）
         
         Args:
             global_state: 全局状态
@@ -43,32 +49,29 @@ class RuleMatchingService:
             List[ProductionRule]: 适用的规则列表，按优先级排序
         """
         try:
-            logger.info("开始查找适用规则")
-            applicable_rules = []
+            logger.info(f"开始并行查找适用规则，规则数量: {len(rule_set.rules)}")
+            start_time = datetime.now()
             
-            for rule in rule_set.rules:
-                try:
-                    # 评估规则条件匹配度
-                    is_match, confidence = self.evaluate_rule_conditions(rule, global_state)
-                    
-                    # 只有高置信度的匹配才认为是适用的
-                    if is_match and confidence >= MatchingConstants.MEDIUM_CONFIDENCE_THRESHOLD:
-                        applicable_rules.append(rule)
-                        logger.debug(f"规则适用: {rule.name} (置信度: {confidence:.2f})")
-                    
-                except Exception as e:
-                    logger.error(f"规则条件评估失败: {rule.id}, {e}")
-                    continue
+            # 如果规则数量较少，使用顺序执行避免并发开销
+            if len(rule_set.rules) <= 3:
+                return self._find_applicable_rules_sequential(global_state, rule_set)
+            
+            # 并行评估规则条件
+            applicable_rules = self._find_applicable_rules_parallel(global_state, rule_set)
             
             # 按优先级排序（高优先级在前）
             applicable_rules.sort(key=lambda r: r.priority, reverse=True)
             
-            logger.info(f"找到 {len(applicable_rules)} 个适用规则")
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            
+            logger.info(f"并行查找完成，找到 {len(applicable_rules)} 个适用规则，耗时: {duration:.3f}秒")
             return applicable_rules
             
         except Exception as e:
-            logger.error(f"查找适用规则失败: {e}")
-            return []
+            logger.error(f"并行查找适用规则失败，回退到顺序执行: {e}")
+            # 回退到顺序执行
+            return self._find_applicable_rules_sequential(global_state, rule_set)
     
     def evaluate_rule_conditions(self, 
                                 rule: ProductionRule, 
@@ -529,3 +532,134 @@ class RuleMatchingService:
         except Exception as e:
             logger.error(f"新型状态判断失败: {e}")
             return False
+    
+    def _find_applicable_rules_sequential(self, 
+                                        global_state: GlobalState, 
+                                        rule_set: RuleSet) -> List[ProductionRule]:
+        """
+        顺序查找适用规则（原始实现）
+        
+        Args:
+            global_state: 全局状态
+            rule_set: 规则集
+            
+        Returns:
+            List[ProductionRule]: 适用的规则列表
+        """
+        try:
+            applicable_rules = []
+            
+            for rule in rule_set.rules:
+                try:
+                    # 评估规则条件匹配度
+                    is_match, confidence = self.evaluate_rule_conditions(rule, global_state)
+                    
+                    # 只有高置信度的匹配才认为是适用的
+                    if is_match and confidence >= MatchingConstants.MEDIUM_CONFIDENCE_THRESHOLD:
+                        applicable_rules.append(rule)
+                        logger.debug(f"规则适用: {rule.name} (置信度: {confidence:.2f})")
+                    
+                except Exception as e:
+                    logger.error(f"规则条件评估失败: {rule.id}, {e}")
+                    continue
+            
+            return applicable_rules
+            
+        except Exception as e:
+            logger.error(f"顺序查找适用规则失败: {e}")
+            return []
+    
+    def _find_applicable_rules_parallel(self, 
+                                       global_state: GlobalState, 
+                                       rule_set: RuleSet) -> List[ProductionRule]:
+        """
+        并行查找适用规则
+        
+        Args:
+            global_state: 全局状态
+            rule_set: 规则集
+            
+        Returns:
+            List[ProductionRule]: 适用的规则列表
+        """
+        try:
+            applicable_rules = []
+            
+            # 创建线程安全的评估函数
+            def evaluate_single_rule(rule: ProductionRule) -> Optional[ProductionRule]:
+                """评估单个规则，返回适用的规则或None"""
+                try:
+                    is_match, confidence = self.evaluate_rule_conditions(rule, global_state)
+                    
+                    if is_match and confidence >= MatchingConstants.MEDIUM_CONFIDENCE_THRESHOLD:
+                        logger.debug(f"规则适用: {rule.name} (置信度: {confidence:.2f})")
+                        return rule
+                    
+                    return None
+                    
+                except Exception as e:
+                    logger.error(f"规则条件评估失败: {rule.id}, {e}")
+                    return None
+            
+            # 使用ThreadPoolExecutor进行并行评估
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                # 提交所有规则的评估任务
+                future_to_rule = {
+                    executor.submit(evaluate_single_rule, rule): rule 
+                    for rule in rule_set.rules
+                }
+                
+                # 收集结果
+                for future in concurrent.futures.as_completed(future_to_rule):
+                    rule = future_to_rule[future]
+                    try:
+                        result = future.result(timeout=30)  # 30秒超时
+                        if result is not None:
+                            applicable_rules.append(result)
+                    except concurrent.futures.TimeoutError:
+                        logger.warning(f"规则评估超时: {rule.name}")
+                    except Exception as e:
+                        logger.error(f"规则评估异常: {rule.name}, {e}")
+            
+            return applicable_rules
+            
+        except Exception as e:
+            logger.error(f"并行查找适用规则失败: {e}")
+            return []
+    
+    def _evaluate_rule_conditions_thread_safe(self, 
+                                            rule: ProductionRule, 
+                                            global_state: GlobalState) -> Tuple[bool, float]:
+        """
+        线程安全的规则条件评估
+        
+        Args:
+            rule: 要评估的规则
+            global_state: 全局状态
+            
+        Returns:
+            Tuple[bool, float]: (是否匹配, 置信度)
+        """
+        try:
+            # 使用锁保护LLM服务调用，避免并发冲突
+            with self._execution_lock:
+                # 使用语言模型进行语义匹配
+                matching_result = self.llm_service.semantic_match(
+                    rule.condition, 
+                    global_state.description
+                )
+            
+            # 上下文相关性评估不需要LLM调用，可以并行执行
+            context_boost = self._evaluate_context_relevance(rule, global_state)
+            
+            # 调整置信度
+            adjusted_confidence = min(1.0, matching_result.confidence + context_boost)
+            
+            logger.debug(f"规则条件评估: {rule.name} -> {matching_result.is_match} "
+                        f"(置信度: {adjusted_confidence:.2f})")
+            
+            return matching_result.is_match, adjusted_confidence
+            
+        except Exception as e:
+            logger.error(f"线程安全规则条件评估失败: {e}")
+            return False, 0.0

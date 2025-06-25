@@ -125,8 +125,8 @@ class MatchingResult:
 
 
 @dataclass(frozen=True)
-class WorkflowResult:
-    """工作流执行结果 - 值对象"""
+class WorkflowExecutionResult:
+    """工作流执行结果摘要 - 值对象"""
     goal: str
     is_successful: bool
     final_state: str
@@ -142,6 +142,26 @@ class WorkflowResult:
                 f"总迭代次数: {self.total_iterations}\n"
                 f"成功率: {self.execution_metrics.success_rate:.2%}\n"
                 f"最终状态: {self.final_state}")
+    
+    def to_dict(self) -> dict:
+        """转换为字典格式"""
+        return {
+            'goal': self.goal,
+            'is_successful': self.is_successful,
+            'final_state': self.final_state,
+            'total_iterations': self.total_iterations,
+            'execution_metrics': {
+                'total_rules_executed': self.execution_metrics.total_rules_executed,
+                'successful_executions': self.execution_metrics.successful_executions,
+                'failed_executions': self.execution_metrics.failed_executions,
+                'average_execution_time': self.execution_metrics.average_execution_time,
+                'total_execution_time': self.execution_metrics.total_execution_time,
+                'rule_match_accuracy': self.execution_metrics.rule_match_accuracy,
+                'success_rate': self.execution_metrics.success_rate
+            },
+            'final_message': self.final_message,
+            'completion_timestamp': self.completion_timestamp.isoformat()
+        }
 
 
 # 常量定义

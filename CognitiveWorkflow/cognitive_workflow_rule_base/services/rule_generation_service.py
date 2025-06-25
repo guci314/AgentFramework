@@ -64,8 +64,8 @@ class RuleGenerationService:
             
         except Exception as e:
             logger.error(f"规则集生成失败: {e}")
-            # 返回一个基本的规则集
-            return self._create_fallback_rule_set(goal, agent_registry)
+            # 直接重新抛出异常，不再使用回退规则集
+            raise
     
     def generate_recovery_rules(self, failure_context: Dict[str, Any]) -> List[ProductionRule]:
         """
@@ -244,29 +244,55 @@ class RuleGenerationService:
             List[ProductionRule]: 生成的规则列表
         """
         prompt = f"""
-请为以下目标生成一套完整的产生式规则：
+请为以下目标生成一套产生式规则：
 
 目标: {goal}
 
 可用的智能体能力:
 {capabilities_desc}
 
-请生成6-10个产生式规则，覆盖完整的执行流程。每个规则需要包含：
-1. 规则名称
-2. 触发条件（IF部分，自然语言描述）
-3. 执行动作（THEN部分，自然语言指令）
-4. 适用的智能体能力ID
-5. 执行阶段（information_gathering/problem_solving/verification/cleanup）
-6. 优先级（1-100）
-7. 期望结果
+## 三阶段执行模式
 
-请确保规则：
-- 覆盖从信息收集到最终验证的完整流程
-- 条件描述清晰，便于语义匹配
-- 动作指令具体，便于智能体执行
-- 优先级合理，重要规则优先级更高
+请基于以下三阶段模式生成规则：
 
-请以JSON格式返回规则列表。
+1. **收集阶段 (information_gathering)**: 分析需求、收集信息、理解问题
+2. **执行阶段 (problem_solving)**: 实现主要功能、解决核心问题
+3. **验证阶段 (verification)**: 测试结果、验证正确性、完善细节
+
+**重要说明**: 简单直接的任务可以跳过收集阶段，直接从执行阶段开始。
+
+## JSON Schema
+
+请严格按照以下JSON schema返回规则：
+
+```json
+{{
+  "rules": [
+    {{
+      "rule_name": "规则名称（字符串）",
+      "trigger_condition": "触发条件（IF部分，自然语言描述）",
+      "action": "执行动作（THEN部分，自然语言指令）",
+      "agent_capability_id": "智能体能力ID（必须从上述可用能力中选择）",
+      "execution_phase": "执行阶段（information_gathering|problem_solving|verification）",
+      "priority": 优先级数字（1-100，数字越大优先级越高）,
+      "expected_result": "期望结果描述（字符串）"
+    }}
+  ]
+}}
+```
+
+## 生成要求
+
+1. **规则数量**: 根据任务复杂度自行判断，简单任务2-3个规则，复杂任务可以更多
+2. **阶段分布**: 
+   - 简单任务：可以只有执行和验证阶段
+   - 复杂任务：包含完整的收集、执行、验证三阶段
+3. **条件描述**: 使用自然语言，便于语义匹配
+4. **动作指令**: 具体明确，便于智能体理解和执行
+5. **能力匹配**: agent_capability_id必须从可用能力列表中选择
+6. **优先级**: 收集>执行>验证，同阶段内按重要性排序
+
+请分析目标复杂度，生成适合的规则集合，严格按照JSON schema格式返回。
 """
         
         try:
@@ -283,15 +309,15 @@ class RuleGenerationService:
                     if rule:
                         rules.append(rule)
             
-            # 如果生成失败，创建基础规则
+            # 如果生成失败，直接抛出异常
             if not rules:
-                rules = self._create_basic_rules(goal)
+                raise ValueError(f"LLM未能生成有效的规则，目标: {goal}")
             
             return rules
             
         except Exception as e:
             logger.error(f"初始规则生成失败: {e}")
-            return self._create_basic_rules(goal)
+            raise ValueError(f"规则生成失败: {str(e)}")
     
     def _create_rule_from_data(self, rule_data: Dict[str, Any]) -> Optional[ProductionRule]:
         """
@@ -304,23 +330,27 @@ class RuleGenerationService:
             Optional[ProductionRule]: 创建的规则，失败时返回None
         """
         try:
-            # 解析阶段
-            phase_str = rule_data.get('phase', 'problem_solving')
+            # 解析阶段 - 支持新旧字段名
+            phase_str = rule_data.get('execution_phase') or rule_data.get('phase', 'problem_solving')
             try:
                 phase = RulePhase(phase_str)
             except ValueError:
                 phase = RulePhase.PROBLEM_SOLVING
             
-            # 创建规则
+            # 生成确定性ID
+            rule_name = rule_data.get('rule_name') or rule_data.get('name', '未命名规则')
+            rule_id = f"rule_{hash(rule_name + str(rule_data)) % 1000000:06d}"
+            
+            # 创建规则 - 支持新旧字段名
             rule = ProductionRule(
-                id=str(uuid.uuid4()),
-                name=rule_data.get('name', '未命名规则'),
-                condition=rule_data.get('condition', ''),
+                id=rule_id,
+                name=rule_name,
+                condition=rule_data.get('trigger_condition') or rule_data.get('condition', ''),
                 action=rule_data.get('action', ''),
                 agent_capability_id=rule_data.get('agent_capability_id', ''),
                 priority=int(rule_data.get('priority', RuleConstants.DEFAULT_RULE_PRIORITY)),
                 phase=phase,
-                expected_outcome=rule_data.get('expected_outcome', '')
+                expected_outcome=rule_data.get('expected_result') or rule_data.get('expected_outcome', '')
             )
             
             return rule
@@ -329,61 +359,6 @@ class RuleGenerationService:
             logger.error(f"规则创建失败: {e}, 数据: {rule_data}")
             return None
     
-    def _create_basic_rules(self, goal: str) -> List[ProductionRule]:
-        """
-        创建基础规则集合
-        
-        Args:
-            goal: 目标描述
-            
-        Returns:
-            List[ProductionRule]: 基础规则列表
-        """
-        basic_rules = [
-            {
-                'name': '分析目标需求',
-                'condition': f'需要分析目标：{goal}',
-                'action': f'分析目标"{goal}"的具体需求和实现步骤',
-                'agent_capability_id': 'analyst',
-                'phase': RulePhase.INFORMATION_GATHERING,
-                'priority': 90,
-                'expected_outcome': '明确的需求分析和实现计划'
-            },
-            {
-                'name': '执行主要任务',
-                'condition': '需求分析已完成，可以开始实现',
-                'action': '根据需求分析结果，执行主要的实现任务',
-                'agent_capability_id': 'coder',
-                'phase': RulePhase.PROBLEM_SOLVING,
-                'priority': 80,
-                'expected_outcome': '完成主要功能实现'
-            },
-            {
-                'name': '验证结果',
-                'condition': '主要任务已完成，需要验证结果',
-                'action': '验证实现结果是否满足目标要求',
-                'agent_capability_id': 'tester',
-                'phase': RulePhase.VERIFICATION,
-                'priority': 70,
-                'expected_outcome': '确认结果符合预期'
-            }
-        ]
-        
-        rules = []
-        for rule_data in basic_rules:
-            rule = ProductionRule(
-                id=str(uuid.uuid4()),
-                name=rule_data['name'],
-                condition=rule_data['condition'],
-                action=rule_data['action'],
-                agent_capability_id=rule_data['agent_capability_id'],
-                priority=rule_data['priority'],
-                phase=rule_data['phase'],
-                expected_outcome=rule_data['expected_outcome']
-            )
-            rules.append(rule)
-        
-        return rules
     
     def _format_capabilities(self, capabilities: List[AgentCapability]) -> str:
         """
@@ -767,31 +742,20 @@ class RuleGenerationService:
     
     def _create_fallback_rule_set(self, goal: str, agent_registry: AgentRegistry) -> RuleSet:
         """
-        创建回退规则集
+        回退规则集创建方法（已废弃，直接抛出异常）
         
         Args:
             goal: 目标描述
             agent_registry: 智能体注册表
             
         Returns:
-            RuleSet: 回退规则集
+            RuleSet: 不会返回，直接抛出异常
+            
+        Raises:
+            RuntimeError: 规则生成失败时直接报错
         """
-        logger.warning("使用回退规则集")
-        
-        # 创建基础规则
-        basic_rules = self._create_basic_rules(goal)
-        
-        # 修正智能体能力ID
-        available_capabilities = agent_registry.list_all_capabilities()
-        if available_capabilities:
-            default_capability = available_capabilities[0].id
-            for rule in basic_rules:
-                if not rule.agent_capability_id or rule.agent_capability_id not in [cap.id for cap in available_capabilities]:
-                    rule.agent_capability_id = default_capability
-        
-        return RuleSet(
-            id=str(uuid.uuid4()),
-            goal=goal,
-            rules=basic_rules,
-            status=RuleSetStatus.ACTIVE
-        )
+        logger.error("规则生成完全失败，无法创建有效的规则集")
+        raise RuntimeError(f"无法为目标 '{goal}' 生成有效的规则集。请检查：\n"
+                         f"1. 语言模型是否正常工作\n"
+                         f"2. 目标描述是否清晰\n"
+                         f"3. 智能体能力是否配置正确")

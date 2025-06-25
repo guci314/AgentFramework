@@ -1,0 +1,13 @@
+{
+  "id": "workflow_Test_system_function_20250625_0602_initial",
+  "description": "工作流已启动，目标：Test system functionality。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "Test system functionality"
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_Test_system_function_20250625_0602",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

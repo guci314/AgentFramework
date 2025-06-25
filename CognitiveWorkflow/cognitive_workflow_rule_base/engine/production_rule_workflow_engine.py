@@ -13,7 +13,7 @@ import threading
 import time
 
 from ..domain.entities import GlobalState, AgentRegistry
-from ..domain.value_objects import ExecutionStatus, WorkflowResult
+from ..domain.value_objects import ExecutionStatus, WorkflowExecutionResult
 from ..services.rule_engine_service import RuleEngineService
 
 logger = logging.getLogger(__name__)
@@ -22,24 +22,26 @@ logger = logging.getLogger(__name__)
 class ProductionRuleWorkflowEngine:
     """产生式规则工作流引擎 - 系统统一入口"""
     
-    def __init__(self, rule_engine_service: RuleEngineService):
+    def __init__(self, rule_engine_service: RuleEngineService, default_agent_registry: AgentRegistry = None):
         """
         初始化工作流引擎
         
         Args:
             rule_engine_service: 核心规则引擎服务
+            default_agent_registry: 默认智能体注册表
         """
         self.rule_engine_service = rule_engine_service
+        self.default_agent_registry = default_agent_registry or AgentRegistry()
         self.execution_status = ExecutionStatus.PENDING
         self._execution_thread: Optional[threading.Thread] = None
         self._stop_requested = False
         self._pause_requested = False
         self._current_goal: Optional[str] = None
         self._current_agent_registry: Optional[AgentRegistry] = None
-        self._execution_result: Optional[WorkflowResult] = None
+        self._execution_result: Optional[WorkflowExecutionResult] = None
         self._execution_lock = threading.Lock()
         
-    def execute_goal(self, goal: str, agent_registry: AgentRegistry = None) -> WorkflowResult:
+    def execute_goal(self, goal: str, agent_registry: AgentRegistry = None) -> WorkflowExecutionResult:
         """
         执行目标工作流（同步版本）
         
@@ -48,7 +50,7 @@ class ProductionRuleWorkflowEngine:
             agent_registry: 智能体注册表
             
         Returns:
-            WorkflowResult: 工作流执行结果
+            WorkflowExecutionResult: 工作流执行结果
         """
         with self._execution_lock:
             if self.execution_status == ExecutionStatus.RUNNING:
@@ -58,7 +60,7 @@ class ProductionRuleWorkflowEngine:
                 logger.info(f"开始执行工作流目标: {goal}")
                 self.execution_status = ExecutionStatus.RUNNING
                 self._current_goal = goal
-                self._current_agent_registry = agent_registry or AgentRegistry()
+                self._current_agent_registry = agent_registry or self.default_agent_registry
                 self._stop_requested = False
                 self._pause_requested = False
                 
@@ -76,7 +78,7 @@ class ProductionRuleWorkflowEngine:
                 self.execution_status = ExecutionStatus.FAILED
                 
                 # 创建失败结果
-                error_result = WorkflowResult(
+                error_result = WorkflowExecutionResult(
                     goal=goal,
                     is_successful=False,
                     final_state=f"执行异常: {str(e)}",
@@ -107,7 +109,7 @@ class ProductionRuleWorkflowEngine:
             
             try:
                 self._current_goal = goal
-                self._current_agent_registry = agent_registry or AgentRegistry()
+                self._current_agent_registry = agent_registry or self.default_agent_registry
                 self._stop_requested = False
                 self._pause_requested = False
                 
@@ -251,8 +253,8 @@ class ProductionRuleWorkflowEngine:
                 'execution_status': self.execution_status.value,
                 'current_goal': self._current_goal,
                 'workflow_status': self.rule_engine_service.get_workflow_status(),
-                'execution_result': self._execution_result.to_dict() if self._execution_result else None,
-                'timestamp': datetime.now().isoformat()
+                'execution_result': self._execution_result.to_dict() if self._execution_result else None
+                # 'timestamp': datetime.now().isoformat()  # Removed for LLM caching
             }
             
             # 添加当前状态信息
@@ -270,8 +272,8 @@ class ProductionRuleWorkflowEngine:
             logger.error(f"获取执行指标失败: {e}")
             return {
                 'execution_status': self.execution_status.value,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
+                'error': str(e)
+                # 'timestamp': datetime.now().isoformat()  # Removed for LLM caching
             }
     
     def get_workflow_history(self) -> List[Dict[str, Any]]:
@@ -291,7 +293,7 @@ class ProductionRuleWorkflowEngine:
                 history = []
                 for state in state_history:
                     history.append({
-                        'timestamp': state.timestamp.isoformat(),
+                        # 'timestamp': state.timestamp.isoformat(),  # Removed for LLM caching
                         'description': state.description,
                         'iteration_count': state.iteration_count,
                         'context_variables': state.context_variables
@@ -323,14 +325,23 @@ class ProductionRuleWorkflowEngine:
         """
         return self._pause_requested
     
-    def get_execution_result(self) -> Optional[WorkflowResult]:
+    def get_execution_result(self) -> Optional[WorkflowExecutionResult]:
         """
         获取最后一次执行的结果
         
         Returns:
-            Optional[WorkflowResult]: 执行结果
+            Optional[WorkflowExecutionResult]: 执行结果
         """
         return self._execution_result
+    
+    def get_default_agent_registry(self) -> AgentRegistry:
+        """
+        获取默认的智能体注册表
+        
+        Returns:
+            AgentRegistry: 默认智能体注册表
+        """
+        return self.default_agent_registry
     
     def _async_execution_worker(self, goal: str, agent_registry: AgentRegistry) -> None:
         """
@@ -364,7 +375,7 @@ class ProductionRuleWorkflowEngine:
             
             with self._execution_lock:
                 self.execution_status = ExecutionStatus.FAILED
-                self._execution_result = WorkflowResult(
+                self._execution_result = WorkflowExecutionResult(
                     goal=goal,
                     is_successful=False,
                     final_state=f"异步执行异常: {str(e)}",
@@ -374,7 +385,7 @@ class ProductionRuleWorkflowEngine:
                     completion_timestamp=datetime.now()
                 )
     
-    def _execute_with_control(self, goal: str, agent_registry: AgentRegistry) -> WorkflowResult:
+    def _execute_with_control(self, goal: str, agent_registry: AgentRegistry) -> WorkflowExecutionResult:
         """
         支持控制的执行方法
         
@@ -383,7 +394,7 @@ class ProductionRuleWorkflowEngine:
             agent_registry: 智能体注册表
             
         Returns:
-            WorkflowResult: 执行结果
+            WorkflowExecutionResult: 执行结果
         """
         try:
             # 这里需要修改rule_engine_service的execute_workflow方法
@@ -410,7 +421,7 @@ class ProductionRuleWorkflowEngine:
                 time.sleep(0.01)
             
             # 如果被停止，返回取消结果
-            return WorkflowResult(
+            return WorkflowExecutionResult(
                 goal=goal,
                 is_successful=False,
                 final_state="工作流执行被用户停止",
@@ -422,7 +433,7 @@ class ProductionRuleWorkflowEngine:
             
         except Exception as e:
             logger.error(f"控制执行失败: {e}")
-            return WorkflowResult(
+            return WorkflowExecutionResult(
                 goal=goal,
                 is_successful=False,
                 final_state=f"控制执行异常: {str(e)}",

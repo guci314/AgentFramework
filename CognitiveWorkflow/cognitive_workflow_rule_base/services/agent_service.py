@@ -10,7 +10,7 @@ from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
 
-from ..domain.entities import AgentRegistry, AgentCapability, Result
+from ..domain.entities import AgentRegistry, AgentCapability, WorkflowResult
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class AgentService:
     def execute_natural_language_instruction(self, 
                                            instruction: str, 
                                            capability_id: str, 
-                                           context: Dict[str, Any]) -> Result:
+                                           context: Dict[str, Any]) -> WorkflowResult:
         """
         执行自然语言指令
         
@@ -92,7 +92,7 @@ class AgentService:
             context: 执行上下文
             
         Returns:
-            Result: 执行结果
+            WorkflowResult: 执行结果
         """
         start_time = datetime.now()
         
@@ -115,7 +115,7 @@ class AgentService:
             elif hasattr(agent, 'execute_sync'):
                 # 使用同步执行方法
                 raw_result = agent.execute_sync(instruction)
-                # 转换为标准Result格式
+                # 转换为标准WorkflowResult格式
                 result = self._convert_to_result(raw_result, instruction)
             else:
                 raise ValueError(f"Agent {capability_id} 不支持自然语言指令执行")
@@ -133,7 +133,7 @@ class AgentService:
             self._update_performance_metrics(capability_id, False, execution_time)
             
             logger.error(f"自然语言指令执行失败: {e}")
-            return Result(
+            return WorkflowResult(
                 success=False,
                 message=f"指令执行失败: {str(e)}",
                 error_details=str(e),
@@ -300,35 +300,79 @@ class AgentService:
         
         # 添加指令信息
         execution_context['instruction_info'] = {
-            'original_instruction': instruction,
-            'timestamp': datetime.now().isoformat()
+            'original_instruction': instruction
+            # 'timestamp': datetime.now().isoformat()  # Removed for LLM caching
         }
         
         return execution_context
     
-    def _convert_to_result(self, raw_result: Any, instruction: str) -> Result:
+    def _convert_to_result(self, raw_result: Any, instruction: str) -> WorkflowResult:
         """
-        将原始结果转换为标准Result格式
+        将原始结果转换为标准WorkflowResult格式
         
         Args:
-            raw_result: 原始执行结果
+            raw_result: 原始执行结果 (可能是agent_base.WorkflowResult或其他类型)
             instruction: 执行的指令
             
         Returns:
-            Result: 标准化的结果
+            WorkflowResult: 认知工作流的标准WorkflowResult格式
         """
         try:
-            # 如果已经是Result对象，直接返回
-            if isinstance(raw_result, Result):
+            # 检查是否是agent_base.WorkflowResult对象 (通过属性检查避免直接类型比较)
+            if (hasattr(raw_result, 'success') and 
+                hasattr(raw_result, 'code') and 
+                hasattr(raw_result, 'stdout') and 
+                hasattr(raw_result, 'stderr') and 
+                hasattr(raw_result, 'return_value')):
+                
+                # 这是agent_base.WorkflowResult，需要转换为cognitive_workflow.WorkflowResult
+                logger.debug("检测到agent_base.WorkflowResult，进行类型转换")
+                
+                # 构造消息内容
+                message_parts = []
+                if raw_result.return_value:
+                    message_parts.append(f"执行结果: {raw_result.return_value}")
+                if raw_result.stdout:
+                    message_parts.append(f"输出: {raw_result.stdout}")
+                
+                message = " | ".join(message_parts) if message_parts else "执行完成"
+                
+                # 构造数据内容
+                data = {
+                    'code': raw_result.code,
+                    'return_value': raw_result.return_value,
+                    'stdout': raw_result.stdout,
+                    'stderr': raw_result.stderr
+                }
+                
+                # 构造错误详情
+                error_details = raw_result.stderr if raw_result.stderr else None
+                
+                return WorkflowResult(
+                    success=raw_result.success,
+                    message=message,
+                    data=data,
+                    error_details=error_details,
+                    metadata={
+                        'instruction': instruction,
+                        'source_type': 'agent_base_result',
+                        'has_code': bool(raw_result.code),
+                        'has_output': bool(raw_result.stdout)
+                    }
+                )
+            
+            # 如果已经是cognitive_workflow.WorkflowResult对象，直接返回
+            if isinstance(raw_result, WorkflowResult):
+                logger.debug("检测到cognitive_workflow.WorkflowResult，直接返回")
                 return raw_result
             
-            # 如果是字符串，创建成功的Result
+            # 如果是字符串，创建成功的WorkflowResult
             if isinstance(raw_result, str):
-                return Result(
+                return WorkflowResult(
                     success=True,
                     message="执行成功",
                     data=raw_result,
-                    metadata={'instruction': instruction}
+                    metadata={'instruction': instruction, 'source_type': 'string'}
                 )
             
             # 如果是字典，尝试解析
@@ -338,29 +382,29 @@ class AgentService:
                 data = raw_result.get('data')
                 error = raw_result.get('error')
                 
-                return Result(
+                return WorkflowResult(
                     success=success,
                     message=message,
                     data=data,
                     error_details=error,
-                    metadata={'instruction': instruction}
+                    metadata={'instruction': instruction, 'source_type': 'dict'}
                 )
             
-            # 其他类型，创建成功的Result
-            return Result(
+            # 其他类型，创建成功的WorkflowResult
+            return WorkflowResult(
                 success=True,
                 message="执行成功",
                 data=str(raw_result),
-                metadata={'instruction': instruction}
+                metadata={'instruction': instruction, 'source_type': type(raw_result).__name__}
             )
             
         except Exception as e:
             logger.error(f"结果转换失败: {e}")
-            return Result(
+            return WorkflowResult(
                 success=False,
                 message="结果转换失败",
                 error_details=str(e),
-                metadata={'instruction': instruction}
+                metadata={'instruction': instruction, 'conversion_error': True}
             )
     
     def _update_performance_metrics(self, 

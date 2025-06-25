@@ -11,10 +11,11 @@ import logging
 from datetime import datetime
 import uuid
 
-from ..domain.entities import ProductionRule, RuleExecution, GlobalState, Result
+from ..domain.entities import ProductionRule, RuleExecution, GlobalState, WorkflowResult
 from ..domain.repositories import ExecutionRepository
 from ..domain.value_objects import ExecutionStatus, ExecutionConstants
 from .agent_service import AgentService
+from .language_model_service import LanguageModelService
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +25,19 @@ class RuleExecutionService:
     
     def __init__(self, 
                  agent_service: AgentService,
-                 execution_repository: ExecutionRepository):
+                 execution_repository: ExecutionRepository,
+                 llm_service: LanguageModelService):
         """
         初始化规则执行服务
         
         Args:
             agent_service: 智能体服务
             execution_repository: 执行仓储
+            llm_service: 语言模型服务
         """
         self.agent_service = agent_service
         self.execution_repository = execution_repository
+        self.llm_service = llm_service
         
     def execute_rule(self, 
                     rule: ProductionRule, 
@@ -50,10 +54,10 @@ class RuleExecutionService:
         """
         # 创建执行记录
         rule_execution = RuleExecution(
-            id=str(uuid.uuid4()),
+            id=f"{rule.id}_exec_{datetime.now().strftime('%Y%m%d_%H%M%S')}",  # Use deterministic ID
             rule_id=rule.id,
-            status=ExecutionStatus.RUNNING,
-            started_at=datetime.now()
+            status=ExecutionStatus.RUNNING
+            # started_at=datetime.now()  # Removed for LLM caching
         )
         
         try:
@@ -167,17 +171,17 @@ class RuleExecutionService:
         error_message = f"规则执行失败: {str(error)}"
         
         rule_execution = RuleExecution(
-            id=str(uuid.uuid4()),
+            id=f"{rule.id}_failed_{datetime.now().strftime('%Y%m%d_%H%M%S')}",  # Use deterministic ID
             rule_id=rule.id,
             status=ExecutionStatus.FAILED,
-            started_at=datetime.now(),
-            completed_at=datetime.now(),
+            # started_at=datetime.now(),  # Removed for LLM caching
+            completed_at=datetime.now(),  # Keep this as it's set during execution, not initialization
             failure_reason=error_message,
             confidence_score=0.0
         )
         
         # 创建失败结果
-        failure_result = Result(
+        failure_result = WorkflowResult(
             success=False,
             message=error_message,
             error_details=str(error),
@@ -196,7 +200,7 @@ class RuleExecutionService:
     
     def validate_execution_result(self, 
                                 rule: ProductionRule, 
-                                result: Result) -> bool:
+                                result: WorkflowResult) -> bool:
         """
         验证执行结果
         
@@ -236,7 +240,7 @@ class RuleExecutionService:
     def _execute_natural_language_action(self, 
                                        action: str, 
                                        agent_capability_id: str, 
-                                       context: Dict[str, Any]) -> Result:
+                                       context: Dict[str, Any]) -> WorkflowResult:
         """
         执行自然语言动作指令
         
@@ -246,7 +250,7 @@ class RuleExecutionService:
             context: 执行上下文
             
         Returns:
-            Result: 执行结果
+            WorkflowResult: 执行结果
         """
         try:
             # 准备完整的自然语言指令
@@ -263,7 +267,7 @@ class RuleExecutionService:
             
         except Exception as e:
             logger.error(f"自然语言动作执行失败: {e}")
-            return Result(
+            return WorkflowResult(
                 success=False,
                 message=f"动作执行失败: {str(e)}",
                 error_details=str(e),
@@ -326,10 +330,10 @@ class RuleExecutionService:
     
     def _validate_natural_language_result(self, 
                                         action: str, 
-                                        result: Result, 
+                                        result: WorkflowResult, 
                                         expected_outcome: str) -> bool:
         """
-        验证自然语言执行结果
+        验证自然语言执行结果（使用语言模型进行智能验证）
         
         Args:
             action: 执行的动作
@@ -340,13 +344,46 @@ class RuleExecutionService:
             bool: 是否符合期望
         """
         try:
-            # 简单的关键词匹配验证
-            result_text = result.message.lower()
+            # 使用语言模型进行智能验证
+            is_valid, confidence, reasoning = self.llm_service.validate_execution_result(
+                action=action,
+                actual_result=result.message,
+                expected_outcome=expected_outcome
+            )
+            
+            logger.debug(f"LLM验证结果: {is_valid}, 置信度: {confidence:.2f}, 原因: {reasoning}")
+            
+            # 只有在高置信度的情况下才接受验证结果
+            if confidence >= 0.7:
+                return is_valid
+            else:
+                # 置信度低时，使用简单的关键词匹配作为备用验证
+                logger.warning(f"LLM验证置信度较低({confidence:.2f})，使用关键词匹配作为备用验证")
+                return self._fallback_keyword_validation(result.message, expected_outcome)
+            
+        except Exception as e:
+            logger.error(f"LLM验证失败: {e}，使用关键词匹配作为备用验证")
+            # LLM验证失败时，回退到关键词匹配
+            return self._fallback_keyword_validation(result.message, expected_outcome)
+    
+    def _fallback_keyword_validation(self, result_text: str, expected_outcome: str) -> bool:
+        """
+        备用的关键词匹配验证方法
+        
+        Args:
+            result_text: 结果文本
+            expected_outcome: 期望结果
+            
+        Returns:
+            bool: 是否匹配
+        """
+        try:
+            result_text_lower = result_text.lower()
             expected_keywords = expected_outcome.lower().split()
             
             # 检查是否包含期望的关键词
             matching_keywords = sum(1 for keyword in expected_keywords 
-                                  if keyword in result_text and len(keyword) > 2)
+                                  if keyword in result_text_lower and len(keyword) > 2)
             
             # 如果匹配的关键词超过期望关键词的30%，认为是有效的
             if len(expected_keywords) > 0:
@@ -356,12 +393,12 @@ class RuleExecutionService:
             return True  # 如果没有期望结果，认为是有效的
             
         except Exception as e:
-            logger.error(f"自然语言结果验证失败: {e}")
+            logger.error(f"关键词匹配验证失败: {e}")
             return True  # 验证失败时默认为有效
     
     def _calculate_confidence_score(self, 
                                   rule: ProductionRule, 
-                                  result: Result, 
+                                  result: WorkflowResult, 
                                   global_state: GlobalState) -> float:
         """
         计算执行置信度分数
@@ -413,7 +450,7 @@ class RuleExecutionService:
             logger.error(f"置信度分数计算失败: {e}")
             return 0.5
     
-    def _check_context_consistency(self, result: Result, global_state: GlobalState) -> bool:
+    def _check_context_consistency(self, result: WorkflowResult, global_state: GlobalState) -> bool:
         """
         检查上下文一致性
         

@@ -14,7 +14,7 @@ from .entities import (
     DecisionResult,
     AgentCapability,
     AgentRegistry,
-    Result
+    WorkflowResult
 )
 
 from .value_objects import (
@@ -40,7 +40,7 @@ __all__ = [
     "DecisionResult",
     "AgentCapability",
     "AgentRegistry",
-    "Result",
+    "WorkflowResult",
     
     # 值对象
     "RulePhase",

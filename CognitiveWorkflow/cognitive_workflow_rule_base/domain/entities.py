@@ -15,19 +15,20 @@ import json
 from .value_objects import (
     RulePhase, ExecutionStatus, DecisionType, RuleSetStatus,
     RuleModification, ExecutionMetrics, StateChangeAnalysis,
-    MatchingResult, WorkflowResult, RuleConstants
+    MatchingResult, WorkflowExecutionResult, RuleConstants,
+    ModificationType
 )
 
 
 @dataclass
-class Result:
-    """执行结果实体 - 封装任务执行的结果"""
+class WorkflowResult:
+    """工作流执行结果实体 - 封装认知工作流任务执行的结果"""
     success: bool
     message: str
     data: Optional[Any] = None
     error_details: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.now)
+    # timestamp: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
     
     def is_error(self) -> bool:
         """是否为错误结果"""
@@ -46,8 +47,8 @@ class Result:
             'message': self.message,
             'data': self.data,
             'error_details': self.error_details,
-            'metadata': self.metadata,
-            'timestamp': self.timestamp.isoformat()
+            'metadata': self.metadata
+            # 'timestamp': self.timestamp.isoformat()  # Removed for LLM caching
         }
 
 
@@ -62,14 +63,15 @@ class ProductionRule:
     priority: int = RuleConstants.DEFAULT_RULE_PRIORITY  # 规则优先级
     phase: RulePhase = RulePhase.PROBLEM_SOLVING
     expected_outcome: str = ""  # 期望的执行结果
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    # created_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    # updated_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """初始化后验证"""
-        if not self.id:
-            self.id = str(uuid.uuid4())
+        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # if not self.id:
+        #     self.id = str(uuid.uuid4())
         if not (RuleConstants.MIN_RULE_PRIORITY <= self.priority <= RuleConstants.MAX_RULE_PRIORITY):
             raise ValueError(f"规则优先级必须在{RuleConstants.MIN_RULE_PRIORITY}-{RuleConstants.MAX_RULE_PRIORITY}之间")
     
@@ -96,7 +98,7 @@ class ProductionRule:
         if not (RuleConstants.MIN_RULE_PRIORITY <= new_priority <= RuleConstants.MAX_RULE_PRIORITY):
             raise ValueError(f"优先级必须在{RuleConstants.MIN_RULE_PRIORITY}-{RuleConstants.MAX_RULE_PRIORITY}之间")
         self.priority = new_priority
-        self.updated_at = datetime.now()
+        # self.updated_at = datetime.now()  # Removed for LLM caching
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -109,8 +111,8 @@ class ProductionRule:
             'priority': self.priority,
             'phase': self.phase.value,
             'expected_outcome': self.expected_outcome,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat(),
+            # 'created_at': self.created_at.isoformat(),  # Removed for LLM caching
+            # 'updated_at': self.updated_at.isoformat(),  # Removed for LLM caching
             'metadata': self.metadata
         }
 
@@ -121,8 +123,8 @@ class RuleExecution:
     id: str
     rule_id: str
     status: ExecutionStatus = ExecutionStatus.PENDING
-    result: Optional[Result] = None
-    started_at: datetime = field(default_factory=datetime.now)
+    result: Optional[WorkflowResult] = None
+    # started_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
     completed_at: Optional[datetime] = None
     execution_context: Dict[str, Any] = field(default_factory=dict)
     failure_reason: Optional[str] = None
@@ -130,8 +132,9 @@ class RuleExecution:
     
     def __post_init__(self):
         """初始化后验证"""
-        if not self.id:
-            self.id = str(uuid.uuid4())
+        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # if not self.id:
+        #     self.id = str(uuid.uuid4())
     
     def is_successful(self) -> bool:
         """是否执行成功"""
@@ -141,11 +144,11 @@ class RuleExecution:
     
     def get_execution_duration(self) -> Optional[float]:
         """获取执行持续时间（秒）"""
-        if self.completed_at:
-            return (self.completed_at - self.started_at).total_seconds()
+        # Duration calculation removed as started_at was removed for LLM caching
+        # Return None as we don't track execution start time anymore
         return None
     
-    def mark_completed(self, result: Result) -> None:
+    def mark_completed(self, result: WorkflowResult) -> None:
         """标记执行完成"""
         self.result = result
         self.status = ExecutionStatus.COMPLETED if result.success else ExecutionStatus.FAILED
@@ -158,7 +161,7 @@ class RuleExecution:
         self.status = ExecutionStatus.FAILED
         self.failure_reason = error_message
         self.completed_at = datetime.now()
-        self.result = Result(success=False, message=error_message)
+        self.result = WorkflowResult(success=False, message=error_message)
 
 
 @dataclass
@@ -168,32 +171,34 @@ class GlobalState:
     description: str            # 自然语言状态描述
     context_variables: Dict[str, Any] = field(default_factory=dict)
     execution_history: List[str] = field(default_factory=list)
-    timestamp: datetime = field(default_factory=datetime.now)
+    # timestamp: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
     workflow_id: str = ""
     iteration_count: int = 0
     goal_achieved: bool = False
     
     def __post_init__(self):
         """初始化后验证"""
-        if not self.id:
-            self.id = str(uuid.uuid4())
+        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # if not self.id:
+        #     self.id = str(uuid.uuid4())
     
-    def update_from_result(self, execution_result: Result) -> 'GlobalState':
+    def update_from_result(self, execution_result: WorkflowResult) -> 'GlobalState':
         """根据执行结果更新状态，返回新的状态实例"""
         # 创建新的状态实例（保持不可变性）
         new_state = GlobalState(
-            id=str(uuid.uuid4()),
+            id=f"{self.id}_iter_{self.iteration_count + 1}",  # Use deterministic ID instead of UUID
             description=self.description,
             context_variables=self.context_variables.copy(),
             execution_history=self.execution_history.copy(),
-            timestamp=datetime.now(),
+            # timestamp=datetime.now(),  # Removed for LLM caching
             workflow_id=self.workflow_id,
             iteration_count=self.iteration_count + 1,
             goal_achieved=self.goal_achieved
         )
         
         # 更新执行历史
-        history_entry = f"[{execution_result.timestamp.isoformat()}] {execution_result.message}"
+        # Use iteration count instead of timestamp for deterministic history
+        history_entry = f"[iter_{new_state.iteration_count}] {execution_result.message}"
         new_state.execution_history.append(history_entry)
         
         # 更新上下文变量
@@ -214,12 +219,12 @@ class GlobalState:
     def set_context_value(self, key: str, value: Any) -> None:
         """设置上下文变量值"""
         self.context_variables[key] = value
-        self.timestamp = datetime.now()
+        # self.timestamp = datetime.now()  # Removed for LLM caching
     
     def merge_context(self, context: Dict[str, Any]) -> None:
         """合并上下文变量"""
         self.context_variables.update(context)
-        self.timestamp = datetime.now()
+        # self.timestamp = datetime.now()  # Removed for LLM caching
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -228,7 +233,7 @@ class GlobalState:
             'description': self.description,
             'context_variables': self.context_variables,
             'execution_history': self.execution_history,
-            'timestamp': self.timestamp.isoformat(),
+            # 'timestamp': self.timestamp.isoformat(),  # Removed for LLM caching
             'workflow_id': self.workflow_id,
             'iteration_count': self.iteration_count,
             'goal_achieved': self.goal_achieved
@@ -241,16 +246,17 @@ class RuleSet:
     id: str
     goal: str
     rules: List[ProductionRule] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    # created_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    # updated_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
     version: int = 1
     status: RuleSetStatus = RuleSetStatus.DRAFT
     modification_history: List[RuleModification] = field(default_factory=list)
     
     def __post_init__(self):
         """初始化后验证"""
-        if not self.id:
-            self.id = str(uuid.uuid4())
+        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # if not self.id:
+        #     self.id = str(uuid.uuid4())
     
     def add_rule(self, rule: ProductionRule) -> None:
         """添加规则"""
@@ -258,7 +264,7 @@ class RuleSet:
             raise ValueError(f"规则ID {rule.id} 已存在")
         
         self.rules.append(rule)
-        self.updated_at = datetime.now()
+        # self.updated_at = datetime.now()  # Removed for LLM caching
         self.version += 1
         
         # 记录修改历史
@@ -277,7 +283,7 @@ class RuleSet:
         self.rules = [r for r in self.rules if r.id != rule_id]
         
         if len(self.rules) < original_count:
-            self.updated_at = datetime.now()
+            # self.updated_at = datetime.now()  # Removed for LLM caching
             self.version += 1
             
             # 记录修改历史
@@ -304,12 +310,12 @@ class RuleSet:
     def activate(self) -> None:
         """激活规则集"""
         self.status = RuleSetStatus.ACTIVE
-        self.updated_at = datetime.now()
+        # self.updated_at = datetime.now()  # Removed for LLM caching
     
     def complete(self) -> None:
         """标记规则集完成"""
         self.status = RuleSetStatus.COMPLETED
-        self.updated_at = datetime.now()
+        # self.updated_at = datetime.now()  # Removed for LLM caching
 
 
 @dataclass
@@ -320,7 +326,7 @@ class DecisionResult:
     confidence: float
     reasoning: str
     context: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.now)
+    # timestamp: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
     alternative_rules: List[ProductionRule] = field(default_factory=list)
     
     def is_execution_decision(self) -> bool:
@@ -357,8 +363,9 @@ class AgentCapability:
     
     def __post_init__(self):
         """初始化后验证"""
-        if not self.id:
-            self.id = str(uuid.uuid4())
+        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # if not self.id:
+        #     self.id = str(uuid.uuid4())
     
     def can_execute_action(self, action: str) -> bool:
         """检查是否能执行指定动作"""

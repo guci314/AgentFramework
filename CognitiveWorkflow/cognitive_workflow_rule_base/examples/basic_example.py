@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加父目录到路径，以便导入模块
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from pythonTask import Agent, llm_deepseek
+from pythonTask import Agent, llm_deepseek,llm_gemini_2_5_flash_google
 from cognitive_workflow_rule_base import create_production_rule_system
 
 
@@ -33,17 +33,17 @@ def create_demo_agents():
     熟悉各种测试框架和测试策略。
     '''
     
-    # 创建分析师
-    analyst = Agent(llm=llm_deepseek)
-    analyst.api_specification = '''
-    分析师，擅长需求分析和文档整理。
-    能够分析问题并制定解决方案。
-    '''
+    # # 创建分析师
+    # analyst = Agent(llm=llm_deepseek)
+    # analyst.api_specification = '''
+    # 分析师，擅长需求分析和文档整理。
+    # 能够分析问题并制定解决方案。
+    # '''
     
     return {
         "coder": coder,
         "tester": tester,
-        "analyst": analyst
+        # "analyst": analyst
     }
 
 
@@ -68,7 +68,7 @@ def basic_example():
     print("   系统初始化完成")
     
     # 3. 定义目标
-    goal = "创建一个简单的Python Hello World程序"
+    goal = "创建一个简单的Python Hello World程序,打印hello world 567 文件保存在hello_world.py"
     print(f"\n3. 执行目标: {goal}")
     
     # 4. 执行工作流
@@ -193,17 +193,17 @@ def main():
         else:
             print("\n❌ 基础示例执行失败")
         
-        # 规则执行演示
-        print("\n\n【示例2: 复杂规则执行】")
-        demonstrate_rule_based_execution()
+        # # 规则执行演示
+        # print("\n\n【示例2: 复杂规则执行】")
+        # demonstrate_rule_based_execution()
         
-        print("\n🎉 演示完成!")
-        print("\n核心特性展示:")
-        print("✓ 自然语言IF-THEN规则")
-        print("✓ 语义驱动的规则匹配")
-        print("✓ 动态规则生成和修正")
-        print("✓ 自适应错误恢复")
-        print("✓ 端到端自然语言处理")
+        # print("\n🎉 演示完成!")
+        # print("\n核心特性展示:")
+        # print("✓ 自然语言IF-THEN规则")
+        # print("✓ 语义驱动的规则匹配")
+        # print("✓ 动态规则生成和修正")
+        # print("✓ 自适应错误恢复")
+        # print("✓ 端到端自然语言处理")
         
     except KeyboardInterrupt:
         print("\n\n演示被用户中断")

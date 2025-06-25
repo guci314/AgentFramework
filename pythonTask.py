@@ -219,14 +219,15 @@ llm_gemini_2_flash_google=ChatOpenAI(
     http_client=http_client
 )
 
-llm_gemini_2_flash_thinking_exp_google=ChatOpenAI(
+llm_gemini_2_5_flash_google=ChatOpenAI(
     temperature=0,
-    model="gemini-2.0-flash-thinking-exp-01-21", # deepseek-chat deepseek-coder 
+    model="models/gemini-2.5-flash",  
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     api_key=os.getenv('GEMINI_API_KEY'),
     max_tokens=4096,
     http_client=http_client
 )
+
 
 llm_Qwen_QwQ_32B_siliconflow=ChatOpenAI(
     temperature=0,

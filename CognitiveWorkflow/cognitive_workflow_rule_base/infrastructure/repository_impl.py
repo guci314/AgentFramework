@@ -54,8 +54,8 @@ class RuleRepositoryImpl(RuleRepository):
                 'id': rule_set.id,
                 'goal': rule_set.goal,
                 'rules': [self._rule_to_dict(rule) for rule in rule_set.rules],
-                'created_at': rule_set.created_at.isoformat(),
-                'updated_at': rule_set.updated_at.isoformat(),
+                # 'created_at': rule_set.created_at.isoformat(),  # Removed for LLM caching
+                # 'updated_at': rule_set.updated_at.isoformat(),  # Removed for LLM caching
                 'version': rule_set.version,
                 'status': rule_set.status.value,
                 'modification_history': [self._modification_to_dict(mod) for mod in rule_set.modification_history]
@@ -247,8 +247,8 @@ class RuleRepositoryImpl(RuleRepository):
             id=data['id'],
             goal=data['goal'],
             rules=rules,
-            created_at=datetime.fromisoformat(data['created_at']),
-            updated_at=datetime.fromisoformat(data['updated_at']),
+            # created_at=datetime.fromisoformat(data.get('created_at')),  # Removed for LLM caching
+            # updated_at=datetime.fromisoformat(data.get('updated_at')),  # Removed for LLM caching
             version=data.get('version', 1),
             status=RuleSetStatus(data.get('status', 'active')),
             modification_history=modification_history
@@ -258,6 +258,7 @@ class RuleRepositoryImpl(RuleRepository):
     
     def _dict_to_rule(self, data: Dict) -> ProductionRule:
         """从字典创建规则"""
+        # Filter out removed fields for backward compatibility
         rule = ProductionRule(
             id=data['id'],
             name=data['name'],
@@ -267,8 +268,8 @@ class RuleRepositoryImpl(RuleRepository):
             priority=data.get('priority', 50),
             phase=RulePhase(data.get('phase', 'problem_solving')),
             expected_outcome=data.get('expected_outcome', ''),
-            created_at=datetime.fromisoformat(data['created_at']),
-            updated_at=datetime.fromisoformat(data['updated_at']),
+            # created_at=datetime.fromisoformat(data['created_at']),  # Removed for LLM caching
+            # updated_at=datetime.fromisoformat(data['updated_at']),  # Removed for LLM caching
             metadata=data.get('metadata', {})
         )
         
@@ -370,9 +371,8 @@ class StateRepositoryImpl(StateRepository):
         """获取工作流的状态历史"""
         try:
             if workflow_id in self._workflow_states:
-                # 按时间戳排序
-                return sorted(self._workflow_states[workflow_id], 
-                            key=lambda s: s.timestamp)
+                # Cannot sort by timestamp anymore as it was removed for LLM caching
+                return self._workflow_states[workflow_id]
             
             # 如果缓存中没有，尝试从文件加载
             workflow_states = []
@@ -391,7 +391,7 @@ class StateRepositoryImpl(StateRepository):
             # 更新缓存
             self._workflow_states[workflow_id] = workflow_states
             
-            return sorted(workflow_states, key=lambda s: s.timestamp)
+            return workflow_states  # Cannot sort by timestamp anymore
             
         except Exception as e:
             logger.error(f"获取状态历史失败: {e}")
@@ -446,10 +446,10 @@ class StateRepositoryImpl(StateRepository):
             matching_states = []
             
             for state in self._states_cache.values():
-                if start_time <= state.timestamp <= end_time:
-                    matching_states.append(state)
+                # Time filtering removed as timestamp was removed for LLM caching
+                matching_states.append(state)
             
-            return sorted(matching_states, key=lambda s: s.timestamp)
+            return matching_states  # Cannot sort by timestamp anymore
             
         except Exception as e:
             logger.error(f"按时间范围查找状态失败: {e}")
@@ -474,8 +474,9 @@ class StateRepositoryImpl(StateRepository):
             states_to_delete = []
             
             for state_id, state in self._states_cache.items():
-                if state.timestamp < cutoff_time:
-                    states_to_delete.append(state_id)
+                # Time comparison removed as timestamp was removed for LLM caching
+                # For now, don't delete any states based on time
+                pass
             
             for state_id in states_to_delete:
                 try:
@@ -512,7 +513,7 @@ class StateRepositoryImpl(StateRepository):
             description=data['description'],
             context_variables=data.get('context_variables', {}),
             execution_history=data.get('execution_history', []),
-            timestamp=datetime.fromisoformat(data['timestamp']),
+            # timestamp=datetime.fromisoformat(data.get('timestamp')),  # Removed for LLM caching
             workflow_id=data.get('workflow_id', ''),
             iteration_count=data.get('iteration_count', 0),
             goal_achieved=data.get('goal_achieved', False)
@@ -591,8 +592,7 @@ class ExecutionRepositoryImpl(ExecutionRepository):
         """根据规则ID查找执行记录"""
         try:
             if rule_id in self._rule_executions:
-                return sorted(self._rule_executions[rule_id], 
-                            key=lambda e: e.started_at)
+                return self._rule_executions[rule_id]  # Cannot sort by started_at anymore
             
             # 如果缓存中没有，从文件加载
             rule_executions = []
@@ -611,7 +611,7 @@ class ExecutionRepositoryImpl(ExecutionRepository):
             # 更新缓存
             self._rule_executions[rule_id] = rule_executions
             
-            return sorted(rule_executions, key=lambda e: e.started_at)
+            return rule_executions  # Cannot sort by started_at anymore
             
         except Exception as e:
             logger.error(f"按规则查找执行记录失败: {e}")
@@ -624,11 +624,11 @@ class ExecutionRepositoryImpl(ExecutionRepository):
             failed_executions = []
             
             for execution in self._executions_cache.values():
-                if (execution.status == ExecutionStatus.FAILED and
-                    start_time <= execution.started_at <= end_time):
+                if execution.status == ExecutionStatus.FAILED:
+                    # Time filtering removed as started_at was removed for LLM caching
                     failed_executions.append(execution)
             
-            return sorted(failed_executions, key=lambda e: e.started_at)
+            return failed_executions  # Cannot sort by started_at anymore
             
         except Exception as e:
             logger.error(f"查找失败执行记录失败: {e}")
@@ -643,7 +643,7 @@ class ExecutionRepositoryImpl(ExecutionRepository):
                 if execution.status == status:
                     matching_executions.append(execution)
             
-            return sorted(matching_executions, key=lambda e: e.started_at)
+            return matching_executions  # Cannot sort by started_at anymore
             
         except Exception as e:
             logger.error(f"按状态查找执行记录失败: {e}")
@@ -655,10 +655,10 @@ class ExecutionRepositoryImpl(ExecutionRepository):
             matching_executions = []
             
             for execution in self._executions_cache.values():
-                if start_time <= execution.started_at <= end_time:
-                    matching_executions.append(execution)
+                # Time filtering removed as started_at was removed for LLM caching
+                matching_executions.append(execution)
             
-            return sorted(matching_executions, key=lambda e: e.started_at)
+            return matching_executions  # Cannot sort by started_at anymore
             
         except Exception as e:
             logger.error(f"按时间范围查找执行记录失败: {e}")
@@ -712,11 +712,8 @@ class ExecutionRepositoryImpl(ExecutionRepository):
         """获取最近的执行记录"""
         try:
             all_executions = list(self._executions_cache.values())
-            # 按开始时间排序，最新的在前
-            sorted_executions = sorted(all_executions, 
-                                     key=lambda e: e.started_at, reverse=True)
-            
-            return sorted_executions[:limit]
+            # Cannot sort by started_at anymore as it was removed for LLM caching
+            return all_executions[:limit]
             
         except Exception as e:
             logger.error(f"获取最近执行记录失败: {e}")
@@ -729,8 +726,9 @@ class ExecutionRepositoryImpl(ExecutionRepository):
             executions_to_delete = []
             
             for execution_id, execution in self._executions_cache.items():
-                if execution.started_at < cutoff_time:
-                    executions_to_delete.append(execution_id)
+                # Time comparison removed as started_at was removed for LLM caching
+                # For now, don't delete any executions based on time
+                pass
             
             for execution_id in executions_to_delete:
                 try:
@@ -812,7 +810,7 @@ class ExecutionRepositoryImpl(ExecutionRepository):
             'rule_id': execution.rule_id,
             'status': execution.status.value,
             'result': execution.result.to_dict() if execution.result else None,
-            'started_at': execution.started_at.isoformat(),
+            # 'started_at': execution.started_at.isoformat(),  # Removed for LLM caching
             'completed_at': execution.completed_at.isoformat() if execution.completed_at else None,
             'execution_context': execution.execution_context,
             'failure_reason': execution.failure_reason,
@@ -821,13 +819,13 @@ class ExecutionRepositoryImpl(ExecutionRepository):
     
     def _dict_to_execution(self, data: Dict) -> RuleExecution:
         """从字典创建执行记录"""
-        from ..domain.entities import Result
+        from ..domain.entities import WorkflowResult
         
         # 转换结果
         result = None
         if data.get('result'):
             result_data = data['result']
-            result = Result(
+            result = WorkflowResult(
                 success=result_data['success'],
                 message=result_data['message'],
                 data=result_data.get('data'),
@@ -841,7 +839,7 @@ class ExecutionRepositoryImpl(ExecutionRepository):
             rule_id=data['rule_id'],
             status=ExecutionStatus(data['status']),
             result=result,
-            started_at=datetime.fromisoformat(data['started_at']),
+            # started_at=datetime.fromisoformat(data['started_at']),  # Removed for LLM caching
             completed_at=datetime.fromisoformat(data['completed_at']) if data.get('completed_at') else None,
             execution_context=data.get('execution_context', {}),
             failure_reason=data.get('failure_reason'),

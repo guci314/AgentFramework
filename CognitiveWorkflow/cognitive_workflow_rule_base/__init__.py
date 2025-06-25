@@ -32,7 +32,7 @@ from .domain.entities import (
     DecisionResult,
     AgentCapability,
     AgentRegistry,
-    Result
+    WorkflowResult
 )
 
 from .domain.value_objects import (
@@ -78,7 +78,7 @@ __all__ = [
     "DecisionResult",
     "AgentCapability",
     "AgentRegistry",
-    "Result",
+    "WorkflowResult",
     
     # 值对象和枚举
     "RulePhase",
@@ -110,7 +110,7 @@ __all__ = [
     "ProductionRuleWorkflowEngine"
 ]
 
-def create_production_rule_system(llm, agents, enable_auto_recovery=True):
+def create_production_rule_system(llm, agents, enable_auto_recovery=True, max_workers=4):
     """
     快速创建产生式规则系统的工厂函数
     
@@ -118,6 +118,7 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True):
         llm: 语言模型实例
         agents: 智能体字典 {name: agent_instance}
         enable_auto_recovery: 是否启用自动恢复
+        max_workers: 并行执行的最大工作线程数
         
     Returns:
         ProductionRuleWorkflowEngine: 配置好的工作流引擎
@@ -148,8 +149,8 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True):
     
     # 创建专门服务
     rule_generation = RuleGenerationService(llm_service)
-    rule_matching = RuleMatchingService(llm_service)
-    rule_execution = RuleExecutionService(agent_service, execution_repository)
+    rule_matching = RuleMatchingService(llm_service, max_workers)  # 传递max_workers参数
+    rule_execution = RuleExecutionService(agent_service, execution_repository, llm_service)
     state_service = StateService(llm_service, state_repository)
     
     # 创建核心引擎服务
@@ -164,8 +165,8 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True):
         enable_auto_recovery=enable_auto_recovery
     )
     
-    # 创建工作流引擎
-    workflow_engine = ProductionRuleWorkflowEngine(rule_engine_service)
+    # 创建工作流引擎，传入agent_registry
+    workflow_engine = ProductionRuleWorkflowEngine(rule_engine_service, agent_registry)
     
     return workflow_engine
 

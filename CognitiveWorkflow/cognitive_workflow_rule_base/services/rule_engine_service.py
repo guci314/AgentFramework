@@ -16,7 +16,7 @@ from ..domain.entities import (
 )
 from ..domain.repositories import RuleRepository, StateRepository, ExecutionRepository
 from ..domain.value_objects import (
-    DecisionType, ExecutionStatus, WorkflowResult, ExecutionMetrics, RuleConstants
+    DecisionType, ExecutionStatus, WorkflowExecutionResult, ExecutionMetrics, RuleConstants
 )
 from .rule_generation_service import RuleGenerationService
 from .rule_matching_service import RuleMatchingService
@@ -67,7 +67,7 @@ class RuleEngineService:
         self._current_rule_set: Optional[RuleSet] = None
         self._workflow_id: Optional[str] = None
         
-    def execute_workflow(self, goal: str, agent_registry: Any) -> WorkflowResult:
+    def execute_workflow(self, goal: str, agent_registry: Any) -> WorkflowExecutionResult:
         """
         执行完整的工作流程
         
@@ -76,10 +76,10 @@ class RuleEngineService:
             agent_registry: 智能体注册表
             
         Returns:
-            WorkflowResult: 工作流执行结果
+            WorkflowExecutionResult: 工作流执行结果
         """
-        # 初始化工作流
-        workflow_id = str(uuid.uuid4())
+        # 初始化工作流 - Use deterministic ID for better caching
+        workflow_id = f"workflow_{goal.replace(' ', '_')[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}"
         self._workflow_id = workflow_id
         
         start_time = datetime.now()
@@ -102,8 +102,8 @@ class RuleEngineService:
                 iteration_count += 1
                 logger.info(f"开始第 {iteration_count} 次迭代")
                 
-                # 处理单次迭代
-                decision = self.process_single_iteration(global_state, rule_set)
+                # 选择要执行的规则
+                decision = self.select_rule(global_state, rule_set)
                 
                 # 处理决策结果
                 if decision.decision_type == DecisionType.EXECUTE_SELECTED_RULE:
@@ -172,7 +172,7 @@ class RuleEngineService:
             else:
                 final_message = "工作流异常终止"
             
-            workflow_result = WorkflowResult(
+            workflow_result = WorkflowExecutionResult(
                 goal=goal,
                 is_successful=goal_achieved,
                 final_state=global_state.description,
@@ -199,7 +199,7 @@ class RuleEngineService:
                 rule_match_accuracy=0.0
             )
             
-            return WorkflowResult(
+            return WorkflowExecutionResult(
                 goal=goal,
                 is_successful=False,
                 final_state=f"工作流执行异常: {str(e)}",
@@ -209,21 +209,21 @@ class RuleEngineService:
                 completion_timestamp=end_time
             )
     
-    def process_single_iteration(self, 
-                               global_state: GlobalState, 
-                               rule_set: RuleSet) -> DecisionResult:
+    def select_rule(self, 
+                   global_state: GlobalState, 
+                   rule_set: RuleSet) -> DecisionResult:
         """
-        处理单次迭代循环
+        选择适合当前状态的规则
         
         Args:
             global_state: 当前全局状态
             rule_set: 规则集
             
         Returns:
-            DecisionResult: 迭代决策结果
+            DecisionResult: 规则选择决策结果
         """
         try:
-            logger.debug("处理单次迭代循环")
+            logger.debug("开始规则选择过程")
             
             # 1. 查找适用的规则
             applicable_rules = self.rule_matching.find_applicable_rules(global_state, rule_set)
@@ -231,16 +231,16 @@ class RuleEngineService:
             # 2. 选择最佳规则
             decision = self.rule_matching.select_best_rule(applicable_rules, global_state)
             
-            logger.debug(f"迭代决策: {decision.decision_type.value}")
+            logger.debug(f"规则选择决策: {decision.decision_type.value}")
             return decision
             
         except Exception as e:
-            logger.error(f"单次迭代处理失败: {e}")
+            logger.error(f"规则选择失败: {e}")
             return DecisionResult(
                 selected_rule=None,
                 decision_type=DecisionType.GOAL_FAILED,
                 confidence=0.0,
-                reasoning=f"迭代处理失败: {str(e)}"
+                reasoning=f"规则选择失败: {str(e)}"
             )
     
     def handle_rule_failure(self, 
@@ -336,8 +336,8 @@ class RuleEngineService:
                 'current_state': current_state.description if current_state else 'No active workflow',
                 'iteration_count': current_state.iteration_count if current_state else 0,
                 'goal_achieved': current_state.goal_achieved if current_state else False,
-                'rule_count': len(self._current_rule_set.rules) if self._current_rule_set else 0,
-                'timestamp': datetime.now().isoformat()
+                'rule_count': len(self._current_rule_set.rules) if self._current_rule_set else 0
+                # 'timestamp': datetime.now().isoformat()  # Removed for LLM caching
             }
             
             return status

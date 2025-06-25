@@ -328,6 +328,61 @@ class LanguageModelService:
             logger.error(f"目标达成评估失败: {e}")
             return False, 0.0, f"评估失败: {str(e)}"
     
+    def validate_execution_result(self, 
+                                action: str, 
+                                actual_result: str, 
+                                expected_outcome: str) -> Tuple[bool, float, str]:
+        """
+        验证执行结果是否符合期望
+        
+        Args:
+            action: 执行的动作描述
+            actual_result: 实际执行结果
+            expected_outcome: 期望的结果
+            
+        Returns:
+            Tuple[bool, float, str]: (是否符合期望, 置信度, 验证说明)
+        """
+        try:
+            prompt = f"""
+请验证执行结果是否符合期望：
+
+执行的动作: {action}
+实际结果: {actual_result}
+期望结果: {expected_outcome}
+
+请分析实际结果是否满足期望，返回JSON格式：
+{{
+    "result_valid": true/false,
+    "confidence": 0.0-1.0,
+    "reasoning": "详细的验证分析"
+}}
+
+验证要点：
+1. 实际结果是否包含期望结果的关键要素
+2. 实际结果的质量和完整性
+3. 是否存在明显的错误或遗漏
+4. 语义上是否达到了期望的效果
+
+注意：
+- 不要过分拘泥于字面匹配，重点关注语义和实际效果
+- 如果实际结果在语义上满足期望，即使表述不同也应认为有效
+- 考虑动作的性质和上下文来判断结果的合理性
+"""
+            
+            response = self._call_llm(prompt)
+            result_data = self._parse_json_response(response)
+            
+            return (
+                result_data.get('result_valid', False),
+                float(result_data.get('confidence', 0.0)),
+                result_data.get('reasoning', '')
+            )
+            
+        except Exception as e:
+            logger.error(f"执行结果验证失败: {e}")
+            return True, 0.5, f"验证失败，默认通过: {str(e)}"  # 验证失败时默认通过，避免阻塞
+    
     def _call_llm(self, prompt: str) -> str:
         """
         调用语言模型

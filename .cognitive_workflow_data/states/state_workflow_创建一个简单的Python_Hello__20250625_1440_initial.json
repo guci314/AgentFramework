@@ -1,0 +1,13 @@
+{
+  "id": "workflow_创建一个简单的Python_Hello__20250625_1440_initial",
+  "description": "工作流已启动，目标：创建一个简单的Python Hello World程序。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "创建一个简单的Python Hello World程序"
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_创建一个简单的Python_Hello__20250625_1440",
+  "iteration_count": 0,
+  "goal_achieved": false
+}
