@@ -1,0 +1,75 @@
+{
+  "id": "ruleset_052066",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_444824",
+      "name": "需求分析与规划",
+      "condition": "任务开始，需要明确所有需求并制定初步计划。",
+      "action": "分析并确认计算器程序的所有需求，包括加减乘除功能、单元测试、测试运行、Markdown格式的使用说明文档生成以及文件保存路径（calculator.py和calculator.md）。规划代码结构和测试策略。",
+      "agent_capability_id": "system",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "对任务需求有清晰的理解，并形成初步的开发和测试计划。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_321118",
+      "name": "实现计算器核心功能",
+      "condition": "已完成需求分析和规划，准备开始编写代码。",
+      "action": "在`calculator.py`文件中实现一个简单的计算器类或函数，包含加（add）、减（subtract）、乘（multiply）、除（divide）四个基本运算功能。确保除法操作能妥善处理除数为零的情况。",
+      "agent_capability_id": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "生成`calculator.py`文件，包含完整的计算器基本运算逻辑。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_869154",
+      "name": "编写单元测试",
+      "condition": "计算器核心功能已实现。",
+      "action": "为`calculator.py`中的计算器功能编写完整的单元测试。测试用例应覆盖所有基本运算以及边界条件（如除数为零、大数、小数等）。将测试代码保存在`test_calculator.py`文件中。",
+      "agent_capability_id": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "生成`test_calculator.py`文件，包含针对计算器功能的全面单元测试。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_687357",
+      "name": "生成使用说明文档",
+      "condition": "计算器核心功能和单元测试已基本完成。",
+      "action": "生成一个使用说明文档，使用Markdown格式。文档应详细说明计算器的功能、如何使用（包括示例）、以及如何运行单元测试。将文档保存为`calculator.md`。",
+      "agent_capability_id": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "生成`calculator.md`文件，包含清晰、完整的计算器使用说明。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_426856",
+      "name": "运行并验证单元测试",
+      "condition": "计算器代码、单元测试代码和使用说明文档均已生成。",
+      "action": "运行`test_calculator.py`中的所有单元测试。检查测试结果，确保所有测试用例都通过。如果存在失败，则进行调试和修复，直到所有测试通过。",
+      "agent_capability_id": "tester",
+      "priority": 95,
+      "phase": "verification",
+      "expected_outcome": "所有单元测试通过，确认计算器功能正确无误。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_694237",
+      "name": "最终文件和任务确认",
+      "condition": "所有单元测试已通过，且所有文件已生成。",
+      "action": "审查`calculator.py`、`test_calculator.py`和`calculator.md`文件，确保它们符合所有要求，并且内容完整、准确。确认所有文件已正确保存到指定位置。",
+      "agent_capability_id": "system",
+      "priority": 98,
+      "phase": "verification",
+      "expected_outcome": "所有生成的文件符合要求，任务圆满完成。",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

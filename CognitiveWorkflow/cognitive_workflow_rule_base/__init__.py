@@ -14,6 +14,12 @@
 - Infrastructure: 技术基础设施
 - Engine: 工作流执行引擎
 
+架构设计原则:
+- LLM缓存优化: 系统移除了所有自动生成的UUID和时间戳字段，
+  使用确定性ID生成策略，以提高语言模型缓存效率和系统可预测性
+- 服务解耦: RuleMatchingService功能已整合到RuleEngineService中，
+  简化架构并提高性能
+
 作者: Claude
 日期: 2024-12-21
 基于: 产生式规则系统理论
@@ -30,7 +36,6 @@ from .domain.entities import (
     RuleExecution,
     GlobalState,
     DecisionResult,
-    AgentCapability,
     AgentRegistry,
     WorkflowResult
 )
@@ -52,7 +57,7 @@ from .domain.repositories import (
 # 导入核心服务
 from .services.rule_engine_service import RuleEngineService
 from .services.rule_generation_service import RuleGenerationService
-from .services.rule_matching_service import RuleMatchingService
+# from .services.rule_matching_service import RuleMatchingService  # Removed - functionality integrated into RuleEngineService
 from .services.rule_execution_service import RuleExecutionService
 from .services.state_service import StateService
 from .services.agent_service import AgentService
@@ -76,7 +81,6 @@ __all__ = [
     "RuleExecution",
     "GlobalState",
     "DecisionResult",
-    "AgentCapability",
     "AgentRegistry",
     "WorkflowResult",
     
@@ -95,7 +99,7 @@ __all__ = [
     # 核心服务
     "RuleEngineService",
     "RuleGenerationService",
-    "RuleMatchingService", 
+    # "RuleMatchingService",  # Removed - functionality integrated into RuleEngineService 
     "RuleExecutionService",
     "StateService",
     "AgentService",
@@ -110,7 +114,7 @@ __all__ = [
     "ProductionRuleWorkflowEngine"
 ]
 
-def create_production_rule_system(llm, agents, enable_auto_recovery=True, max_workers=4):
+def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable_adaptive_replacement=True):
     """
     快速创建产生式规则系统的工厂函数
     
@@ -118,7 +122,7 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, max_wo
         llm: 语言模型实例
         agents: 智能体字典 {name: agent_instance}
         enable_auto_recovery: 是否启用自动恢复
-        max_workers: 并行执行的最大工作线程数
+        enable_adaptive_replacement: 是否启用自适应规则替换
         
     Returns:
         ProductionRuleWorkflowEngine: 配置好的工作流引擎
@@ -131,25 +135,19 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, max_wo
     state_repository = StateRepositoryImpl()
     execution_repository = ExecutionRepositoryImpl()
     
-    # 创建Agent注册表
+    # 创建Agent注册表 - 直接管理Agent实例
     agent_registry = AgentRegistry()
+    
+    # 注册用户提供的智能体
     for name, agent in agents.items():
-        capability = AgentCapability(
-            id=name,
-            name=name,
-            description=getattr(agent, 'api_specification', f'{name} Agent'),
-            supported_actions=['*'],  # 支持所有动作
-            api_specification=getattr(agent, 'api_specification', ''),
-            configuration={}
-        )
-        agent_registry.register_capability(capability)
+        agent_registry.register_agent(name, agent)
     
     # 创建Agent服务
     agent_service = AgentService(agent_registry, agents)
     
     # 创建专门服务
-    rule_generation = RuleGenerationService(llm_service)
-    rule_matching = RuleMatchingService(llm_service, max_workers)  # 传递max_workers参数
+    rule_generation = RuleGenerationService(llm_service, agent_registry)
+    # rule_matching = RuleMatchingService(llm_service, max_workers)  # Removed - functionality integrated into RuleEngineService
     rule_execution = RuleExecutionService(agent_service, execution_repository, llm_service)
     state_service = StateService(llm_service, state_repository)
     
@@ -158,11 +156,11 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, max_wo
         rule_repository=rule_repository,
         state_repository=state_repository,
         execution_repository=execution_repository,
-        rule_matching=rule_matching,
         rule_execution=rule_execution,
         rule_generation=rule_generation,
         state_service=state_service,
-        enable_auto_recovery=enable_auto_recovery
+        enable_auto_recovery=enable_auto_recovery,
+        enable_adaptive_replacement=enable_adaptive_replacement
     )
     
     # 创建工作流引擎，传入agent_registry

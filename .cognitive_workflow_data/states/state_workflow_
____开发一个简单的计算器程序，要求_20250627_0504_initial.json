@@ -1,0 +1,13 @@
+{
+  "id": "workflow_\n____开发一个简单的计算器程序，要求_20250627_0504_initial",
+  "state": "工作流已启动，目标：\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    "
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_\n____开发一个简单的计算器程序，要求_20250627_0504",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

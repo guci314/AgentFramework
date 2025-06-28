@@ -55,8 +55,13 @@ class RuleRepository(ABC):
         pass
     
     @abstractmethod
-    def find_rules_by_agent_capability(self, capability_id: str) -> List[ProductionRule]:
-        """根据智能体能力查找规则"""
+    def find_rules_by_agent_capability(self, agent_name: str) -> List[ProductionRule]:
+        """根据智能体名称查找规则（保持接口兼容性）"""
+        pass
+    
+    @abstractmethod
+    def find_rules_by_agent_name(self, agent_name: str) -> List[ProductionRule]:
+        """根据智能体名称查找规则"""
         pass
     
     @abstractmethod

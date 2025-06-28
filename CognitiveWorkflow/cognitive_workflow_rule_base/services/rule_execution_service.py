@@ -73,7 +73,7 @@ class RuleExecutionService:
             # 执行自然语言动作
             result = self._execute_natural_language_action(
                 rule.action, 
-                rule.agent_capability_id, 
+                rule.agent_name, 
                 execution_context
             )
             
@@ -133,7 +133,7 @@ class RuleExecutionService:
             
             # 状态信息
             'state_info': {
-                'description': global_state.description,
+                'description': global_state.state,
                 'iteration_count': global_state.iteration_count,
                 'workflow_id': global_state.workflow_id,
                 'goal_achieved': global_state.goal_achieved
@@ -239,14 +239,14 @@ class RuleExecutionService:
     
     def _execute_natural_language_action(self, 
                                        action: str, 
-                                       agent_capability_id: str, 
+                                       agent_name: str, 
                                        context: Dict[str, Any]) -> WorkflowResult:
         """
         执行自然语言动作指令
         
         Args:
             action: 自然语言动作描述
-            agent_capability_id: 智能体能力ID
+            agent_name: 智能体名称
             context: 执行上下文
             
         Returns:
@@ -259,7 +259,7 @@ class RuleExecutionService:
             # 通过智能体服务执行指令
             result = self.agent_service.execute_natural_language_instruction(
                 enhanced_instruction, 
-                agent_capability_id, 
+                agent_name, 
                 context
             )
             
@@ -271,7 +271,7 @@ class RuleExecutionService:
                 success=False,
                 message=f"动作执行失败: {str(e)}",
                 error_details=str(e),
-                metadata={'action': action, 'agent_capability_id': agent_capability_id}
+                metadata={'action': action, 'agent_name': agent_name}
             )
     
     def _prepare_natural_language_instruction(self, 

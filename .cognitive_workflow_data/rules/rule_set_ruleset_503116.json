@@ -1,0 +1,196 @@
+{
+  "id": "ruleset_503116",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_916447",
+      "name": "analyze_requirements",
+      "condition": "IF 需要开发一个简单的计算器程序",
+      "action": "THEN 分析需求，确认需要实现加减乘除四个基本运算，编写单元测试，生成使用说明文档，并确定文件保存位置",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "明确需求细节，确认实现方案",
+      "metadata": {}
+    },
+    {
+      "id": "rule_297990",
+      "name": "implement_calculator",
+      "condition": "IF 需求已明确，需要实现计算器功能",
+      "action": "THEN 编写calculator.py文件，实现加减乘除四个基本运算的函数",
+      "agent_name": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "完成calculator.py文件，包含加减乘除四个功能的实现",
+      "metadata": {}
+    },
+    {
+      "id": "rule_688960",
+      "name": "write_unit_tests",
+      "condition": "IF 计算器功能已实现",
+      "action": "THEN 为计算器的加减乘除功能编写完整的单元测试",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "完成单元测试代码，覆盖所有计算功能",
+      "metadata": {}
+    },
+    {
+      "id": "rule_643690",
+      "name": "run_tests",
+      "condition": "IF 单元测试已编写",
+      "action": "THEN 运行所有单元测试，确保测试通过",
+      "agent_name": "tester",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "所有单元测试通过，确认计算器功能正确",
+      "metadata": {}
+    },
+    {
+      "id": "rule_382806",
+      "name": "generate_documentation",
+      "condition": "IF 计算器功能已实现并通过测试",
+      "action": "THEN 生成使用说明文档，使用markdown格式，保存在calculator.md文件中",
+      "agent_name": "coder",
+      "priority": 50,
+      "phase": "verification",
+      "expected_outcome": "完成calculator.md文件，包含计算器的使用说明",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_658079",
+      "name": "fix_syntax_error_in_calculator_py",
+      "condition": "当主程序文件(calculator.py)存在语法错误导致单元测试生成失败时",
+      "action": "1. 定位到calculator.py第8行\n2. 检查并修复以下常见语法问题：\n   - 函数定义缺少冒号\n   - 括号/引号不匹配\n   - 缩进错误\n3. 保存文件后重新验证四个核心函数的类型检查功能\n4. 确认修复后重新触发单元测试生成",
+      "agent_name": "coder",
+      "priority": 95,
+      "phase": "execution",
+      "expected_outcome": "calculator.py文件语法错误被修复，能够正常通过语法检查并支持单元测试生成",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_126569",
+      "name": "validate_test_framework_environment",
+      "condition": "当主程序语法修复后仍无法生成单元测试时",
+      "action": "1. 检查pytest/unittest测试框架是否可用\n2. 验证测试文件路径权限(/home/guci/aiProjects/AgentFrameWork/)\n3. 确认Python环境版本兼容性\n4. 检查测试文件生成目录是否存在",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "确认测试环境完全就绪，排除环境因素导致的测试生成失败",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_685872",
+      "name": "regenerate_unit_tests_with_cached_code",
+      "condition": "当主程序修复且环境验证通过后",
+      "action": "1. 复用已生成的70%测试代码缓存\n2. 仅补充缺失的30%测试用例\n3. 重点覆盖：\n   - 正常运算测试\n   - 边界条件测试\n   - 错误处理测试\n4. 保存到test_calculator.py",
+      "agent_name": "tester",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "完整生成test_calculator.py文件，覆盖所有计算功能的测试用例",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_584059",
+      "name": "create_minimal_viable_tests",
+      "condition": "当完整单元测试生成持续失败时",
+      "action": "1. 仅生成核心功能的冒烟测试\n2. 覆盖最基本的运算场景：\n   - add(1,1)\n   - subtract(3,1)\n   - multiply(2,3)\n   - divide(4,2)\n3. 标记为待完善测试版本",
+      "agent_name": "tester",
+      "priority": 65,
+      "phase": "execution",
+      "expected_outcome": "生成可运行的最小测试集，确保基本功能验证通过",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_460040",
+      "name": "complete_test_file_generation",
+      "condition": "当主程序语法错误修复后，测试文件生成不完整时",
+      "action": "1. 检查测试模板缓存完整性\n2. 将预验证的测试代码完整写入test_calculator.py\n3. 验证文件写入权限\n4. 确认测试文件包含所有四个核心函数的测试用例\n5. 执行基础语法检查",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "test_calculator.py文件完整生成，包含所有预验证的测试代码，可通过基础语法检查",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_939490",
+      "name": "validate_test_template",
+      "condition": "当测试文件生成失败且怀疑测试模板有问题时",
+      "action": "1. 检查测试模板中的逻辑结构\n2. 验证所有断言语句的正确性\n3. 确认异常处理场景覆盖\n4. 检查测试类继承关系\n5. 执行模板独立验证",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "确认测试模板逻辑正确，包含完整的异常场景测试，可独立执行验证",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_497871",
+      "name": "retry_test_generation",
+      "condition": "当测试文件首次生成失败但环境检查正常时",
+      "action": "1. 备份现有测试文件\n2. 清空目标文件内容\n3. 使用新的文件句柄重新写入\n4. 验证文件系统inode状态\n5. 限制重试次数为2次",
+      "agent_name": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "通过文件操作重试机制成功生成测试文件",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_947934",
+      "name": "fallback_to_manual_tests",
+      "condition": "当自动测试生成连续失败3次时",
+      "action": "1. 创建最小化测试文件框架\n2. 手动实现关键测试用例\n3. 优先保证核心运算测试\n4. 标记需要后续补充的测试\n5. 生成TODO注释说明",
+      "agent_name": "tester",
+      "priority": 65,
+      "phase": "execution",
+      "expected_outcome": "生成可运行的最小测试集，至少覆盖四个核心运算的基本功能测试",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_735569",
+      "name": "fix_parentheses_mismatch_in_calculator_py",
+      "condition": "当检测到calculator.py第8行存在括号不匹配的语法错误时",
+      "action": "1. 打开calculator.py文件\n2. 定位到第8行\n3. 修正为：if not all(isinstance(x, (int, float)) for x in [a, b]):\n4. 保存文件\n5. 执行语法检查：python -m py_compile calculator.py",
+      "agent_name": "coder",
+      "priority": 95,
+      "phase": "execution",
+      "expected_outcome": "成功修复第8行语法错误，calculator.py可通过语法检查",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_668186",
+      "name": "validate_calculator_importability",
+      "condition": "在语法错误修复后，测试运行前",
+      "action": "1. 创建临时测试脚本：\n   echo 'from calculator import add, subtract, multiply, divide\n   print(\"Import successful\")' > import_test.py\n2. 执行验证：python import_test.py\n3. 检查输出是否为\"Import successful\"",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "verification",
+      "expected_outcome": "确认calculator.py可被正常导入，无导入错误",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_960848",
+      "name": "retry_test_execution_with_debug",
+      "condition": "当主程序语法正确但测试仍失败时",
+      "action": "1. 使用详细模式运行测试：python -m unittest test_calculator.py -v\n2. 捕获失败测试的详细输出\n3. 根据失败信息定位具体问题\n4. 提供修复建议",
+      "agent_name": "tester",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "获取详细的测试失败信息，为下一步修复提供依据",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_854933",
+      "name": "rollback_to_previous_stable_version",
+      "condition": "当无法通过直接修复解决语法错误时",
+      "action": "1. 检查版本控制系统是否有可用备份\n2. 恢复calculator.py到上一个无语法错误的版本\n3. 重新生成测试文件\n4. 执行冒烟测试验证基本功能",
+      "agent_name": "coder",
+      "priority": 65,
+      "phase": "execution",
+      "expected_outcome": "回退到稳定版本，确保测试可以运行",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

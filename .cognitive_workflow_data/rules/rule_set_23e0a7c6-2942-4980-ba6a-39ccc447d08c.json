@@ -1,0 +1,31 @@
+{
+  "id": "23e0a7c6-2942-4980-ba6a-39ccc447d08c",
+  "goal": "创建一个简单的Python Hello World程序,打印hello world 567 文件保存在hello_world.py",
+  "rules": [
+    {
+      "id": "rule_654503",
+      "name": "create_hello_world_script",
+      "condition": "需要创建一个简单的Python Hello World程序",
+      "action": "编写一个Python脚本，内容为打印'hello world 567'，并将文件保存为hello_world.py",
+      "agent_capability_id": "coder",
+      "priority": 90,
+      "phase": "problem_solving",
+      "expected_outcome": "生成hello_world.py文件，内容为打印'hello world 567'的Python代码",
+      "metadata": {}
+    },
+    {
+      "id": "rule_828978",
+      "name": "verify_script_execution",
+      "condition": "Python脚本hello_world.py已创建",
+      "action": "运行hello_world.py脚本并验证输出是否为'hello world 567'",
+      "agent_capability_id": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "脚本执行成功，输出结果为'hello world 567'",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

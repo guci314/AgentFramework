@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_277570",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_038162",
+      "name": "实现计算器核心功能",
+      "condition": "如果目标是开发一个计算器程序",
+      "action": "编写一个名为 `calculator.py` 的 Python 文件。在该文件中，定义四个函数：`add(a, b)`, `subtract(a, b)`, `multiply(a, b)`, 和 `divide(a, b)`，分别实现两个数的加、减、乘、除运算。对于除法，需要处理除数为零的异常情况。",
+      "agent_name": "coder",
+      "priority": 100,
+      "phase": "execution",
+      "expected_outcome": "生成一个 `calculator.py` 文件，其中包含四个实现了基本数学运算的函数。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_636175",
+      "name": "编写单元测试用例",
+      "condition": "如果 `calculator.py` 文件已创建且包含核心运算函数",
+      "action": "使用 Python 的 `unittest` 框架，在 `calculator.py` 文件中为 `add`, `subtract`, `multiply`, `divide` 四个函数编写全面的单元测试。测试用例应覆盖正常情况、边界情况以及除以零等异常情况。",
+      "agent_name": "tester",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "`calculator.py` 文件中追加了完整的 `unittest` 测试套件，用于验证所有运算函数的正确性。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_765129",
+      "name": "执行测试并验证代码",
+      "condition": "如果 `calculator.py` 文件中已包含单元测试代码",
+      "action": "执行 `calculator.py` 文件中的 `unittest` 测试套件，并捕获测试结果。确保所有测试用例都成功通过。",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "返回测试执行结果，明确指出所有测试均已通过。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_817943",
+      "name": "生成使用说明文档",
+      "condition": "如果所有单元测试都已通过",
+      "action": "创建一个名为 `calculator.md` 的 Markdown 文件。在文件中，撰写一份简单的使用说明，内容包括：\n1. 程序简介\n2. 如何使用每个运算函数（`add`, `subtract`, `multiply`, `divide`）\n3. 提供清晰的代码使用示例。",
+      "agent_name": "coder",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "生成一个 `calculator.md` 文件，其中包含格式良好、内容清晰的用户使用说明。",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

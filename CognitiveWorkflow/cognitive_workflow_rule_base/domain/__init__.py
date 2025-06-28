@@ -12,7 +12,6 @@ from .entities import (
     RuleExecution, 
     GlobalState,
     DecisionResult,
-    AgentCapability,
     AgentRegistry,
     WorkflowResult
 )
@@ -38,7 +37,6 @@ __all__ = [
     "RuleExecution",
     "GlobalState", 
     "DecisionResult",
-    "AgentCapability",
     "AgentRegistry",
     "WorkflowResult",
     

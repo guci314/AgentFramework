@@ -152,7 +152,7 @@ def create_custom_rules():
         action="根据技术方案实现核心功能代码，遵循最佳实践，确保代码质量和可维护性",
         agent_capability_id="python_expert",
         priority=85,
-        phase=RulePhase.PROBLEM_SOLVING,
+        phase=RulePhase.EXECUTION,
         expected_outcome="完整的功能实现代码，包括必要的注释和文档"
     )
     custom_rules.append(development_rule)
@@ -218,7 +218,7 @@ def advanced_workflow_control_demo():
     print("\n开始异步执行工作流...")
     
     # 启动异步执行
-    success = workflow_engine.execute_goal_async(goal, agent_registry)
+    success = workflow_engine.execute_goal_async(goal)
     
     if not success:
         print("❌ 异步执行启动失败")
@@ -261,7 +261,7 @@ def monitor_execution_progress(workflow_engine):
         if iteration_count != last_iteration:
             timestamp = time.strftime("%H:%M:%S")
             status = metrics.get('execution_status', 'unknown')
-            description = current_state.get('description', 'unknown')[:80]
+            description = current_state.get('state', current_state.get('description', 'unknown'))[:80]
             
             print(f"[{timestamp}] 迭代 {iteration_count} | 状态: {status}")
             print(f"         当前状态: {description}...")

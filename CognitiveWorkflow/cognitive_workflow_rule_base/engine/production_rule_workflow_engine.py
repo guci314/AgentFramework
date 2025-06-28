@@ -41,13 +41,12 @@ class ProductionRuleWorkflowEngine:
         self._execution_result: Optional[WorkflowExecutionResult] = None
         self._execution_lock = threading.Lock()
         
-    def execute_goal(self, goal: str, agent_registry: AgentRegistry = None) -> WorkflowExecutionResult:
+    def execute_goal(self, goal: str) -> WorkflowExecutionResult:
         """
         执行目标工作流（同步版本）
         
         Args:
             goal: 目标描述
-            agent_registry: 智能体注册表
             
         Returns:
             WorkflowExecutionResult: 工作流执行结果
@@ -60,7 +59,7 @@ class ProductionRuleWorkflowEngine:
                 logger.info(f"开始执行工作流目标: {goal}")
                 self.execution_status = ExecutionStatus.RUNNING
                 self._current_goal = goal
-                self._current_agent_registry = agent_registry or self.default_agent_registry
+                self._current_agent_registry = self.default_agent_registry
                 self._stop_requested = False
                 self._pause_requested = False
                 
@@ -91,13 +90,12 @@ class ProductionRuleWorkflowEngine:
                 self._execution_result = error_result
                 return error_result
     
-    def execute_goal_async(self, goal: str, agent_registry: AgentRegistry = None) -> bool:
+    def execute_goal_async(self, goal: str) -> bool:
         """
         异步执行目标工作流
         
         Args:
             goal: 目标描述
-            agent_registry: 智能体注册表
             
         Returns:
             bool: 是否成功启动异步执行
@@ -109,7 +107,7 @@ class ProductionRuleWorkflowEngine:
             
             try:
                 self._current_goal = goal
-                self._current_agent_registry = agent_registry or self.default_agent_registry
+                self._current_agent_registry = self.default_agent_registry
                 self._stop_requested = False
                 self._pause_requested = False
                 
@@ -261,7 +259,7 @@ class ProductionRuleWorkflowEngine:
             current_state = self.get_current_state()
             if current_state:
                 metrics['current_state'] = {
-                    'description': current_state.description,
+                    'description': current_state.state,
                     'iteration_count': current_state.iteration_count,
                     'goal_achieved': current_state.goal_achieved
                 }
@@ -294,7 +292,7 @@ class ProductionRuleWorkflowEngine:
                 for state in state_history:
                     history.append({
                         # 'timestamp': state.timestamp.isoformat(),  # Removed for LLM caching
-                        'description': state.description,
+                        'description': state.state,
                         'iteration_count': state.iteration_count,
                         'context_variables': state.context_variables
                     })
@@ -340,6 +338,16 @@ class ProductionRuleWorkflowEngine:
         
         Returns:
             AgentRegistry: 默认智能体注册表
+        """
+        return self.default_agent_registry
+    
+    @property
+    def agent_registry(self) -> AgentRegistry:
+        """
+        智能体注册表属性（向后兼容）
+        
+        Returns:
+            AgentRegistry: 智能体注册表
         """
         return self.default_agent_registry
     

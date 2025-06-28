@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_462351",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_091227",
+      "name": "ImplementBasicCalculator",
+      "condition": "任务要求实现加减乘除基本运算，并将代码保存到calculator.py。",
+      "action": "使用Python编写`add`, `subtract`, `multiply`, `divide`四个函数，并将其保存到`calculator.py`文件中。",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "`calculator.py`文件已创建，并包含实现加减乘除功能的Python代码。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_431862",
+      "name": "WriteUnitTests",
+      "condition": "`calculator.py`文件已创建并包含基本运算函数。",
+      "action": "为`calculator.py`中的`add`, `subtract`, `multiply`, `divide`函数编写完整的单元测试用例，包括正常情况和边界条件（如除数为零）。将测试代码保存到`test_calculator.py`。",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "`test_calculator.py`文件已创建，并包含针对`calculator.py`的全面单元测试。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_637969",
+      "name": "RunTestsAndReport",
+      "condition": "`test_calculator.py`文件已创建并包含单元测试。",
+      "action": "运行`test_calculator.py`中的所有单元测试，并报告测试结果。",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "测试运行完成，并输出测试结果报告。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_787827",
+      "name": "DebugAndRefine",
+      "condition": "运行单元测试后，有测试用例失败。",
+      "action": "根据测试失败报告，分析`calculator.py`中的问题并进行调试和修复，直到所有测试通过。修复后重新运行测试。",
+      "agent_name": "coder",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "`calculator.py`中的代码已修复，所有单元测试均通过。",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

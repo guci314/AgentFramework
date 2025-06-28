@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_667441",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_184942",
+      "name": "实现计算器核心功能",
+      "condition": "开始开发计算器程序，需要实现基本运算逻辑。",
+      "action": "使用Python编写一个名为`calculator.py`的文件，实现加(add)、减(subtract)、乘(multiply)、除(divide)四个基本运算函数。每个函数应接收两个数值参数并返回计算结果。特别地，除法函数应处理除数为零的情况，例如抛出ValueError。",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "`calculator.py`文件包含实现加减乘除功能的Python代码，并妥善处理除零错误。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_937670",
+      "name": "编写单元测试",
+      "condition": "计算器核心功能已实现，需要确保其正确性。",
+      "action": "在`calculator.py`文件中，使用Python的`unittest`模块为加、减、乘、除函数编写完整的单元测试。测试用例应覆盖正常计算、边界值（如零、负数）以及错误情况（如除数为零）的断言。",
+      "agent_name": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "`calculator.py`文件包含针对计算器函数的全面单元测试代码。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_529712",
+      "name": "生成使用说明文档",
+      "condition": "计算器功能和测试已基本完成，需要提供用户使用指南。",
+      "action": "编写一个名为`calculator.md`的Markdown文件，包含计算器程序的使用说明。文档应清晰描述每个运算函数的功能、参数和预期输出，并提供简单的使用示例。",
+      "agent_name": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "生成一个名为`calculator.md`的Markdown格式文件，其中包含详细的计算器使用说明。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_199578",
+      "name": "运行并验证单元测试",
+      "condition": "单元测试代码已编写完成，需要验证程序功能是否符合预期。",
+      "action": "运行`calculator.py`中的所有单元测试。如果测试失败，分析失败原因并调试`calculator.py`中的代码，直到所有测试用例成功通过。",
+      "agent_name": "coder",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "所有单元测试成功通过，确保计算器程序的各项功能正确无误。",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

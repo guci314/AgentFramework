@@ -1,0 +1,42 @@
+{
+  "id": "ruleset_441016",
+  "goal": "编写一个显示当前日期和时间的Python程序",
+  "rules": [
+    {
+      "id": "rule_618344",
+      "name": "determine_date_time_requirements",
+      "condition": "IF the task is to display current date and time in Python",
+      "action": "THEN analyze whether the output needs formatting (e.g., specific date/time format) and if timezone handling is required",
+      "agent_name": "coder",
+      "priority": 30,
+      "phase": "information_gathering",
+      "expected_outcome": "Clear understanding of date/time display requirements",
+      "metadata": {}
+    },
+    {
+      "id": "rule_263987",
+      "name": "implement_datetime_display",
+      "condition": "IF the basic requirements are understood (no special formatting needed)",
+      "action": "THEN write Python code using datetime module to display current date and time in default format",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "Working Python code that prints current date and time",
+      "metadata": {}
+    },
+    {
+      "id": "rule_173950",
+      "name": "verify_datetime_output",
+      "condition": "IF Python code for datetime display has been generated",
+      "action": "THEN execute the code and verify the output matches the system's current date and time",
+      "agent_name": "coder",
+      "priority": 20,
+      "phase": "verification",
+      "expected_outcome": "Confirmed correct date/time display matching system clock",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

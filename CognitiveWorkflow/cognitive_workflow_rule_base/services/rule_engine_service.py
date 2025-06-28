@@ -19,9 +19,10 @@ from ..domain.value_objects import (
     DecisionType, ExecutionStatus, WorkflowExecutionResult, ExecutionMetrics, RuleConstants
 )
 from .rule_generation_service import RuleGenerationService
-from .rule_matching_service import RuleMatchingService
+# from .rule_matching_service import RuleMatchingService  # Removed - functionality integrated into RuleEngineService
 from .rule_execution_service import RuleExecutionService
 from .state_service import StateService
+from .adaptive_replacement_service import AdaptiveReplacementService
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +34,12 @@ class RuleEngineService:
                  rule_repository: RuleRepository,
                  state_repository: StateRepository,
                  execution_repository: ExecutionRepository,
-                 rule_matching: RuleMatchingService,
                  rule_execution: RuleExecutionService,
                  rule_generation: RuleGenerationService,
                  state_service: StateService,
                  enable_auto_recovery: bool = True,
-                 max_iterations: int = RuleConstants.MAX_ITERATIONS):
+                 max_iterations: int = RuleConstants.MAX_ITERATIONS,
+                 enable_adaptive_replacement: bool = True):
         """
         初始化规则引擎服务
         
@@ -46,22 +47,31 @@ class RuleEngineService:
             rule_repository: 规则仓储
             state_repository: 状态仓储
             execution_repository: 执行仓储
-            rule_matching: 规则匹配服务
             rule_execution: 规则执行服务
             rule_generation: 规则生成服务
             state_service: 状态服务
             enable_auto_recovery: 是否启用自动恢复
             max_iterations: 最大迭代次数
+            enable_adaptive_replacement: 是否启用自适应规则替换
         """
         self.rule_repository = rule_repository
         self.state_repository = state_repository
         self.execution_repository = execution_repository
-        self.rule_matching = rule_matching
         self.rule_execution = rule_execution
         self.rule_generation = rule_generation
         self.state_service = state_service
         self.enable_auto_recovery = enable_auto_recovery
         self.max_iterations = max_iterations
+        self.enable_adaptive_replacement = enable_adaptive_replacement
+        
+        # 初始化自适应替换服务
+        if enable_adaptive_replacement:
+            self.adaptive_replacement = AdaptiveReplacementService(
+                llm_service=rule_generation.llm_service,
+                enable_effectiveness_tracking=True  # 启用Phase 2增强功能
+            )
+        else:
+            self.adaptive_replacement = None
         
         # 运行时状态
         self._current_rule_set: Optional[RuleSet] = None
@@ -81,6 +91,8 @@ class RuleEngineService:
         # 初始化工作流 - Use deterministic ID for better caching
         workflow_id = f"workflow_{goal.replace(' ', '_')[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}"
         self._workflow_id = workflow_id
+        self._current_agent_registry = agent_registry  # 设置当前智能体注册表供决策使用
+        self.rule_generation._current_agent_registry = agent_registry  # 为RuleGenerationService设置智能体注册表
         
         start_time = datetime.now()
         logger.info(f"开始执行工作流: {goal} (ID: {workflow_id})")
@@ -102,8 +114,8 @@ class RuleEngineService:
                 iteration_count += 1
                 logger.info(f"开始第 {iteration_count} 次迭代")
                 
-                # 选择要执行的规则
-                decision = self.select_rule(global_state, rule_set)
+                # 进行决策（选择规则、添加规则、或判断目标达成）
+                decision = self.rule_generation.make_decision(global_state, rule_set)
                 
                 # 处理决策结果
                 if decision.decision_type == DecisionType.EXECUTE_SELECTED_RULE:
@@ -112,25 +124,44 @@ class RuleEngineService:
                         decision.selected_rule, global_state
                     )
                     
-                    # 更新状态
+                    # 更新状态（包含目标达成检查和规则集上下文）
                     global_state = self.state_service.update_state(
-                        rule_execution.result, global_state
+                        rule_execution.result, global_state, goal, rule_set
                     )
                     
                     # 检查是否需要错误恢复
                     if not rule_execution.is_successful() and self.enable_auto_recovery:
                         recovery_rules = self.handle_rule_failure(rule_execution, global_state)
                         if recovery_rules:
-                            rule_set.rules.extend(recovery_rules)
+                            # 使用自适应替换代替简单extend
+                            optimized_rules = self._apply_adaptive_replacement(
+                                rule_set.rules, recovery_rules, global_state, {
+                                    'goal': goal,
+                                    'iteration_count': iteration_count,
+                                    'context_type': 'error_recovery',
+                                    'failed_rule_id': rule_execution.rule_id
+                                }
+                            )
+                            rule_set.rules = optimized_rules
                             self.rule_repository.save_rule_set(rule_set)
+                            logger.info(f"错误恢复完成: 规则数量 {len(rule_set.rules)}")
                 
                 elif decision.decision_type == DecisionType.ADD_RULE:
-                    # 生成新规则
-                    new_rules = self._generate_new_rules_for_situation(global_state, goal)
-                    if new_rules:
-                        rule_set.rules.extend(new_rules)
+                    # 使用决策中生成的新规则
+                    if decision.new_rules:
+                        # 使用自适应替换代替简单extend
+                        optimized_rules = self._apply_adaptive_replacement(
+                            rule_set.rules, decision.new_rules, global_state, {
+                                'goal': goal,
+                                'iteration_count': iteration_count,
+                                'context_type': 'add_new_rules'
+                            }
+                        )
+                        rule_set.rules = optimized_rules
                         self.rule_repository.save_rule_set(rule_set)
-                        logger.info(f"添加了 {len(new_rules)} 个新规则")
+                        logger.info(f"智能添加规则完成: 规则数量 {len(rule_set.rules)}")
+                    else:
+                        logger.warning("ADD_RULE 决策中没有新规则")
                 
                 elif decision.decision_type == DecisionType.GOAL_ACHIEVED:
                     goal_achieved = True
@@ -143,21 +174,28 @@ class RuleEngineService:
                     logger.warning("目标执行失败，尝试策略调整")
                     strategy_rules = self.rule_generation.generate_strategy_adjustment_rules({
                         'goal': goal,
-                        'current_state': global_state.description,
+                        'current_state': global_state.state,
                         'execution_history': global_state.execution_history,
                         'iteration_count': iteration_count
                     })
                     if strategy_rules:
-                        rule_set.rules.extend(strategy_rules)
+                        # 使用自适应替换代替简单extend
+                        optimized_rules = self._apply_adaptive_replacement(
+                            rule_set.rules, strategy_rules, global_state, {
+                                'goal': goal,
+                                'iteration_count': iteration_count,
+                                'context_type': 'strategy_adjustment'
+                            }
+                        )
+                        rule_set.rules = optimized_rules
                         self.rule_repository.save_rule_set(rule_set)
+                        logger.info(f"策略调整完成: 规则数量 {len(rule_set.rules)}")
                 
-                # 定期检查目标达成
-                if iteration_count % 5 == 0:
-                    goal_achieved = self.evaluate_goal_achievement(global_state, goal)
-                    if goal_achieved:
-                        global_state.goal_achieved = True
-                        self.state_service.save_state(global_state)
-                        break
+                # 检查全局状态中的目标达成状态（每次规则执行后状态更新时已包含目标验证）
+                if global_state.goal_achieved:
+                    goal_achieved = True
+                    logger.info("目标已达成（从全局状态中检测到）")
+                    break
             
             # 4. 生成执行结果
             end_time = datetime.now()
@@ -175,7 +213,7 @@ class RuleEngineService:
             workflow_result = WorkflowExecutionResult(
                 goal=goal,
                 is_successful=goal_achieved,
-                final_state=global_state.description,
+                final_state=global_state.state,
                 total_iterations=iteration_count,
                 execution_metrics=execution_metrics,
                 final_message=final_message,
@@ -209,39 +247,6 @@ class RuleEngineService:
                 completion_timestamp=end_time
             )
     
-    def select_rule(self, 
-                   global_state: GlobalState, 
-                   rule_set: RuleSet) -> DecisionResult:
-        """
-        选择适合当前状态的规则
-        
-        Args:
-            global_state: 当前全局状态
-            rule_set: 规则集
-            
-        Returns:
-            DecisionResult: 规则选择决策结果
-        """
-        try:
-            logger.debug("开始规则选择过程")
-            
-            # 1. 查找适用的规则
-            applicable_rules = self.rule_matching.find_applicable_rules(global_state, rule_set)
-            
-            # 2. 选择最佳规则
-            decision = self.rule_matching.select_best_rule(applicable_rules, global_state)
-            
-            logger.debug(f"规则选择决策: {decision.decision_type.value}")
-            return decision
-            
-        except Exception as e:
-            logger.error(f"规则选择失败: {e}")
-            return DecisionResult(
-                selected_rule=None,
-                decision_type=DecisionType.GOAL_FAILED,
-                confidence=0.0,
-                reasoning=f"规则选择失败: {str(e)}"
-            )
     
     def handle_rule_failure(self, 
                           rule_execution: RuleExecution, 
@@ -264,7 +269,7 @@ class RuleEngineService:
                 'rule_id': rule_execution.rule_id,
                 'failure_reason': rule_execution.failure_reason,
                 'execution_context': rule_execution.execution_context,
-                'global_state': global_state.description,
+                'global_state': global_state.state,
                 'error_message': rule_execution.failure_reason or 'Unknown error'
             }
             
@@ -278,22 +283,8 @@ class RuleEngineService:
             logger.error(f"规则失败处理异常: {e}")
             return []
     
-    def evaluate_goal_achievement(self, global_state: GlobalState, goal: str) -> bool:
-        """
-        评估目标是否达成
-        
-        Args:
-            global_state: 全局状态
-            goal: 目标描述
-            
-        Returns:
-            bool: 是否达成目标
-        """
-        try:
-            return self.state_service.evaluate_goal_achievement(goal, global_state)
-        except Exception as e:
-            logger.error(f"目标达成评估失败: {e}")
-            return False
+    # evaluate_goal_achievement方法已移除 - 直接使用global_state.goal_achieved字段
+    # 理由：每次规则执行后状态更新已包含目标验证，无需额外检查
     
     def manage_rule_lifecycle(self, rule_set: RuleSet) -> None:
         """
@@ -333,7 +324,7 @@ class RuleEngineService:
             
             status = {
                 'workflow_id': self._workflow_id,
-                'current_state': current_state.description if current_state else 'No active workflow',
+                'current_state': current_state.state if current_state else 'No active workflow',
                 'iteration_count': current_state.iteration_count if current_state else 0,
                 'goal_achieved': current_state.goal_achieved if current_state else False,
                 'rule_count': len(self._current_rule_set.rules) if self._current_rule_set else 0
@@ -409,7 +400,7 @@ class RuleEngineService:
             # 分析当前情况
             situation_context = {
                 'goal': goal,
-                'current_state': global_state.description,
+                'current_state': global_state.state,
                 'iteration_count': global_state.iteration_count,
                 'context_variables': global_state.context_variables,
                 'recent_history': global_state.execution_history[-5:] if global_state.execution_history else []
@@ -476,7 +467,7 @@ class RuleEngineService:
             for rule in rule_set.rules:
                 if (rule.condition and rule.condition.strip() and 
                     rule.action and rule.action.strip() and
-                    rule.agent_capability_id and rule.agent_capability_id.strip()):
+                    rule.agent_name and rule.agent_name.strip()):
                     valid_rules.append(rule)
                 else:
                     logger.warning(f"移除无效规则: {rule.id}")
@@ -523,3 +514,139 @@ class RuleEngineService:
         except Exception as e:
             logger.error(f"添加规则失败: {e}")
             return False
+    
+    
+    def _should_generate_new_rule(self, global_state: GlobalState, rule_set: RuleSet) -> bool:
+        """
+        判断是否应该生成新规则
+        
+        Args:
+            global_state: 当前全局状态
+            rule_set: 规则集
+            
+        Returns:
+            bool: 是否应该生成新规则
+        """
+        try:
+            # 检查是否已经尝试生成过太多次新规则
+            generation_count = global_state.context_variables.get('new_rule_generation_count', 0)
+            if generation_count >= 3:  # 最多生成3次新规则
+                logger.warning("已达到新规则生成次数上限")
+                return False
+            
+            # 检查是否有合适的智能体能力来处理当前情况
+            current_situation = f"{global_state.state} | 目标: {rule_set.goal}"
+            
+            # 使用语言模型判断是否需要新规则
+            prompt = f"""
+请判断当前情况是否需要生成新的产生式规则：
+
+当前状态: {global_state.state}
+目标: {rule_set.goal}
+现有规则数量: {len(rule_set.rules)}
+执行历史: {chr(10).join(global_state.execution_history[-3:]) if global_state.execution_history else '无'}
+
+分析要点：
+1. 现有规则是否能覆盖当前情况
+2. 是否遇到了新的问题需要解决
+3. 是否需要新的执行策略
+
+如果确实需要新规则来推进目标完成，返回"是"，否则返回"否"。
+"""
+            
+            response = self.rule_generation.llm_service.generate_natural_language_response(prompt)
+            should_generate = "是" in response.strip()
+            
+            if should_generate:
+                # 更新生成计数
+                global_state.context_variables['new_rule_generation_count'] = generation_count + 1
+                logger.info("判断需要生成新规则")
+            
+            return should_generate
+            
+        except Exception as e:
+            logger.error(f"新规则生成判断失败: {e}")
+            return False
+    
+    # 决策相关方法已迁移到RuleGenerationService
+    
+    # 决策相关方法已迁移到RuleGenerationService 
+    # - _format_rules_for_decision
+    # - _get_available_capabilities  
+    # - _parse_llm_decision
+    # - _create_rule_from_llm_data
+    # - _print_decision_in_red
+    
+    def _apply_adaptive_replacement(self,
+                                  existing_rules: List[ProductionRule],
+                                  new_rules: List[ProductionRule],
+                                  global_state: GlobalState,
+                                  context: Dict[str, Any]) -> List[ProductionRule]:
+        """
+        应用自适应规则替换策略
+        
+        Args:
+            existing_rules: 现有规则列表
+            new_rules: 新规则列表
+            global_state: 当前全局状态
+            context: 执行上下文
+            
+        Returns:
+            List[ProductionRule]: 优化后的规则列表
+        """
+        try:
+            # 如果未启用自适应替换，使用保守合并
+            if not self.enable_adaptive_replacement or not self.adaptive_replacement:
+                logger.debug("自适应替换未启用，使用保守合并")
+                return self._conservative_rule_merge(existing_rules, new_rules)
+            
+            # 使用自适应替换服务进行智能替换
+            logger.info(f"应用自适应替换: {context.get('context_type', 'unknown')} - "
+                       f"现有规则{len(existing_rules)}个, 新规则{len(new_rules)}个")
+            
+            optimized_rules = self.adaptive_replacement.execute_adaptive_replacement(
+                existing_rules=existing_rules,
+                new_rules=new_rules,
+                global_state=global_state,
+                context=context
+            )
+            
+            logger.info(f"自适应替换完成: {len(existing_rules)} -> {len(optimized_rules)} 个规则")
+            return optimized_rules
+            
+        except Exception as e:
+            logger.error(f"自适应替换失败: {e}，使用保守合并")
+            return self._conservative_rule_merge(existing_rules, new_rules)
+    
+    def _conservative_rule_merge(self, 
+                               existing_rules: List[ProductionRule],
+                               new_rules: List[ProductionRule]) -> List[ProductionRule]:
+        """
+        保守的规则合并策略（自适应替换失败时的后备方案）
+        
+        Args:
+            existing_rules: 现有规则
+            new_rules: 新规则
+            
+        Returns:
+            List[ProductionRule]: 合并后的规则列表
+        """
+        # 简单合并，避免重复ID
+        all_rules = existing_rules + new_rules
+        seen_ids = set()
+        unique_rules = []
+        
+        for rule in all_rules:
+            if rule.id not in seen_ids:
+                unique_rules.append(rule)
+                seen_ids.add(rule.id)
+        
+        # 应用基本的数量限制
+        max_total_rules = 15  # 硬性限制避免规则过多
+        if len(unique_rules) > max_total_rules:
+            # 按优先级排序，保留最高优先级的规则
+            unique_rules.sort(key=lambda r: r.priority, reverse=True)
+            unique_rules = unique_rules[:max_total_rules]
+            logger.warning(f"规则数量超限，保留前{max_total_rules}个高优先级规则")
+        
+        return unique_rules

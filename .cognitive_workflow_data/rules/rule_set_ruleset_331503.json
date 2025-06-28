@@ -1,0 +1,86 @@
+{
+  "id": "ruleset_331503",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 确保代码质量良好\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_466439",
+      "name": "确认任务需求",
+      "condition": "任务开始时，需要明确所有需求。",
+      "action": "确认并理解计算器程序的所有需求，包括基本运算、文件命名、测试要求和文档格式。",
+      "agent_capability_id": "coder",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "对计算器程序的功能、输出文件和质量要求有清晰的理解。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_157263",
+      "name": "实现计算器核心功能",
+      "condition": "已明确计算器程序的所有需求。",
+      "action": "在 `calculator.py` 文件中实现加、减、乘、除四个基本运算函数。确保函数能够处理整数和浮点数，并包含除数为零的错误处理。",
+      "agent_capability_id": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "生成 `calculator.py` 文件，包含所有基本运算的正确实现和错误处理。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_955818",
+      "name": "生成使用说明文档",
+      "condition": "计算器核心功能已实现。",
+      "action": "在 `calculator.md` 文件中编写计算器程序的使用说明文档。文档应使用Markdown格式，包含如何运行程序、如何使用各个运算函数以及注意事项。",
+      "agent_capability_id": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "生成 `calculator.md` 文件，包含清晰、完整的Markdown格式使用说明。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_919438",
+      "name": "编写并运行单元测试",
+      "condition": "计算器核心功能和使用说明文档已完成。",
+      "action": "为 `calculator.py` 中的所有运算函数编写全面的单元测试。测试应覆盖正常情况、边界条件（如大数、小数）和错误情况（如除零）。运行所有测试用例并确保它们全部通过。",
+      "agent_capability_id": "tester",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "所有单元测试通过，确认计算器功能正确且健壮。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_747613",
+      "name": "代码质量与完整性检查",
+      "condition": "单元测试已通过。",
+      "action": "审查 `calculator.py` 的代码，确保其符合良好的编程实践、可读性高、注释清晰。同时，检查 `calculator.py` 和 `calculator.md` 文件是否都已生成，内容完整且符合所有任务要求。",
+      "agent_capability_id": "coder",
+      "priority": 55,
+      "phase": "verification",
+      "expected_outcome": "代码质量良好，所有文件和功能都完全符合任务要求。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_retry_operation",
+      "name": "重试失败操作",
+      "condition": "上次操作失败且可以重试",
+      "action": "重新执行失败的操作，使用更保守的参数",
+      "agent_capability_id": "system",
+      "priority": 60,
+      "phase": "execution",
+      "expected_outcome": "操作成功完成",
+      "metadata": {}
+    },
+    {
+      "id": "rule_retry_operation",
+      "name": "重试失败操作",
+      "condition": "上次操作失败且可以重试",
+      "action": "重新执行失败的操作，使用更保守的参数",
+      "agent_capability_id": "system",
+      "priority": 60,
+      "phase": "execution",
+      "expected_outcome": "操作成功完成",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

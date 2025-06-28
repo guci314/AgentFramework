@@ -1,0 +1,13 @@
+{
+  "id": "workflow_编写一个显示当前日期和时间的Python_20250628_0311_initial",
+  "state": "工作流已启动，目标：编写一个显示当前日期和时间的Python程序。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "编写一个显示当前日期和时间的Python程序"
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_编写一个显示当前日期和时间的Python_20250628_0311",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

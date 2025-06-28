@@ -1,0 +1,42 @@
+{
+  "id": "ruleset_173035",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_602356",
+      "name": "Implement_Calculator_Functions",
+      "condition": "如果需要实现计算器的核心功能",
+      "action": "在 `calculator.py` 文件中，创建四个函数：`add(a, b)`、`subtract(a, b)`、`multiply(a, b)` 和 `divide(a, b)`。`divide` 函数需要处理除数为零的情况，可以引发一个 `ValueError`。",
+      "agent_name": "coder",
+      "priority": 100,
+      "phase": "execution",
+      "expected_outcome": "一个名为 `calculator.py` 的文件，其中包含加、减、乘、除四个已实现的数学运算函数。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_440942",
+      "name": "Write_Unit_Tests",
+      "condition": "如果计算器功能已实现且需要编写单元测试",
+      "action": "使用 `unittest` 框架，在 `calculator.py` 文件中为 `add`、`subtract`、`multiply` 和 `divide` 函数编写全面的单元测试。测试用例应覆盖正常情况、边界情况（如零、负数）以及 `divide` 函数的除零异常情况。",
+      "agent_name": "tester",
+      "priority": 90,
+      "phase": "verification",
+      "expected_outcome": "`calculator.py` 文件中包含一个继承自 `unittest.TestCase` 的测试类，其中包含针对所有四个函数的测试方法。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_671198",
+      "name": "Run_Tests_And_Finalize",
+      "condition": "如果代码和单元测试都已编写完成",
+      "action": "在 `calculator.py` 文件末尾添加 `if __name__ == '__main__': unittest.main()` 代码块，然后执行该文件以运行所有单元测试。确认所有测试都通过。",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "终端输出显示所有测试均已成功通过，并且 `calculator.py` 文件是完整的、可独立运行测试的最终版本。",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

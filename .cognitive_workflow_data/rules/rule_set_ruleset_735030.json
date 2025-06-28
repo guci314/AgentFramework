@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_735030",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_624626",
+      "name": "ImplementCalculatorFunctions",
+      "condition": "IF the goal is to create a calculator program with basic arithmetic operations",
+      "action": "THEN write a Python script named `calculator.py` that defines four functions: `add(a, b)`, `subtract(a, b)`, `multiply(a, b)`, and `divide(a, b)`. The `divide` function must handle division by zero by raising a `ValueError`.",
+      "agent_capability_id": "coder",
+      "priority": 100,
+      "phase": "execution",
+      "expected_outcome": "A file `calculator.py` exists with the four specified arithmetic functions.",
+      "metadata": {}
+    },
+    {
+      "id": "rule_041538",
+      "name": "WriteUnitTests",
+      "condition": "IF the calculator's source code `calculator.py` has been created AND the goal requires writing unit tests",
+      "action": "THEN create a new file `test_calculator.py`. Using the `unittest` framework, write test cases for each function in `calculator.py`. Include tests for positive numbers, negative numbers, zero, and a specific test to verify that `divide(x, 0)` raises a `ValueError`.",
+      "agent_capability_id": "tester",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "A file `test_calculator.py` exists containing comprehensive unit tests for the calculator functions.",
+      "metadata": {}
+    },
+    {
+      "id": "rule_235988",
+      "name": "ExecuteAndVerifyTests",
+      "condition": "IF both `calculator.py` and `test_calculator.py` have been created",
+      "action": "THEN execute the test suite using the command `python -m unittest test_calculator.py`. Analyze the output to ensure all tests pass without errors.",
+      "agent_capability_id": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "The test runner's output confirms that all tests passed successfully.",
+      "metadata": {}
+    },
+    {
+      "id": "rule_288686",
+      "name": "GenerateUserManual",
+      "condition": "IF all unit tests for the calculator have passed successfully AND the goal requires a usage document",
+      "action": "THEN create a Markdown file named `calculator.md`. The file should include a title, a brief description of the program, and a 'Usage' section with code examples for the `add`, `subtract`, `multiply`, and `divide` functions.",
+      "agent_capability_id": "coder",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "A well-formatted `calculator.md` file is created in the project directory, explaining how to use the program.",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

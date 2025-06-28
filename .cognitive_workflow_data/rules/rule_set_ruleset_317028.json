@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_317028",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_333858",
+      "name": "analyze_requirements",
+      "condition": "IF 需要开发一个简单的计算器程序",
+      "action": "THEN 分析需求，确认需要实现加减乘除四个基本运算，编写单元测试，生成使用说明文档，并确定文件保存位置",
+      "agent_capability_id": "system",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "明确任务需求和实现步骤",
+      "metadata": {}
+    },
+    {
+      "id": "rule_196248",
+      "name": "implement_calculator",
+      "condition": "IF 需求已明确，需要实现计算器功能",
+      "action": "THEN 编写Python代码实现加减乘除四个基本运算，保存为calculator.py",
+      "agent_capability_id": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "完成calculator.py文件，包含加减乘除四个基本运算功能",
+      "metadata": {}
+    },
+    {
+      "id": "rule_406668",
+      "name": "write_unit_tests",
+      "condition": "IF 计算器功能已实现",
+      "action": "THEN 编写完整的单元测试，覆盖加减乘除四种运算",
+      "agent_capability_id": "tester",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "完成单元测试代码，确保覆盖所有基本运算",
+      "metadata": {}
+    },
+    {
+      "id": "rule_539102",
+      "name": "run_tests",
+      "condition": "IF 单元测试已编写",
+      "action": "THEN 运行单元测试，确保所有测试通过",
+      "agent_capability_id": "tester",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "所有单元测试通过，验证计算器功能正确",
+      "metadata": {}
+    },
+    {
+      "id": "rule_799034",
+      "name": "generate_documentation",
+      "condition": "IF 计算器功能和测试已完成",
+      "action": "THEN 生成使用说明文档，使用markdown格式，保存为calculator.md",
+      "agent_capability_id": "coder",
+      "priority": 50,
+      "phase": "verification",
+      "expected_outcome": "完成calculator.md文件，包含计算器使用说明",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

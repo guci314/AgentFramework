@@ -1,0 +1,75 @@
+{
+  "id": "ruleset_145408",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_632214",
+      "name": "analyze_requirements",
+      "condition": "IF 需要开发一个简单的计算器程序",
+      "action": "THEN 分析需求，确认需要实现加减乘除四个基本运算，编写单元测试，生成使用说明文档，并确定文件保存位置",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "明确需求细节，确认实现方案",
+      "metadata": {}
+    },
+    {
+      "id": "rule_203856",
+      "name": "implement_calculator",
+      "condition": "IF 需求已明确，需要实现计算器功能",
+      "action": "THEN 编写calculator.py文件，实现加减乘除四个基本运算的函数",
+      "agent_name": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "完成calculator.py文件，包含加减乘除四个功能的实现",
+      "metadata": {}
+    },
+    {
+      "id": "rule_959610",
+      "name": "write_unit_tests",
+      "condition": "IF 计算器功能已实现",
+      "action": "THEN 为计算器的加减乘除功能编写完整的单元测试",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "完成单元测试代码，覆盖所有计算功能",
+      "metadata": {}
+    },
+    {
+      "id": "rule_802140",
+      "name": "run_tests",
+      "condition": "IF 单元测试已编写",
+      "action": "THEN 运行所有单元测试，确保测试通过",
+      "agent_name": "tester",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "所有单元测试通过，确认计算器功能正确",
+      "metadata": {}
+    },
+    {
+      "id": "rule_408437",
+      "name": "generate_documentation",
+      "condition": "IF 计算器功能已实现并通过测试",
+      "action": "THEN 生成使用说明文档，使用markdown格式，保存在calculator.md文件中",
+      "agent_name": "coder",
+      "priority": 50,
+      "phase": "verification",
+      "expected_outcome": "完成calculator.md文件，包含计算器的使用说明",
+      "metadata": {}
+    },
+    {
+      "id": "rule_retry_operation",
+      "name": "重试失败操作",
+      "condition": "上次操作失败且可以重试",
+      "action": "重新执行失败的操作，使用更保守的参数",
+      "agent_name": "coder",
+      "priority": 60,
+      "phase": "execution",
+      "expected_outcome": "操作成功完成",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

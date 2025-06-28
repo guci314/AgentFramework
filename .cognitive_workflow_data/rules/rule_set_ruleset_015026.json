@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_015026",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 确保代码质量良好\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_600249",
+      "name": "analyze_requirements",
+      "condition": "IF 需要开发一个计算器程序",
+      "action": "THEN 分析需求，明确需要实现加减乘除四个基本运算，编写单元测试，确保代码质量，并生成使用说明文档",
+      "agent_capability_id": "system",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "明确任务需求和目标，形成开发计划",
+      "metadata": {}
+    },
+    {
+      "id": "rule_822458",
+      "name": "implement_calculator",
+      "condition": "IF 需求分析已完成",
+      "action": "THEN 编写计算器程序，实现加减乘除四个基本运算，保存为calculator.py",
+      "agent_capability_id": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "完成calculator.py文件，包含加减乘除四个基本运算功能",
+      "metadata": {}
+    },
+    {
+      "id": "rule_740019",
+      "name": "write_unit_tests",
+      "condition": "IF 计算器程序已实现",
+      "action": "THEN 为计算器程序编写完整的单元测试，确保每个运算功能都经过测试",
+      "agent_capability_id": "tester",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "完成单元测试，覆盖所有运算功能",
+      "metadata": {}
+    },
+    {
+      "id": "rule_479764",
+      "name": "ensure_code_quality",
+      "condition": "IF 计算器程序和单元测试已完成",
+      "action": "THEN 检查代码质量，确保代码规范、可读性和可维护性",
+      "agent_capability_id": "coder",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "代码质量良好，符合规范",
+      "metadata": {}
+    },
+    {
+      "id": "rule_044464",
+      "name": "generate_documentation",
+      "condition": "IF 计算器程序、单元测试和代码质量检查已完成",
+      "action": "THEN 生成使用说明文档，使用markdown格式，保存为calculator.md",
+      "agent_capability_id": "system",
+      "priority": 50,
+      "phase": "verification",
+      "expected_outcome": "完成calculator.md文件，包含计算器使用说明",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

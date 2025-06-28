@@ -6,7 +6,7 @@
 状态持久化和状态分析等核心功能。
 """
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, TYPE_CHECKING
 import logging
 from datetime import datetime
 import uuid
@@ -15,6 +15,9 @@ from ..domain.entities import GlobalState, WorkflowResult, ProductionRule
 from ..domain.repositories import StateRepository
 from ..domain.value_objects import StateChangeAnalysis, MatchingResult
 from .language_model_service import LanguageModelService
+
+if TYPE_CHECKING:
+    from ..domain.entities import RuleSet
 
 logger = logging.getLogger(__name__)
 
@@ -36,27 +39,29 @@ class StateService:
         self.state_repository = state_repository
         self._current_state: Optional[GlobalState] = None
         
-    def update_state(self, execution_result: WorkflowResult, global_state: GlobalState) -> GlobalState:
+    def update_state(self, execution_result: WorkflowResult, global_state: GlobalState, goal: str = None, rule_set: 'RuleSet' = None) -> GlobalState:
         """
-        更新全局状态
+        更新全局状态并检查目标达成
         
         Args:
             execution_result: 执行结果
             global_state: 当前全局状态
+            goal: 工作流目标（可选，用于目标达成检查）
+            rule_set: 当前规则集（可选，用于智能状态生成和数据收集）
             
         Returns:
-            GlobalState: 更新后的全局状态
+            GlobalState: 更新后的全局状态，包含目标达成信息
         """
         try:
-            # 生成新的状态描述
+            # 生成新的状态描述（考虑规则集上下文）
             new_description = self._generate_new_state_description(
-                execution_result, global_state
+                execution_result, global_state, rule_set
             )
             
             # 创建新的状态实例
             new_state = GlobalState(
                 id=f"{global_state.id}_iter_{global_state.iteration_count + 1}",  # Use deterministic ID
-                description=new_description,
+                state=new_description,
                 context_variables=global_state.context_variables.copy(),
                 execution_history=global_state.execution_history.copy(),
                 # timestamp=datetime.now(),  # Removed for LLM caching
@@ -72,11 +77,24 @@ class StateService:
             # 更新上下文变量
             self._update_context_variables(new_state, execution_result)
             
+            # 检查目标达成（如果提供了目标）
+            if goal and not new_state.goal_achieved:
+                is_goal_achieved = self.evaluate_goal_achievement(goal, new_state)
+                if is_goal_achieved:
+                    new_state.goal_achieved = True
+                    logger.info(f"检测到目标已达成: {goal}")
+                    # 添加目标达成记录到历史
+                    new_state.execution_history.append("[目标达成] 工作流目标已成功完成")
+            
             # 保存状态
             self.state_repository.save_state(new_state)
             self._current_state = new_state
             
-            logger.info(f"状态已更新: {new_description[:100]}...")
+            # 使用红色字体打印状态更新信息
+            self._print_state_update_in_red(new_state, execution_result)
+            
+            goal_status = " [目标已达成]" if new_state.goal_achieved else ""
+            logger.info(f"状态已更新: {new_description[:100]}...{goal_status}")
             return new_state
             
         except Exception as e:
@@ -125,7 +143,7 @@ class StateService:
         try:
             # 使用语言模型进行语义匹配
             matching_result = self.llm_service.semantic_match(
-                condition, global_state.description
+                condition, global_state.state
             )
             
             return (
@@ -187,7 +205,7 @@ class StateService:
         """
         try:
             is_achieved, confidence, analysis = self.llm_service.evaluate_goal_achievement(
-                goal, global_state.description
+                goal, global_state.state
             )
             
             logger.info(f"目标达成评估: {is_achieved} (置信度: {confidence:.2f})")
@@ -252,7 +270,7 @@ class StateService:
         try:
             # 计算语义相似度
             similarity = self.llm_service.evaluate_semantic_similarity(
-                before.description, after.description
+                before.state, after.state
             )
             
             # 识别关键变化
@@ -264,8 +282,8 @@ class StateService:
             )
             
             return StateChangeAnalysis(
-                before_state=before.description,
-                after_state=after.description,
+                before_state=before.state,
+                after_state=after.state,
                 key_changes=key_changes,
                 semantic_similarity=similarity,
                 change_significance=change_significance,
@@ -275,8 +293,8 @@ class StateService:
         except Exception as e:
             logger.error(f"状态变化分析失败: {e}")
             return StateChangeAnalysis(
-                before_state=before.description,
-                after_state=after.description,
+                before_state=before.state,
+                after_state=after.state,
                 key_changes=[],
                 semantic_similarity=0.0,
                 change_significance='unknown',
@@ -298,7 +316,7 @@ class StateService:
         
         initial_state = GlobalState(
             id=f"{workflow_id}_initial",  # Use deterministic ID
-            description=initial_description,
+            state=initial_description,
             context_variables={'goal': goal},
             execution_history=[f"[iter_0] 工作流启动"],  # Use iteration instead of timestamp
             # timestamp=datetime.now(),  # Removed for LLM caching
@@ -315,34 +333,56 @@ class StateService:
     
     def _generate_new_state_description(self, 
                                        execution_result: WorkflowResult, 
-                                       current_state: GlobalState) -> str:
+                                       current_state: GlobalState,
+                                       rule_set: 'RuleSet' = None) -> str:
         """
-        生成新的状态描述
+        生成新的状态描述，考虑规则集上下文
         
         Args:
             execution_result: 执行结果
             current_state: 当前状态
+            rule_set: 当前规则集（用于了解可能需要的数据和后续规则）
             
         Returns:
             str: 新的状态描述
         """
         try:
+            # 构建规则集上下文信息
+            rule_context = ""
+            if rule_set:
+                rule_context = f"""
+
+## 当前规则集上下文
+目标: {rule_set.goal}
+可用规则概览:
+{self._format_rules_for_context(rule_set.rules)}
+
+## 数据收集指导
+请在状态描述中特别关注和收集以下类型的信息：
+1. 规则执行相关的关键数据和变量
+2. 可能触发后续规则的状态变化
+3. 目标达成进度的具体指标
+4. 可能影响规则选择的环境因素
+"""
+            
             prompt = f"""
 基于以下信息，生成新的系统状态描述：
 
-当前状态: {current_state.description}
+当前状态: {current_state.state}
 
 执行结果:
 - 成功: {'是' if execution_result.success else '否'}
 - 消息: {execution_result.message}
 - 数据: {execution_result.data if execution_result.data else '无'}
+{rule_context}
 
 请生成一个简洁、准确的新状态描述，重点说明：
 1. 执行的操作和结果
 2. 当前系统的主要状态
 3. 下一步可能的行动方向
+4. 【重要】收集并提及规则集可能用到的关键数据和状态信息
 
-状态描述应该清晰、客观，便于后续的规则匹配。
+状态描述应该清晰、客观，便于后续的规则匹配和决策。
 """
             
             new_description = self.llm_service.generate_natural_language_response(prompt)
@@ -462,3 +502,122 @@ class StateService:
             return 'moderate'
         else:
             return 'major'
+    
+    def _print_state_update_in_red(self, new_state: GlobalState, execution_result: WorkflowResult) -> None:
+        """
+        使用红色字体打印状态更新信息
+        
+        Args:
+            new_state: 更新后的全局状态
+            execution_result: 执行结果
+        """
+        # ANSI红色字体代码
+        RED = '\033[91m'
+        GREEN = '\033[92m'
+        YELLOW = '\033[93m'
+        BOLD = '\033[1m'
+        RESET = '\033[0m'
+        
+        try:
+            print(f"\n{RED}{BOLD}🔄 状态管理器 - 状态更新{RESET}")
+            print(f"{RED}{'=' * 50}{RESET}")
+            
+            # 打印执行结果状态
+            status_color = GREEN if execution_result.success else RED
+            status_icon = "✅" if execution_result.success else "❌"
+            print(f"{RED}{BOLD}📊 执行状态:{RESET} {status_color}{status_icon} {'成功' if execution_result.success else '失败'}{RESET}")
+            
+            # 打印执行消息
+            print(f"{RED}{BOLD}💬 执行消息:{RESET}")
+            print(f"{RED}   {execution_result.message}{RESET}")
+            
+            # 打印新状态描述
+            print(f"{RED}{BOLD}🎯 新状态描述:{RESET}")
+            # 限制显示长度，避免输出过长
+            state_desc = new_state.state
+            if len(state_desc) > 150:
+                state_desc = state_desc[:150] + "..."
+            print(f"{RED}   {state_desc}{RESET}")
+            
+            # 打印迭代信息
+            print(f"{RED}{BOLD}🔢 迭代次数:{RESET} {RED}{new_state.iteration_count}{RESET}")
+            
+            # 打印目标达成状态
+            goal_color = GREEN if new_state.goal_achieved else YELLOW
+            goal_icon = "🎉" if new_state.goal_achieved else "⏳"
+            goal_text = "已达成" if new_state.goal_achieved else "进行中"
+            print(f"{RED}{BOLD}🎯 目标状态:{RESET} {goal_color}{goal_icon} {goal_text}{RESET}")
+            
+            # 打印上下文变量变化（如果有的话）
+            if execution_result.metadata:
+                context_changes = []
+                for key, value in execution_result.metadata.items():
+                    if key.startswith('context_'):
+                        context_key = key[8:]  # 移除 'context_' 前缀
+                        context_changes.append(f"{context_key}={value}")
+                
+                if context_changes:
+                    print(f"{RED}{BOLD}📝 上下文更新:{RESET}")
+                    for change in context_changes[:3]:  # 最多显示3个变化
+                        print(f"{RED}   + {change}{RESET}")
+                    if len(context_changes) > 3:
+                        print(f"{RED}   ... 还有 {len(context_changes) - 3} 个变化{RESET}")
+            
+            # 打印最近的执行历史（最后2条）
+            if new_state.execution_history:
+                recent_history = new_state.execution_history[-2:]
+                print(f"{RED}{BOLD}📚 最近历史:{RESET}")
+                for history_item in recent_history:
+                    # 限制历史条目长度
+                    history_display = history_item[:80] + "..." if len(history_item) > 80 else history_item
+                    print(f"{RED}   • {history_display}{RESET}")
+            
+            # 如果有错误详情，显示错误信息
+            if not execution_result.success and execution_result.error_details:
+                print(f"{RED}{BOLD}⚠️  错误详情:{RESET}")
+                error_details = execution_result.error_details
+                if len(error_details) > 100:
+                    error_details = error_details[:100] + "..."
+                print(f"{RED}   {error_details}{RESET}")
+            
+            print(f"{RED}{'=' * 50}{RESET}\n")
+            
+        except Exception as e:
+            # 如果打印失败，至少记录到日志
+            logger.error(f"红色状态打印失败: {e}")
+            # 简单的备用打印
+            status = "成功" if execution_result.success else "失败"
+            goal_status = " [目标已达成]" if new_state.goal_achieved else ""
+            print(f"\n🔄 状态更新: {status} | 迭代 {new_state.iteration_count}{goal_status}")
+            print(f"描述: {new_state.state[:100]}...\n")
+    
+    def _format_rules_for_context(self, rules) -> str:
+        """
+        格式化规则信息供状态生成上下文使用
+        
+        Args:
+            rules: 规则列表
+            
+        Returns:
+            str: 格式化的规则概览信息
+        """
+        if not rules:
+            return "无可用规则"
+        
+        # 按阶段分组规则
+        phases = {}
+        for rule in rules:
+            phase = rule.phase.value
+            if phase not in phases:
+                phases[phase] = []
+            phases[phase].append(rule)
+        
+        formatted_lines = []
+        for phase, phase_rules in phases.items():
+            formatted_lines.append(f"【{phase}阶段】")
+            for rule in phase_rules[:3]:  # 每个阶段最多显示3个规则
+                formatted_lines.append(f"  - {rule.name}: {rule.condition[:50]}...")
+            if len(phase_rules) > 3:
+                formatted_lines.append(f"  - ... 还有{len(phase_rules) - 3}个规则")
+        
+        return '\n'.join(formatted_lines)

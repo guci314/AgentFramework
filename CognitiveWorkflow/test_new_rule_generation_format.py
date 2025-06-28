@@ -20,7 +20,7 @@ def test_simple_task_example():
       "trigger_condition": "需要创建一个Hello World程序",
       "action": "编写打印'Hello, World!'的代码",
       "agent_capability_id": "coder",
-      "execution_phase": "problem_solving",
+      "execution_phase": "execution",
       "priority": 90,
       "expected_result": "可运行的Hello World程序"
     },
@@ -80,7 +80,7 @@ def test_complex_task_example():
       "trigger_condition": "架构设计已完成",
       "action": "编写加减乘除四则运算的核心代码",
       "agent_capability_id": "coder",
-      "execution_phase": "problem_solving",
+      "execution_phase": "execution",
       "priority": 85,
       "expected_result": "完成的运算模块代码"
     },
@@ -89,7 +89,7 @@ def test_complex_task_example():
       "trigger_condition": "基本运算功能已实现",
       "action": "创建计算器的用户界面，包括按钮和显示屏",
       "agent_capability_id": "coder",
-      "execution_phase": "problem_solving", 
+      "execution_phase": "execution", 
       "priority": 80,
       "expected_result": "完整的用户界面"
     },
@@ -136,7 +136,7 @@ def test_schema_validation():
         "✅ trigger_condition: 自然语言条件，便于语义匹配",
         "✅ action: 具体的执行指令",
         "✅ agent_capability_id: 必须从可用能力列表中选择",
-        "✅ execution_phase: 只能是 information_gathering|problem_solving|verification",
+        "✅ execution_phase: 只能是 information_gathering|execution|verification (三阶段)",
         "✅ priority: 1-100的数字，数字越大优先级越高",
         "✅ expected_result: 明确的期望结果描述"
     ]
@@ -156,7 +156,8 @@ def test_backward_compatibility():
         "rule_name": "name",
         "trigger_condition": "condition", 
         "execution_phase": "phase",
-        "expected_result": "expected_outcome"
+        "expected_result": "expected_outcome",
+        "execution": "problem_solving (阶段值)"
     }
     
     print("字段映射关系：")

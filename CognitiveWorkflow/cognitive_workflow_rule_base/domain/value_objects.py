@@ -13,11 +13,10 @@ from datetime import datetime
 
 
 class RulePhase(Enum):
-    """规则执行阶段枚举"""
+    """规则执行阶段枚举 - 三阶段执行模式"""
     INFORMATION_GATHERING = "information_gathering"  # 信息收集阶段
-    PROBLEM_SOLVING = "problem_solving"             # 问题解决阶段
+    EXECUTION = "execution"                         # 执行阶段
     VERIFICATION = "verification"                   # 验证阶段
-    CLEANUP = "cleanup"                            # 清理阶段
 
 
 class ExecutionStatus(Enum):
@@ -189,3 +188,171 @@ class ExecutionConstants:
     DEFAULT_EXECUTION_TIMEOUT = 60
     BATCH_SIZE = 10
     PERFORMANCE_SAMPLE_SIZE = 100
+
+
+# 自适应规则替换相关枚举和值对象
+
+class ReplacementStrategyType(Enum):
+    """替换策略类型枚举"""
+    MINIMAL_REPLACEMENT = "minimal_replacement"           # 最小替换：规则稀缺时
+    PERFORMANCE_FOCUSED = "performance_focused"           # 性能导向：优化执行效率
+    AGGRESSIVE_CLEANUP = "aggressive_cleanup"             # 激进清理：规则冗余时
+    INCREMENTAL_IMPROVEMENT = "incremental_improvement"   # 渐进改进：系统稳定时
+    EMERGENCY_REPLACEMENT = "emergency_replacement"       # 紧急替换：频繁失败时
+    STRATEGIC_PIVOT = "strategic_pivot"                   # 策略转向：目标偏离时
+    AGENT_REBALANCING = "agent_rebalancing"              # 智能体重平衡
+    PHASE_OPTIMIZATION = "phase_optimization"            # 阶段优化
+
+
+class SituationContext(Enum):
+    """情境上下文类型枚举"""
+    STARTUP_PHASE = "startup_phase"             # 启动阶段
+    EXECUTION_PHASE = "execution_phase"         # 执行阶段  
+    BOTTLENECK_PHASE = "bottleneck_phase"       # 瓶颈阶段
+    COMPLETION_PHASE = "completion_phase"       # 收尾阶段
+    RECOVERY_PHASE = "recovery_phase"           # 恢复阶段
+
+
+@dataclass(frozen=True)
+class SituationScore:
+    """情境评估分数 - 值对象"""
+    rule_density: float           # 规则密度 (0.0-1.0)
+    execution_efficiency: float   # 执行效率 (0.0-1.0)
+    goal_progress: float          # 目标进度 (0.0-1.0)
+    failure_frequency: float      # 失败频率 (0.0-1.0)
+    agent_utilization: float      # 智能体利用率 (0.0-1.0)
+    phase_distribution: float     # 阶段分布不平衡度 (0.0-1.0)
+    
+    def get_overall_health(self) -> float:
+        """计算整体健康度"""
+        # 权重设计：效率和进度更重要
+        weights = {
+            'execution_efficiency': 0.25,
+            'goal_progress': 0.25,
+            'rule_density': 0.15,
+            'failure_frequency': 0.20,  # 失败率取反
+            'agent_utilization': 0.10,
+            'phase_distribution': 0.05
+        }
+        
+        health_score = (
+            weights['execution_efficiency'] * self.execution_efficiency +
+            weights['goal_progress'] * self.goal_progress +
+            weights['rule_density'] * (1.0 - self.rule_density) +  # 规则密度过高不好
+            weights['failure_frequency'] * (1.0 - self.failure_frequency) +  # 失败率取反
+            weights['agent_utilization'] * self.agent_utilization +
+            weights['phase_distribution'] * (1.0 - self.phase_distribution)  # 分布不平衡取反
+        )
+        
+        return max(0.0, min(1.0, health_score))
+    
+    def get_critical_issues(self) -> list:
+        """获取关键问题列表"""
+        issues = []
+        
+        if self.execution_efficiency < 0.5:
+            issues.append("执行效率过低")
+        if self.goal_progress < 0.3:
+            issues.append("目标进度停滞")
+        if self.failure_frequency > 0.5:
+            issues.append("失败频率过高")
+        if self.rule_density > 0.8:
+            issues.append("规则密度过高")
+        if self.agent_utilization < 0.4:
+            issues.append("智能体利用率不足")
+        if self.phase_distribution > 0.7:
+            issues.append("阶段分布严重不平衡")
+            
+        return issues
+
+
+@dataclass(frozen=True)
+class ReplacementStrategy:
+    """替换策略配置 - 值对象"""
+    strategy_type: ReplacementStrategyType
+    replacement_ratio: float       # 替换比例 (0.0-1.0)
+    similarity_threshold: float    # 相似性阈值 (0.0-1.0)
+    performance_threshold: float   # 性能阈值 (0.0-1.0)
+    priority_adjustment: bool      # 是否调整优先级
+    conservative_mode: bool        # 是否启用保守模式
+    max_rules_per_phase: int       # 每阶段最大规则数
+    max_rules_per_agent: int       # 每智能体最大规则数
+    
+    def is_aggressive_strategy(self) -> bool:
+        """是否为激进策略"""
+        return self.replacement_ratio > 0.5 or not self.conservative_mode
+    
+    def get_strategy_description(self) -> str:
+        """获取策略描述"""
+        descriptions = {
+            ReplacementStrategyType.MINIMAL_REPLACEMENT: "最小化替换，保持系统稳定",
+            ReplacementStrategyType.PERFORMANCE_FOCUSED: "性能导向替换，优化执行效率",
+            ReplacementStrategyType.AGGRESSIVE_CLEANUP: "激进清理冗余规则",
+            ReplacementStrategyType.INCREMENTAL_IMPROVEMENT: "渐进式优化改进",
+            ReplacementStrategyType.EMERGENCY_REPLACEMENT: "紧急替换应对危机",
+            ReplacementStrategyType.STRATEGIC_PIVOT: "策略性转向重新规划",
+            ReplacementStrategyType.AGENT_REBALANCING: "智能体负载重平衡",
+            ReplacementStrategyType.PHASE_OPTIMIZATION: "执行阶段优化"
+        }
+        return descriptions.get(self.strategy_type, "未知策略")
+
+
+@dataclass(frozen=True)
+class StrategyEffectiveness:
+    """策略效果评估 - 值对象"""
+    strategy_type: ReplacementStrategyType
+    applied_context: SituationScore
+    before_metrics: ExecutionMetrics
+    after_metrics: ExecutionMetrics
+    improvement_score: float       # 改进分数 (0.0-1.0)
+    application_timestamp: datetime
+    
+    def get_performance_gain(self) -> float:
+        """计算性能提升"""
+        if self.before_metrics.success_rate == 0:
+            return self.after_metrics.success_rate
+        return (self.after_metrics.success_rate - self.before_metrics.success_rate) / self.before_metrics.success_rate
+    
+    def get_efficiency_gain(self) -> float:
+        """计算效率提升"""
+        if self.before_metrics.average_execution_time == 0:
+            return 0.0
+        return (self.before_metrics.average_execution_time - self.after_metrics.average_execution_time) / self.before_metrics.average_execution_time
+    
+    def is_successful_application(self) -> bool:
+        """是否为成功的策略应用"""
+        return (
+            self.improvement_score > 0.6 and
+            self.get_performance_gain() > -0.1 and  # 性能不能显著下降
+            self.after_metrics.success_rate > 0.5   # 基本成功率要求
+        )
+
+
+# 自适应替换常量
+class AdaptiveReplacementConstants:
+    """自适应替换系统常量"""
+    # 情境评估阈值
+    HIGH_RULE_DENSITY_THRESHOLD = 0.8
+    LOW_EXECUTION_EFFICIENCY_THRESHOLD = 0.5
+    STALLED_PROGRESS_THRESHOLD = 0.3
+    HIGH_FAILURE_FREQUENCY_THRESHOLD = 0.5
+    LOW_AGENT_UTILIZATION_THRESHOLD = 0.4
+    UNBALANCED_PHASE_DISTRIBUTION_THRESHOLD = 0.7
+    
+    # 替换策略参数
+    DEFAULT_REPLACEMENT_RATIO = 0.3
+    MAX_REPLACEMENT_RATIO = 0.8
+    MIN_REPLACEMENT_RATIO = 0.1
+    DEFAULT_SIMILARITY_THRESHOLD = 0.8
+    DEFAULT_PERFORMANCE_THRESHOLD = 0.6
+    
+    # 规则数量限制
+    DEFAULT_MAX_RULES_PER_PHASE = 4
+    DEFAULT_MAX_RULES_PER_AGENT = 5
+    ABSOLUTE_MAX_TOTAL_RULES = 15
+    MIN_TOTAL_RULES = 3
+    
+    # 策略效果评估
+    STRATEGY_EFFECTIVENESS_SAMPLE_SIZE = 10
+    MIN_IMPROVEMENT_SCORE = 0.3
+    STRATEGY_LEARNING_DECAY_FACTOR = 0.9

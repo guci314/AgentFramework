@@ -1,0 +1,31 @@
+{
+  "id": "ruleset_402624",
+  "goal": "创建一个简单的Python Hello World程序,打印hello world 789 ， 文件保存在hello_world.py",
+  "rules": [
+    {
+      "id": "rule_634057",
+      "name": "generate_hello_world_code",
+      "condition": "需要创建一个打印'hello world 789'的Python程序",
+      "action": "编写一个Python脚本，使用print函数输出'hello world 789'，并将代码保存到hello_world.py文件中",
+      "agent_capability_id": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "生成包含print('hello world 789')代码的hello_world.py文件",
+      "metadata": {}
+    },
+    {
+      "id": "rule_911512",
+      "name": "verify_hello_world_output",
+      "condition": "hello_world.py文件已创建",
+      "action": "运行hello_world.py脚本并验证输出是否为'hello world 789'",
+      "agent_capability_id": "tester",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "确认程序正确输出'hello world 789'",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

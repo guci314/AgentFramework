@@ -28,7 +28,7 @@ class WorkflowResult:
     data: Optional[Any] = None
     error_details: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-    # timestamp: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    # timestamp: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
     
     def is_error(self) -> bool:
         """是否为错误结果"""
@@ -48,7 +48,7 @@ class WorkflowResult:
             'data': self.data,
             'error_details': self.error_details,
             'metadata': self.metadata
-            # 'timestamp': self.timestamp.isoformat()  # Removed for LLM caching
+            # 'timestamp': self.timestamp.isoformat()  # 已移除: LLM缓存优化
         }
 
 
@@ -59,17 +59,17 @@ class ProductionRule:
     name: str
     condition: str              # 自然语言描述的触发条件 (IF部分)
     action: str                # 要执行的动作指令 (THEN部分)
-    agent_capability_id: str    # 引用AgentCapability的ID
+    agent_name: str            # 直接引用Agent的名称
     priority: int = RuleConstants.DEFAULT_RULE_PRIORITY  # 规则优先级
-    phase: RulePhase = RulePhase.PROBLEM_SOLVING
+    phase: RulePhase = RulePhase.EXECUTION
     expected_outcome: str = ""  # 期望的执行结果
-    # created_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
-    # updated_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    # created_at: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
+    # updated_at: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """初始化后验证"""
-        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # 已移除UUID自动生成: LLM缓存优化 - ID需要显式提供
         # if not self.id:
         #     self.id = str(uuid.uuid4())
         if not (RuleConstants.MIN_RULE_PRIORITY <= self.priority <= RuleConstants.MAX_RULE_PRIORITY):
@@ -79,11 +79,11 @@ class ProductionRule:
         """
         检查规则是否适用于当前状态
         
-        注意：这是一个占位符方法，实际的语义匹配由RuleMatchingService实现
+        注意：这是一个占位符方法，实际的语义匹配已集成到RuleEngineService中
         这里只做基本的结构化检查
         """
         # 基本检查：状态不能为空
-        if not global_state or not global_state.description:
+        if not global_state or not global_state.state:
             return False, 0.0
         
         # 基本检查：条件不能为空
@@ -107,7 +107,7 @@ class ProductionRule:
             'name': self.name,
             'condition': self.condition,
             'action': self.action,
-            'agent_capability_id': self.agent_capability_id,
+            'agent_name': self.agent_name,
             'priority': self.priority,
             'phase': self.phase.value,
             'expected_outcome': self.expected_outcome,
@@ -132,7 +132,7 @@ class RuleExecution:
     
     def __post_init__(self):
         """初始化后验证"""
-        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # 已移除UUID自动生成: LLM缓存优化 - ID需要显式提供
         # if not self.id:
         #     self.id = str(uuid.uuid4())
     
@@ -168,17 +168,17 @@ class RuleExecution:
 class GlobalState:
     """全局状态实体 - 系统的全局状态管理"""
     id: str
-    description: str            # 自然语言状态描述
+    state: str                  # 自然语言状态描述
     context_variables: Dict[str, Any] = field(default_factory=dict)
     execution_history: List[str] = field(default_factory=list)
-    # timestamp: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    # timestamp: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
     workflow_id: str = ""
     iteration_count: int = 0
     goal_achieved: bool = False
     
     def __post_init__(self):
         """初始化后验证"""
-        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # 已移除UUID自动生成: LLM缓存优化 - ID需要显式提供
         # if not self.id:
         #     self.id = str(uuid.uuid4())
     
@@ -187,7 +187,7 @@ class GlobalState:
         # 创建新的状态实例（保持不可变性）
         new_state = GlobalState(
             id=f"{self.id}_iter_{self.iteration_count + 1}",  # Use deterministic ID instead of UUID
-            description=self.description,
+            state=self.state,
             context_variables=self.context_variables.copy(),
             execution_history=self.execution_history.copy(),
             # timestamp=datetime.now(),  # Removed for LLM caching
@@ -207,8 +207,8 @@ class GlobalState:
         
         # 如果执行成功，可能需要更新状态描述
         if execution_result.success and execution_result.data:
-            if isinstance(execution_result.data, dict) and 'new_state_description' in execution_result.data:
-                new_state.description = execution_result.data['new_state_description']
+            if isinstance(execution_result.data, dict) and 'new_state' in execution_result.data:
+                new_state.state = execution_result.data['new_state']
         
         return new_state
     
@@ -230,7 +230,7 @@ class GlobalState:
         """转换为字典格式"""
         return {
             'id': self.id,
-            'description': self.description,
+            'state': self.state,
             'context_variables': self.context_variables,
             'execution_history': self.execution_history,
             # 'timestamp': self.timestamp.isoformat(),  # Removed for LLM caching
@@ -246,15 +246,15 @@ class RuleSet:
     id: str
     goal: str
     rules: List[ProductionRule] = field(default_factory=list)
-    # created_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
-    # updated_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    # created_at: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
+    # updated_at: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
     version: int = 1
     status: RuleSetStatus = RuleSetStatus.DRAFT
     modification_history: List[RuleModification] = field(default_factory=list)
     
     def __post_init__(self):
         """初始化后验证"""
-        # Removed UUID generation for LLM caching - ID should be provided explicitly
+        # 已移除UUID自动生成: LLM缓存优化 - ID需要显式提供
         # if not self.id:
         #     self.id = str(uuid.uuid4())
     
@@ -320,14 +320,79 @@ class RuleSet:
 
 @dataclass
 class DecisionResult:
-    """决策结果实体 - 封装决策过程的结果"""
+    """
+    决策结果实体 - 封装产生式规则工作流决策过程的结果
+    
+    该类代表LLM决策引擎在分析当前状态和可用规则后做出的智能决策。
+    决策结果包含具体的行动指令、置信度评估和详细推理过程。
+    
+    Attributes:
+        selected_rule (Optional[ProductionRule]): 被选中执行的规则
+            - 当 decision_type == EXECUTE_SELECTED_RULE 时，包含要执行的具体规则对象
+            - 当 decision_type == ADD_RULE 或 GOAL_FAILED 时，为 None
+            - 规则对象包含完整的条件(IF)、动作(THEN)、智能体能力等信息
+            
+        decision_type (DecisionType): 决策类型，指示接下来应该采取的行动
+            - EXECUTE_SELECTED_RULE: 执行现有规则（最常见的决策）
+            - ADD_RULE: 生成新规则来处理当前情况
+            - GOAL_ACHIEVED: 工作流目标已成功达成
+            - GOAL_FAILED: 目标执行失败，无法继续推进
+            
+        confidence (float): 决策置信度，范围 [0.0, 1.0]
+            - 0.9-1.0: 高置信度，LLM对决策非常确信
+            - 0.7-0.8: 中等置信度，决策合理但可能需要监控
+            - 0.5-0.6: 低置信度，决策不确定，建议人工审核
+            - 0.0-0.4: 极低置信度，可能需要重新分析或获取更多信息
+            
+        reasoning (str): 决策推理过程的详细说明
+            - 解释为什么选择了特定的决策类型
+            - 描述分析过程中考虑的关键因素
+            - 说明规则匹配或新规则生成的理由
+            - 提供人类可理解的决策依据，便于调试和优化
+            
+        context (Dict[str, Any]): 决策上下文信息
+            - state_description: 决策时的状态描述
+            - total_applicable_rules: 可用规则总数
+            - relevance_score: 规则相关性评分
+            - selection_method: 选择方法标识
+            - alternative_options: 备选方案信息
+            - 其他与决策过程相关的元数据
+            
+        new_rules (List[ProductionRule]): 新生成的规则列表
+            - 当 decision_type == ADD_RULE 时，包含LLM生成的新规则
+            - 每个规则都是完整的 ProductionRule 对象，可以立即添加到规则集中
+            - 规则按优先级排序，优先级高的规则在列表前面
+            - 当 decision_type != ADD_RULE 时，此列表为空
+            
+    使用示例:
+        # 执行规则决策
+        if decision.decision_type == DecisionType.EXECUTE_SELECTED_RULE:
+            rule = decision.selected_rule
+            print(f"执行规则: {rule.name}, 置信度: {decision.confidence}")
+            
+        # 添加新规则决策  
+        elif decision.decision_type == DecisionType.ADD_RULE:
+            for rule in decision.new_rules:
+                rule_set.add_rule(rule)
+            print(f"添加了 {len(decision.new_rules)} 个新规则")
+            
+        # 目标完成决策
+        elif decision.decision_type == DecisionType.GOAL_ACHIEVED:
+            print("工作流目标已达成！")
+            
+    注意事项:
+        - 决策结果是不可变的，一旦创建就不应修改
+        - confidence 值应该与 reasoning 的描述一致
+        - selected_rule 和 new_rules 是互斥的，不会同时包含内容
+        - context 字段用于存储调试和分析信息，不影响决策执行
+    """
     selected_rule: Optional[ProductionRule]
     decision_type: DecisionType
     confidence: float
     reasoning: str
     context: Dict[str, Any] = field(default_factory=dict)
-    # timestamp: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
-    alternative_rules: List[ProductionRule] = field(default_factory=list)
+    # timestamp: datetime = field(default_factory=datetime.now)  # 已移除: LLM缓存优化
+    new_rules: List[ProductionRule] = field(default_factory=list)
     
     def is_execution_decision(self) -> bool:
         """是否为执行决策"""
@@ -342,7 +407,8 @@ class DecisionResult:
         if self.decision_type == DecisionType.EXECUTE_SELECTED_RULE:
             return f"执行规则: {self.selected_rule.name if self.selected_rule else 'None'}"
         elif self.decision_type == DecisionType.ADD_RULE:
-            return "需要添加新规则"
+            new_rules_count = len(self.new_rules) if self.new_rules else 0
+            return f"需要添加新规则 ({new_rules_count} 个)"
         elif self.decision_type == DecisionType.GOAL_ACHIEVED:
             return "目标已达成"
         elif self.decision_type == DecisionType.GOAL_FAILED:
@@ -350,73 +416,44 @@ class DecisionResult:
         return "未知决策类型"
 
 
-@dataclass
-class AgentCapability:
-    """智能体能力实体 - 定义智能体的能力和特征"""
-    id: str
-    name: str
-    description: str
-    supported_actions: List[str]
-    api_specification: str = ""
-    configuration: Dict[str, Any] = field(default_factory=dict)
-    performance_metrics: Dict[str, float] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        """初始化后验证"""
-        # Removed UUID generation for LLM caching - ID should be provided explicitly
-        # if not self.id:
-        #     self.id = str(uuid.uuid4())
-    
-    def can_execute_action(self, action: str) -> bool:
-        """检查是否能执行指定动作"""
-        return '*' in self.supported_actions or action in self.supported_actions
-    
-    def get_action_specification(self, action: str) -> Dict[str, Any]:
-        """获取动作规范"""
-        if not self.can_execute_action(action):
-            raise ValueError(f"该智能体不支持动作: {action}")
-        
-        return {
-            'action': action,
-            'capability_id': self.id,
-            'api_specification': self.api_specification,
-            'configuration': self.configuration
-        }
-    
-    def update_performance_metric(self, metric_name: str, value: float) -> None:
-        """更新性能指标"""
-        self.performance_metrics[metric_name] = value
 
 
 @dataclass
 class AgentRegistry:
-    """智能体注册表实体 - 管理所有可用的智能体能力"""
-    capabilities: Dict[str, AgentCapability] = field(default_factory=dict)
+    """智能体注册表实体 - 直接管理Agent实例"""
+    agents: Dict[str, Any] = field(default_factory=dict)  # Any为AgentBase类型，避免循环导入
     
-    def register_capability(self, capability: AgentCapability) -> None:
-        """注册智能体能力"""
-        self.capabilities[capability.id] = capability
+    def register_agent(self, name: str, agent: Any) -> None:
+        """注册Agent实例"""
+        self.agents[name] = agent
     
-    def get_capability(self, capability_id: str) -> AgentCapability:
-        """获取智能体能力"""
-        if capability_id not in self.capabilities:
-            raise ValueError(f"未找到智能体能力: {capability_id}")
-        return self.capabilities[capability_id]
+    def get_agent(self, name: str) -> Any:
+        """获取Agent实例"""
+        if name not in self.agents:
+            raise ValueError(f"未找到智能体: {name}")
+        return self.agents[name]
     
-    def find_capabilities_by_action(self, action: str) -> List[AgentCapability]:
-        """根据动作查找智能体能力"""
+    def find_agents_by_specification(self, task_description: str) -> List[tuple]:
+        """根据任务描述查找合适的Agent，返回(name, agent)元组列表"""
         return [
-            capability for capability in self.capabilities.values()
-            if capability.can_execute_action(action)
+            (name, agent) for name, agent in self.agents.items()
+            if hasattr(agent, 'api_specification') and agent.api_specification
         ]
     
-    def list_all_capabilities(self) -> List[AgentCapability]:
-        """列出所有智能体能力"""
-        return list(self.capabilities.values())
+    def list_all_agents(self) -> List[tuple]:
+        """列出所有Agent实例，返回(name, agent)元组列表"""
+        return list(self.agents.items())
     
-    def remove_capability(self, capability_id: str) -> bool:
-        """移除智能体能力"""
-        if capability_id in self.capabilities:
-            del self.capabilities[capability_id]
+    def get_agent_specifications(self) -> Dict[str, str]:
+        """获取所有Agent的能力规范"""
+        return {
+            name: getattr(agent, 'api_specification', f'{name} Agent')
+            for name, agent in self.agents.items()
+        }
+    
+    def remove_agent(self, name: str) -> bool:
+        """移除Agent实例"""
+        if name in self.agents:
+            del self.agents[name]
             return True
         return False

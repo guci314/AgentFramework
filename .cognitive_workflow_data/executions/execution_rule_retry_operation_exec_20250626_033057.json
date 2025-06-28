@@ -1,0 +1,51 @@
+{
+  "id": "rule_retry_operation_exec_20250626_033057",
+  "rule_id": "rule_retry_operation",
+  "status": "failed",
+  "result": {
+    "success": false,
+    "message": "指令执行失败: 无法获取Agent system: 未找到智能体能力: system",
+    "data": null,
+    "error_details": "无法获取Agent system: 未找到智能体能力: system",
+    "metadata": {
+      "capability_id": "system",
+      "instruction": "\n执行任务: 重新执行失败的操作，使用更保守的参数\n\n当前状态: **新系统状态描述：**  \n\n1. **执行结果**：  \n   - 操作：尝试获取Agent系统状态  \n   - 结果：失败（核心功能不可用）  \n   - 错误详情：未找到智能体能力模块（`system`模块缺失）  \n\n2. **当前状态**：  \n   - 运行模式：紧急降级（仅基础指令支持）  \n   - 功能状态：  \n     - 核心能力模块：失效  \n     - 高级功能接口：失效  \n     - 基础通信通道：正常  \n   - 主要限制：所有依赖智能体能力的操作均不可用  \n\n3. **后续行动方向**：  \n   - 紧急修复：强制重启核心模块（需权限）或验证依赖链完整性  \n   - 应急措施：保持基础模式，尝试模块热修复（需网络）  \n\n**状态标签**：`系统降级` | `核心模块缺失`  \n**健康度**：通信100% | 功能0%  \n**优先级**：需立即处理（预计影响≥15min）\n\n规则上下文:\n- 规则名称: 重试失败操作\n- 期望结果: 操作成功完成\n- 执行阶段: execution\n\n相关上下文变量:\n- goal: \n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 确保代码质量良好\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    \n- last_execution_success: False\n\n最近执行历史:\n1. [执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system\n2. [执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system\n3. [执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system\n\n请根据以上信息执行任务: 重新执行失败的操作，使用更保守的参数"
+    }
+  },
+  "completed_at": "2025-06-26T03:30:57.981022",
+  "execution_context": {
+    "rule_info": {
+      "id": "rule_retry_operation",
+      "name": "重试失败操作",
+      "condition": "上次操作失败且可以重试",
+      "action": "重新执行失败的操作，使用更保守的参数",
+      "expected_outcome": "操作成功完成",
+      "priority": 60,
+      "phase": "execution"
+    },
+    "state_info": {
+      "description": "**新系统状态描述：**  \n\n1. **执行结果**：  \n   - 操作：尝试获取Agent系统状态  \n   - 结果：失败（核心功能不可用）  \n   - 错误详情：未找到智能体能力模块（`system`模块缺失）  \n\n2. **当前状态**：  \n   - 运行模式：紧急降级（仅基础指令支持）  \n   - 功能状态：  \n     - 核心能力模块：失效  \n     - 高级功能接口：失效  \n     - 基础通信通道：正常  \n   - 主要限制：所有依赖智能体能力的操作均不可用  \n\n3. **后续行动方向**：  \n   - 紧急修复：强制重启核心模块（需权限）或验证依赖链完整性  \n   - 应急措施：保持基础模式，尝试模块热修复（需网络）  \n\n**状态标签**：`系统降级` | `核心模块缺失`  \n**健康度**：通信100% | 功能0%  \n**优先级**：需立即处理（预计影响≥15min）",
+      "iteration_count": 21,
+      "workflow_id": "workflow_\n____开发一个简单的计算器程序，要求_20250626_0313",
+      "goal_achieved": false
+    },
+    "context_variables": {
+      "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 确保代码质量良好\n    4. 生成使用说明文档，使用markdown格式，文件保存在calculator.md\n    5. 文件保存在calculator.py\n    ",
+      "last_execution_success": false
+    },
+    "recent_history": [
+      "[执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system",
+      "[执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system",
+      "[执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system",
+      "[执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system",
+      "[执行失败] 指令执行失败: 无法获取Agent system: 未找到智能体能力: system"
+    ],
+    "execution_config": {
+      "timeout": 60,
+      "retry_attempts": 3,
+      "timestamp": "2025-06-26T03:30:57.978343"
+    }
+  },
+  "failure_reason": "无法获取Agent system: 未找到智能体能力: system",
+  "confidence_score": 0.45
+}

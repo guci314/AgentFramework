@@ -165,19 +165,23 @@ class RuleRepositoryImpl(RuleRepository):
             logger.error(f"删除规则失败: {e}")
             return False
     
-    def find_rules_by_agent_capability(self, capability_id: str) -> List[ProductionRule]:
-        """根据智能体能力查找规则"""
+    def find_rules_by_agent_capability(self, agent_name: str) -> List[ProductionRule]:
+        """根据智能体名称查找规则（保持方法名兼容性）"""
+        return self.find_rules_by_agent_name(agent_name)
+    
+    def find_rules_by_agent_name(self, agent_name: str) -> List[ProductionRule]:
+        """根据智能体名称查找规则"""
         try:
             matching_rules = []
             
             for rule in self._rules_cache.values():
-                if rule.agent_capability_id == capability_id:
+                if rule.agent_name == agent_name:
                     matching_rules.append(rule)
             
             return matching_rules
             
         except Exception as e:
-            logger.error(f"按智能体能力查找规则失败: {e}")
+            logger.error(f"按智能体名称查找规则失败: {e}")
             return []
     
     def find_rules_by_priority_range(self, min_priority: int, max_priority: int) -> List[ProductionRule]:
@@ -257,16 +261,18 @@ class RuleRepositoryImpl(RuleRepository):
         return rule_set
     
     def _dict_to_rule(self, data: Dict) -> ProductionRule:
-        """从字典创建规则"""
-        # Filter out removed fields for backward compatibility
+        """从字典创建规则，支持向后兼容性"""
+        # Handle backward compatibility: agent_capability_id -> agent_name
+        agent_name = data.get('agent_name') or data.get('agent_capability_id', 'coder')
+        
         rule = ProductionRule(
             id=data['id'],
             name=data['name'],
             condition=data['condition'],
             action=data['action'],
-            agent_capability_id=data['agent_capability_id'],
+            agent_name=agent_name,
             priority=data.get('priority', 50),
-            phase=RulePhase(data.get('phase', 'problem_solving')),
+            phase=self._parse_phase_with_compatibility(data.get('phase', 'execution')),
             expected_outcome=data.get('expected_outcome', ''),
             # created_at=datetime.fromisoformat(data['created_at']),  # Removed for LLM caching
             # updated_at=datetime.fromisoformat(data['updated_at']),  # Removed for LLM caching
@@ -274,6 +280,32 @@ class RuleRepositoryImpl(RuleRepository):
         )
         
         return rule
+    
+    def _parse_phase_with_compatibility(self, phase_value: str) -> RulePhase:
+        """
+        解析阶段值，支持向后兼容性
+        
+        Args:
+            phase_value: 阶段字符串值
+            
+        Returns:
+            RulePhase: 解析后的阶段枚举
+        """
+        try:
+            # 处理旧的阶段值映射
+            if phase_value == 'problem_solving':
+                logger.debug("将旧的 'problem_solving' 阶段转换为 'execution'")
+                return RulePhase.EXECUTION
+            elif phase_value == 'cleanup':
+                logger.debug("将旧的 'cleanup' 阶段转换为 'verification'")
+                return RulePhase.VERIFICATION
+            else:
+                # 尝试直接解析
+                return RulePhase(phase_value)
+                
+        except ValueError as e:
+            logger.warning(f"无法解析阶段值 '{phase_value}'，使用默认值 'execution': {e}")
+            return RulePhase.EXECUTION
     
     def _modification_to_dict(self, modification) -> Dict:
         """将修改记录转换为字典"""
@@ -508,9 +540,12 @@ class StateRepositoryImpl(StateRepository):
     
     def _dict_to_state(self, data: Dict) -> GlobalState:
         """从字典创建状态"""
+        # Backward compatibility: handle both 'state' (new) and 'description' (old) field names
+        state_value = data.get('state', data.get('description', ''))
+        
         return GlobalState(
             id=data['id'],
-            description=data['description'],
+            state=state_value,
             context_variables=data.get('context_variables', {}),
             execution_history=data.get('execution_history', []),
             # timestamp=datetime.fromisoformat(data.get('timestamp')),  # Removed for LLM caching
