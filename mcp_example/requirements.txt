@@ -1,3 +1,0 @@
-# MCP 示例依赖
-mcp>=1.0.0
-asyncio

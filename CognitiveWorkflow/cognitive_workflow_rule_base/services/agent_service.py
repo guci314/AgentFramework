@@ -142,13 +142,21 @@ class AgentService:
             # 执行指令
             logger.info(f"执行自然语言指令: {instruction[:100]}...")
             
-            # 统一调用Agent的execute_sync方法
-            if hasattr(agent, 'execute_sync'):
+            # 优先调用CognitiveAgent的智能执行方法，fallback到传统execute_sync
+            if hasattr(agent, 'execute_instruction_syn'):
+                # CognitiveAgent: 使用智能分类和路由执行
+                logger.debug(f"使用CognitiveAgent智能执行: {agent_name}")
+                raw_result = agent.execute_instruction_syn(instruction)
+                # 转换为标准WorkflowResult格式
+                result = self._convert_to_result(raw_result, instruction)
+            elif hasattr(agent, 'execute_sync'):
+                # 传统Agent: 使用普通execute_sync方法
+                logger.debug(f"使用传统Agent执行: {agent_name}")
                 raw_result = agent.execute_sync(instruction)
                 # 转换为标准WorkflowResult格式
                 result = self._convert_to_result(raw_result, instruction)
             else:
-                raise ValueError(f"Agent {agent_name} 不支持指令执行 (缺少execute_sync方法)")
+                raise ValueError(f"Agent {agent_name} 不支持指令执行 (缺少execute_instruction_syn或execute_sync方法)")
             
             # 记录性能指标
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -414,6 +422,48 @@ class AgentService:
             if isinstance(raw_result, WorkflowResult):
                 logger.debug("检测到cognitive_workflow.WorkflowResult，直接返回")
                 return raw_result
+            
+            # 检查是否是WorkflowExecutionResult对象 (CognitiveAgent多步执行返回)
+            if (hasattr(raw_result, 'goal') and 
+                hasattr(raw_result, 'is_successful') and 
+                hasattr(raw_result, 'final_state') and 
+                hasattr(raw_result, 'execution_metrics')):
+                
+                logger.debug("检测到WorkflowExecutionResult，转换为WorkflowResult")
+                
+                # 构造消息
+                status = "成功" if raw_result.is_successful else "失败"
+                message = f"认知工作流执行{status}: {raw_result.goal}"
+                
+                # 构造数据
+                data = {
+                    'goal': raw_result.goal,
+                    'final_state': raw_result.final_state,
+                    'total_iterations': raw_result.total_iterations,
+                    'final_message': raw_result.final_message,
+                    'completion_timestamp': getattr(raw_result, 'completion_timestamp', None)
+                }
+                
+                # 添加执行指标
+                if raw_result.execution_metrics:
+                    data['execution_metrics'] = {
+                        'success_rate': raw_result.execution_metrics.success_rate,
+                        'total_execution_time': raw_result.execution_metrics.total_execution_time,
+                        'average_execution_time': raw_result.execution_metrics.average_execution_time,
+                        'total_rules_executed': raw_result.execution_metrics.total_rules_executed
+                    }
+                
+                return WorkflowResult(
+                    success=raw_result.is_successful,
+                    message=message,
+                    data=data,
+                    error_details=None if raw_result.is_successful else raw_result.final_message,
+                    metadata={
+                        'instruction': instruction,
+                        'source_type': 'workflow_execution_result',
+                        'iterations': raw_result.total_iterations
+                    }
+                )
             
             # 如果是字符串，创建成功的WorkflowResult
             if isinstance(raw_result, str):

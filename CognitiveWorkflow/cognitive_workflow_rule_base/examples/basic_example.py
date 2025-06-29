@@ -8,15 +8,16 @@
 import sys
 import os
 from pathlib import Path
-from blue_print_patch_simple import add_blue_print_to_method
+# from blue_print_patch_simple import add_blue_print_to_method
 
 
 
 # 添加父目录到路径，以便导入模块
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from pythonTask import Agent, llm_deepseek,llm_gemini_2_5_flash_google,llm_gemini_2_5_pro_google
+from pythonTask import Agent, llm_deepseek
 from cognitive_workflow_rule_base import create_production_rule_system
+from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
 
 # from cognitive_workflow_rule_base.services.rule_generation_service import RuleGenerationService
 # add_blue_print_to_method('generate_rule_set',RuleGenerationService)
@@ -28,33 +29,42 @@ selected_llm = llm_deepseek
 def create_demo_agents():
     """创建演示用的智能体"""
     
-    # 创建代码专家
-    coder = Agent(llm=selected_llm)
-    coder.loadKnowledge('unittest的测试结果在标准错误流而不是标准输出流')
-    coder.api_specification = '''
+    # 创建基础代码专家Agent
+    base_coder = Agent(llm=selected_llm)
+    base_coder.loadKnowledge('unittest的测试结果在标准错误流而不是标准输出流')
+    base_coder.api_specification = '''
     代码专家，擅长编写、调试和优化代码。
     支持多种编程语言，特别是Python。
     '''
     
-    # 创建测试专家
-    tester = Agent(llm=selected_llm)
-    tester.loadKnowledge('unittest的测试结果在标准错误流而不是标准输出流')
-    tester.api_specification = '''
+    # 创建基础测试专家Agent
+    base_tester = Agent(llm=selected_llm)
+    base_tester.loadKnowledge('unittest的测试结果在标准错误流而不是标准输出流')
+    base_tester.api_specification = '''
     测试专家，擅长编写测试用例和验证代码质量。
     熟悉各种测试框架和测试策略。
     '''
     
-    # # 创建分析师
-    # analyst = Agent(llm=llm_deepseek)
-    # analyst.api_specification = '''
-    # 分析师，擅长需求分析和文档整理。
-    # 能够分析问题并制定解决方案。
-    # '''
+    # 使用CognitiveAgent包装基础Agent，获得智能分类和路由能力
+    coder = CognitiveAgent(
+        base_agent=base_coder,
+        enable_auto_recovery=True,
+        classification_cache_size=50
+    )
+    
+    tester = CognitiveAgent(
+        base_agent=base_tester,
+        enable_auto_recovery=True,
+        classification_cache_size=50
+    )
+    
+    print(f"✅ 创建CognitiveAgent包装器:")
+    print(f"   - coder: {coder}")
+    print(f"   - tester: {tester}")
     
     return {
         "coder": coder,
         "tester": tester,
-        # "analyst": analyst
     }
 
 
@@ -199,26 +209,26 @@ def main():
     print("="*60)
     
     try:
-        # # 基础示例
-        # print("\n【示例1: 基础使用】")
-        # result1 = basic_example()
+        # 基础示例
+        print("\n【示例1: 基础使用】")
+        result1 = basic_example()
         
-        # if result1:
-        #     print("\n✅ 基础示例执行成功")
-        # else:
-        #     print("\n❌ 基础示例执行失败")
+        if result1:
+            print("\n✅ 基础示例执行成功")
+        else:
+            print("\n❌ 基础示例执行失败")
         
-        # 规则执行演示
-        print("\n\n【示例2: 复杂规则执行】")
-        demonstrate_rule_based_execution()
+        # # 规则执行演示
+        # print("\n\n【示例2: 复杂规则执行】")
+        # demonstrate_rule_based_execution()
         
-        print("\n🎉 演示完成!")
-        print("\n核心特性展示:")
-        print("✓ 自然语言IF-THEN规则")
-        print("✓ 语义驱动的规则匹配")
-        print("✓ 动态规则生成和修正")
-        print("✓ 自适应错误恢复")
-        print("✓ 端到端自然语言处理")
+        # print("\n🎉 演示完成!")
+        # print("\n核心特性展示:")
+        # print("✓ 自然语言IF-THEN规则")
+        # print("✓ 语义驱动的规则匹配")
+        # print("✓ 动态规则生成和修正")
+        # print("✓ 自适应错误恢复")
+        # print("✓ 端到端自然语言处理")
         
     except KeyboardInterrupt:
         print("\n\n演示被用户中断")
