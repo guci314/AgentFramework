@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_093954",
+  "goal": "读取command.txt,并执行其中的指令",
+  "rules": [
+    {
+      "id": "rule_993909",
+      "name": "check_file_existence",
+      "condition": "需要执行command.txt中的指令",
+      "action": "检查command.txt文件是否存在",
+      "agent_name": "main_agent",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "确认command.txt文件存在并可读",
+      "metadata": {}
+    },
+    {
+      "id": "rule_352016",
+      "name": "read_commands",
+      "condition": "command.txt文件存在且可读",
+      "action": "读取command.txt文件内容并解析指令",
+      "agent_name": "main_agent",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "获取command.txt中的指令列表",
+      "metadata": {}
+    },
+    {
+      "id": "rule_728833",
+      "name": "execute_commands",
+      "condition": "已获取command.txt中的指令列表",
+      "action": "按顺序执行指令列表中的每个指令",
+      "agent_name": "main_agent",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "所有指令执行完成",
+      "metadata": {}
+    },
+    {
+      "id": "rule_459679",
+      "name": "verify_execution",
+      "condition": "所有指令执行完成",
+      "action": "检查每条指令的执行结果是否符合预期",
+      "agent_name": "main_agent",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "确认所有指令执行成功",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

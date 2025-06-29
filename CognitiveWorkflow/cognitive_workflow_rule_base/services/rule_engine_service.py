@@ -23,6 +23,7 @@ from .rule_generation_service import RuleGenerationService
 from .rule_execution_service import RuleExecutionService
 from .state_service import StateService
 from .adaptive_replacement_service import AdaptiveReplacementService
+from ..utils.concurrent_safe_id_generator import id_generator
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +89,10 @@ class RuleEngineService:
         Returns:
             WorkflowExecutionResult: 工作流执行结果
         """
-        # 初始化工作流 - Use deterministic ID for better caching
-        workflow_id = f"workflow_{goal.replace(' ', '_')[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+        # 🔑 初始化工作流 - 使用并发安全的ID生成器
+        workflow_id = id_generator.generate_workflow_id(goal)
         self._workflow_id = workflow_id
+        logger.info(f"生成并发安全的工作流ID: {workflow_id}")
         self._current_agent_registry = agent_registry  # 设置当前智能体注册表供决策使用
         self.rule_generation._current_agent_registry = agent_registry  # 为RuleGenerationService设置智能体注册表
         
@@ -221,6 +223,14 @@ class RuleEngineService:
             )
             
             logger.info(f"工作流执行完成: {final_message}")
+            
+            # 🔑 释放工作流ID（并发安全）
+            try:
+                id_generator.release_workflow_id(workflow_id)
+                logger.debug(f"已释放工作流ID: {workflow_id}")
+            except Exception as e:
+                logger.warning(f"释放工作流ID失败: {e}")
+            
             return workflow_result
             
         except Exception as e:

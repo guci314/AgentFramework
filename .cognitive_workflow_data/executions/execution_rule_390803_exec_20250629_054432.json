@@ -1,0 +1,37 @@
+{
+  "id": "rule_390803_exec_20250629_054432",
+  "rule_id": "rule_390803",
+  "status": "running",
+  "result": null,
+  "completed_at": null,
+  "execution_context": {
+    "rule_info": {
+      "id": "rule_390803",
+      "name": "check_command_file_existence",
+      "condition": "IF 需要执行command.txt中的指令",
+      "action": "THEN 检查文件/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt是否存在",
+      "expected_outcome": "确认command.txt文件存在且可读",
+      "priority": 90,
+      "phase": "information_gathering"
+    },
+    "state_info": {
+      "description": "工作流已启动，目标：读取/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt,并执行其中的指令。当前处于初始状态，等待规则生成和执行。",
+      "iteration_count": 0,
+      "workflow_id": "workflow_读取/home/guci/aiProje_20250629_0539",
+      "goal_achieved": false
+    },
+    "context_variables": {
+      "goal": "读取/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt,并执行其中的指令"
+    },
+    "recent_history": [
+      "[iter_0] 工作流启动"
+    ],
+    "execution_config": {
+      "timeout": 60,
+      "retry_attempts": 3,
+      "timestamp": "2025-06-29T05:44:32.315086"
+    }
+  },
+  "failure_reason": null,
+  "confidence_score": 0.0
+}

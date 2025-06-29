@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_454838",
+  "goal": "创建一个简单的计算器函数",
+  "rules": [
+    {
+      "id": "rule_618441",
+      "name": "determine_calculator_scope",
+      "condition": "IF the task is to create a simple calculator function",
+      "action": "THEN determine the basic arithmetic operations to be supported (addition, subtraction, multiplication, division)",
+      "agent_name": "main_agent",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "List of supported arithmetic operations for the calculator",
+      "metadata": {}
+    },
+    {
+      "id": "rule_971293",
+      "name": "implement_basic_operations",
+      "condition": "IF the required operations are determined",
+      "action": "THEN implement a function that can perform the four basic arithmetic operations on two input numbers",
+      "agent_name": "main_agent",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "Working calculator function with basic arithmetic capabilities",
+      "metadata": {}
+    },
+    {
+      "id": "rule_687149",
+      "name": "test_arithmetic_operations",
+      "condition": "IF the calculator function is implemented",
+      "action": "THEN test the function with various number combinations for each operation to verify correct results",
+      "agent_name": "main_agent",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "Verified calculator function that produces correct results for all supported operations",
+      "metadata": {}
+    },
+    {
+      "id": "rule_422929",
+      "name": "handle_division_by_zero",
+      "condition": "IF division operation is supported",
+      "action": "THEN implement error handling for division by zero cases",
+      "agent_name": "main_agent",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "Calculator function that safely handles division by zero cases",
+      "metadata": {}
+    },
+    {
+      "id": "rule_827574",
+      "name": "verify_error_handling",
+      "condition": "IF error handling is implemented",
+      "action": "THEN test the function with division by zero cases to verify proper error handling",
+      "agent_name": "main_agent",
+      "priority": 65,
+      "phase": "verification",
+      "expected_outcome": "Verified error handling for division by zero cases",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

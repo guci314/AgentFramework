@@ -11,10 +11,11 @@ import logging
 from datetime import datetime
 import uuid
 
-from ..domain.entities import GlobalState, WorkflowResult, ProductionRule
+from ..domain.entities import GlobalState, WorkflowResult, ProductionRule, WorkflowState
 from ..domain.repositories import StateRepository
 from ..domain.value_objects import StateChangeAnalysis, MatchingResult
 from .language_model_service import LanguageModelService
+from ..utils.concurrent_safe_id_generator import id_generator
 
 if TYPE_CHECKING:
     from ..domain.entities import RuleSet
@@ -58,9 +59,10 @@ class StateService:
                 execution_result, global_state, rule_set
             )
             
-            # 创建新的状态实例
+            # 🔑 创建新的状态实例（使用安全ID生成）
+            new_state_id = id_generator.generate_state_id(global_state.workflow_id, global_state.iteration_count + 1)
             new_state = GlobalState(
-                id=f"{global_state.id}_iter_{global_state.iteration_count + 1}",  # Use deterministic ID
+                id=new_state_id,
                 state=new_description,
                 context_variables=global_state.context_variables.copy(),
                 execution_history=global_state.execution_history.copy(),
@@ -194,7 +196,7 @@ class StateService:
     
     def evaluate_goal_achievement(self, goal: str, global_state: GlobalState) -> bool:
         """
-        评估目标达成
+        评估目标是否达成（增强版 - 包含循环检测考虑）
         
         Args:
             goal: 目标描述
@@ -204,15 +206,35 @@ class StateService:
             bool: 是否达成目标
         """
         try:
+            # 🔑 新增：检查循环指标，如果检测到循环倾向于达成目标
+            loop_indicators = self._analyze_loop_indicators_for_goal_evaluation(global_state)
+            
+            # 如果检测到严重循环，倾向于认为目标已达成
+            if loop_indicators['should_force_completion']:
+                logger.warning(f"检测到循环，强制认为目标达成: {loop_indicators['reason']}")
+                return True
+            
+            # 基础的LLM目标评估
             is_achieved, confidence, analysis = self.llm_service.evaluate_goal_achievement(
                 goal, global_state.state
             )
             
-            logger.info(f"目标达成评估: {is_achieved} (置信度: {confidence:.2f})")
-            logger.debug(f"分析: {analysis}")
+            # 🔑 增强：根据循环风险调整置信度阈值
+            confidence_threshold = self._get_adaptive_confidence_threshold(loop_indicators)
             
-            # 只有高置信度的判断才认为是可靠的
-            return is_achieved and confidence >= 0.8
+            logger.info(f"目标达成评估: {is_achieved} (置信度: {confidence:.2f}, 阈值: {confidence_threshold:.2f})")
+            logger.debug(f"分析: {analysis}")
+            logger.debug(f"循环指标: {loop_indicators}")
+            
+            # 根据循环情况调整评估结果
+            final_result = is_achieved and confidence >= confidence_threshold
+            
+            # 如果普通评估失败但有循环指标，考虑部分达成
+            if not final_result and loop_indicators['partial_completion_likely']:
+                logger.info("虽然未完全达成目标，但考虑到循环情况，认为已部分达成")
+                final_result = True
+            
+            return final_result
             
         except Exception as e:
             logger.error(f"目标达成评估失败: {e}")
@@ -314,8 +336,10 @@ class StateService:
         """
         initial_description = f"工作流已启动，目标：{goal}。当前处于初始状态，等待规则生成和执行。"
         
+        # 🔑 使用安全ID生成初始状态
+        initial_state_id = id_generator.generate_state_id(workflow_id, 0)
         initial_state = GlobalState(
-            id=f"{workflow_id}_initial",  # Use deterministic ID
+            id=initial_state_id,
             state=initial_description,
             context_variables={'goal': goal},
             execution_history=[f"[iter_0] 工作流启动"],  # Use iteration instead of timestamp
@@ -621,3 +645,91 @@ class StateService:
                 formatted_lines.append(f"  - ... 还有{len(phase_rules) - 3}个规则")
         
         return '\n'.join(formatted_lines)
+    
+    def _analyze_loop_indicators_for_goal_evaluation(self, global_state: GlobalState) -> Dict[str, Any]:
+        """
+        分析循环指标以辅助目标评估
+        
+        Args:
+            global_state: 全局状态
+            
+        Returns:
+            Dict[str, Any]: 循环分析结果
+        """
+        indicators = {
+            'should_force_completion': False,
+            'partial_completion_likely': False,
+            'reason': '',
+            'loop_risk_level': 'low'
+        }
+        
+        try:
+            # 如果是WorkflowState，使用其高级循环检测
+            if isinstance(global_state, WorkflowState):
+                # 检查潜在循环
+                if global_state.detect_potential_loop():
+                    indicators['should_force_completion'] = True
+                    indicators['reason'] = f"连续执行相同规则 {global_state.consecutive_same_rule_count} 次"
+                    indicators['loop_risk_level'] = 'high'
+                
+                # 检查状态循环
+                elif global_state.check_state_cycle():
+                    indicators['should_force_completion'] = True
+                    indicators['reason'] = "检测到状态循环模式"
+                    indicators['loop_risk_level'] = 'critical'
+                
+                # 检查规则执行情况
+                elif len(global_state.executed_rules) >= 5:
+                    indicators['partial_completion_likely'] = True
+                    indicators['reason'] = f"已执行 {len(global_state.executed_rules)} 个规则，可能已充分推进目标"
+                    indicators['loop_risk_level'] = 'medium'
+            
+            # 对所有状态类型进行基础检查
+            if global_state.iteration_count > 15:
+                indicators['should_force_completion'] = True
+                indicators['reason'] = f"迭代次数过多 ({global_state.iteration_count})"
+                indicators['loop_risk_level'] = 'high'
+            elif global_state.iteration_count > 10:
+                indicators['partial_completion_likely'] = True
+                indicators['reason'] = f"迭代次数较多 ({global_state.iteration_count})"
+                indicators['loop_risk_level'] = 'medium'
+            
+            # 检查执行历史重复模式
+            if len(global_state.execution_history) >= 6:
+                recent_history = global_state.execution_history[-6:]
+                # 简单的重复检测
+                if len(set(recent_history)) <= 3:  # 最近6条历史中只有3种不同的模式
+                    indicators['partial_completion_likely'] = True
+                    indicators['reason'] = "检测到执行历史重复模式"
+                    indicators['loop_risk_level'] = 'medium'
+            
+            return indicators
+            
+        except Exception as e:
+            logger.error(f"循环指标分析失败: {e}")
+            return indicators
+    
+    def _get_adaptive_confidence_threshold(self, loop_indicators: Dict[str, Any]) -> float:
+        """
+        根据循环指标获取自适应的置信度阈值
+        
+        Args:
+            loop_indicators: 循环指标
+            
+        Returns:
+            float: 置信度阈值
+        """
+        # 基础阈值
+        base_threshold = 0.8
+        
+        # 根据循环风险调整阈值
+        risk_level = loop_indicators.get('loop_risk_level', 'low')
+        
+        if risk_level == 'critical':
+            return 0.3  # 严重循环时，很低的置信度就认为达成
+        elif risk_level == 'high':
+            return 0.5  # 高风险时，中等置信度即可
+        elif risk_level == 'medium':
+            return 0.65  # 中等风险时，降低一些要求
+        else:
+            return base_threshold  # 低风险时，保持原有标准

@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_362179",
+  "goal": "读取command.txt,并执行其中的指令",
+  "rules": [
+    {
+      "id": "rule_741828",
+      "name": "check_file_existence",
+      "condition": "IF 需要执行command.txt中的指令",
+      "action": "THEN 检查command.txt文件是否存在",
+      "agent_name": "main_agent",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "确认command.txt文件存在并可读",
+      "metadata": {}
+    },
+    {
+      "id": "rule_280902",
+      "name": "read_commands",
+      "condition": "IF command.txt文件存在",
+      "action": "THEN 读取command.txt文件内容并解析指令",
+      "agent_name": "main_agent",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "获取command.txt中的指令列表",
+      "metadata": {}
+    },
+    {
+      "id": "rule_391696",
+      "name": "execute_commands",
+      "condition": "IF 已获取指令列表",
+      "action": "THEN 按顺序执行每条指令",
+      "agent_name": "main_agent",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "所有指令执行完成",
+      "metadata": {}
+    },
+    {
+      "id": "rule_558777",
+      "name": "verify_execution",
+      "condition": "IF 所有指令执行完成",
+      "action": "THEN 检查每条指令的执行结果是否成功",
+      "agent_name": "main_agent",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "确认所有指令都成功执行",
+      "metadata": {}
+    },
+    {
+      "id": "rule_753206",
+      "name": "handle_errors",
+      "condition": "IF 有指令执行失败",
+      "action": "THEN 记录失败指令并尝试重新执行或报告错误",
+      "agent_name": "main_agent",
+      "priority": 50,
+      "phase": "verification",
+      "expected_outcome": "处理所有执行失败的指令",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

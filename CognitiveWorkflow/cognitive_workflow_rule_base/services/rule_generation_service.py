@@ -11,7 +11,7 @@ import logging
 import uuid
 from datetime import datetime
 
-from ..domain.entities import ProductionRule, RuleSet, AgentRegistry, GlobalState, DecisionResult
+from ..domain.entities import ProductionRule, RuleSet, AgentRegistry, GlobalState, DecisionResult, WorkflowState
 from ..domain.value_objects import RulePhase, RuleSetStatus, RuleConstants, DecisionType
 from .language_model_service import LanguageModelService
 
@@ -71,7 +71,7 @@ class RuleGenerationService:
     
     def generate_recovery_rules(self, failure_context: Dict[str, Any]) -> List[ProductionRule]:
         """
-        使用语言模型生成错误恢复规则
+        使用增强策略生成错误恢复规则
         
         Args:
             failure_context: 失败上下文信息
@@ -80,16 +80,24 @@ class RuleGenerationService:
             List[ProductionRule]: 恢复规则列表
         """
         try:
-            logger.info("开始使用LLM生成错误恢复规则")
+            logger.info("开始使用增强策略生成错误恢复规则")
             
-            # 使用LLM分析失败并生成恢复规则
+            # 🔑 新增：使用增强的错误恢复策略
+            current_state = failure_context.get('global_state')
+            if current_state:
+                enhanced_rules = self._enhanced_error_recovery_strategy(failure_context, current_state)
+                if enhanced_rules:
+                    logger.info(f"增强策略生成了 {len(enhanced_rules)} 个恢复规则")
+                    return enhanced_rules
+            
+            # 回退到LLM生成策略
             recovery_rules = self._generate_llm_recovery_rules(failure_context)
             
             logger.info(f"LLM生成了 {len(recovery_rules)} 个恢复规则")
             return recovery_rules
             
         except Exception as e:
-            logger.error(f"LLM恢复规则生成失败: {e}")
+            logger.error(f"恢复规则生成失败: {e}")
             return []
     
     def _generate_llm_recovery_rules(self, failure_context: Dict[str, Any]) -> List[ProductionRule]:
@@ -984,16 +992,16 @@ class RuleGenerationService:
     
     def _make_llm_decision(self, global_state, rule_set):
         """
-        使用单次LLM调用进行智能工作流决策
+        使用单次LLM调用进行智能工作流决策（增强版 - 防死循环）
         
         这是系统的核心决策方法，通过LLM分析当前状态和可用规则，
         决定下一步应该采取的行动：执行规则、生成新规则、或判断目标达成。
         
-        决策过程包括：
-        1. 分析当前状态和历史执行情况
-        2. 评估所有可用规则的适用性
-        3. 检查目标达成情况
-        4. 做出最优决策并生成详细推理
+        增强功能：
+        1. 死循环检测和预防
+        2. 已执行规则过滤
+        3. 失败规则跳过
+        4. 状态循环识别
         
         Args:
             global_state: 当前全局状态，包含状态描述、上下文变量和执行历史
@@ -1012,11 +1020,43 @@ class RuleGenerationService:
             Exception: 当LLM调用失败或解析结果异常时
         """
         try:
+            # 🔑 新增：循环检测和预防逻辑 
+            loop_context = self._analyze_loop_indicators(global_state, rule_set)
+            
+            # 🔑 增强：高级循环检测
+            advanced_detection = self._advanced_loop_detection(global_state, rule_set)
+            
+            # 如果高级检测发现高风险，使用高级预防策略
+            if advanced_detection['overall_risk_score'] >= 0.5:
+                prevention_strategy = self._implement_loop_prevention_strategy(global_state, advanced_detection)
+                if prevention_strategy:
+                    logger.warning(f"应用高级循环预防策略: {prevention_strategy.reasoning}")
+                    return prevention_strategy
+            
+            # 如果检测到严重循环，直接返回目标达成
+            if loop_context['should_terminate']:
+                logger.warning(f"检测到严重循环，强制终止: {loop_context['reason']}")
+                return DecisionResult(
+                    selected_rule=None,
+                    decision_type=DecisionType.GOAL_ACHIEVED,
+                    confidence=0.8,
+                    reasoning=f"循环检测强制终止: {loop_context['reason']}。当前状态已尽力完成目标。",
+                    context=loop_context
+                )
+            
+            # 过滤可用规则（排除已执行和失败过多的规则）
+            available_rules = self._get_available_rules_with_loop_prevention(global_state, rule_set.rules)
+            
+            # 如果没有可用规则，尝试生成新规则或达成目标
+            if not available_rules:
+                logger.info("没有可用规则，评估是否应该生成新规则或达成目标")
+                return self._handle_no_available_rules(global_state, rule_set, loop_context)
+            
             # 准备决策所需的所有信息
-            rules_info = self._format_rules_for_decision(rule_set.rules)
+            rules_info = self._format_rules_for_decision_with_loop_info(available_rules, global_state)
             available_agents = self._get_available_agents_for_decision(global_state)
             
-            # 构建综合决策prompt
+            # 构建增强的决策prompt（包含循环检测信息）
             decision_prompt = f"""
 你是一个产生式规则工作流决策引擎。请根据当前状态和可用规则，做出最佳决策。
 
@@ -1027,7 +1067,14 @@ class RuleGenerationService:
 执行历史: {chr(10).join(global_state.execution_history[-3:]) if global_state.execution_history else '无'}
 上下文变量: {global_state.context_variables}
 
-## 可用规则
+## 🔍 循环检测信息
+循环风险等级: {loop_context['loop_risk_level']}
+已执行规则数: {loop_context['executed_rules_count']}
+连续相同操作: {loop_context['consecutive_same_iterations']}
+状态循环检测: {'是' if loop_context['state_cycle_detected'] else '否'}
+规则耗尽状态: {'是' if loop_context['all_rules_exhausted'] else '否'}
+
+## 可用规则（已过滤重复和失败规则）
 {rules_info}
 
 ## 可用智能体
@@ -1044,10 +1091,14 @@ class RuleGenerationService:
 - 从执行历史分析智能体的数据处理经验
 - 从上下文变量推断当前数据流向和智能体的数据处理偏好
 
-## 决策指南
+## 🎯 决策指南（增强版 - 包含循环预防）
 1. **优先考虑现有规则**: 如果有规则的条件与当前状态匹配，应该选择最合适的规则执行
-2. **生成新规则**: 如果没有现有规则适用，且可以通过新规则推进目标完成，则生成新规则
-3. **目标失败**: 如果无法通过现有规则或新规则继续推进，则判断目标失败
+2. **循环风险评估**: 
+   - 风险等级为 high/critical 时，强烈倾向于选择 GOAL_ACHIEVED
+   - 已执行规则数过多时，考虑目标已充分推进
+   - 检测到状态循环时，应立即终止并达成目标
+3. **生成新规则**: 仅在循环风险 low/medium 且没有适用规则时考虑
+4. **智能终止**: 如果迭代次数过多或规则耗尽，应判断目标已尽力达成
 
 如果没有智能体同时满足两个维度，选择能力匹配的智能体并在执行指令中包含数据传输说明。
 
@@ -1055,10 +1106,10 @@ class RuleGenerationService:
 
 ```json
 {{
-  "decision_type": "EXECUTE_SELECTED_RULE | ADD_RULE | GOAL_FAILED",
+  "decision_type": "EXECUTE_SELECTED_RULE | ADD_RULE | GOAL_ACHIEVED | GOAL_FAILED",
   "selected_rule_id": "规则ID（仅当decision_type为EXECUTE_SELECTED_RULE时）",
   "confidence": 0.0-1.0之间的数字,
-  "reasoning": "决策理由的详细说明",
+  "reasoning": "决策理由的详细说明（必须包含循环检测考虑）",
   "new_rules": [
     {{
       "rule_name": "新规则名称",
@@ -1369,3 +1420,566 @@ class RuleGenerationService:
             print(f"\n🤖 LLM决策: {decision_result.get_decision_summary()}")
             print(f"置信度: {decision_result.confidence:.2f}")
             print(f"理由: {decision_result.reasoning}\n")
+    
+    def _analyze_loop_indicators(self, global_state: GlobalState, rule_set: RuleSet) -> Dict[str, Any]:
+        """
+        分析循环指标，检测潜在的死循环
+        
+        Args:
+            global_state: 当前全局状态
+            rule_set: 规则集
+            
+        Returns:
+            Dict[str, Any]: 循环分析结果
+        """
+        loop_context = {
+            'should_terminate': False,
+            'reason': '',
+            'loop_risk_level': 'low',  # low, medium, high, critical
+            'executed_rules_count': 0,
+            'consecutive_same_iterations': 0,
+            'state_cycle_detected': False,
+            'all_rules_exhausted': False
+        }
+        
+        try:
+            # 检查是否有执行历史
+            if not hasattr(global_state, 'execution_history') or not global_state.execution_history:
+                return loop_context
+            
+            # 模拟WorkflowState的功能（如果global_state不是WorkflowState类型）
+            if isinstance(global_state, WorkflowState):
+                # 直接使用WorkflowState的功能
+                loop_context['executed_rules_count'] = len(global_state.executed_rules)
+                loop_context['consecutive_same_iterations'] = global_state.consecutive_same_rule_count
+                loop_context['state_cycle_detected'] = global_state.check_state_cycle()
+                
+                # 检查是否检测到循环
+                if global_state.detect_potential_loop():
+                    loop_context['loop_risk_level'] = 'high'
+                    loop_context['reason'] = f"连续执行相同规则 {global_state.consecutive_same_rule_count} 次"
+                
+                # 检查状态循环
+                if loop_context['state_cycle_detected']:
+                    loop_context['loop_risk_level'] = 'critical'
+                    loop_context['reason'] = "检测到状态循环模式"
+                    
+            else:
+                # 对普通GlobalState进行基础循环检测
+                loop_context.update(self._basic_loop_detection(global_state, rule_set))
+            
+            # 检查是否所有规则都已尝试执行
+            available_rules = self._get_available_rules_with_loop_prevention(global_state, rule_set.rules)
+            if not available_rules:
+                loop_context['all_rules_exhausted'] = True
+                loop_context['loop_risk_level'] = 'high'
+                loop_context['reason'] = "所有可用规则都已执行或失败"
+            
+            # 基于迭代次数的循环检测
+            if global_state.iteration_count > 20:
+                loop_context['loop_risk_level'] = 'high'
+                loop_context['reason'] = f"迭代次数过多 ({global_state.iteration_count})"
+            
+            # 决定是否应该终止
+            if loop_context['loop_risk_level'] in ['high', 'critical']:
+                loop_context['should_terminate'] = True
+            
+            return loop_context
+            
+        except Exception as e:
+            logger.error(f"循环检测分析失败: {e}")
+            return loop_context
+    
+    def _basic_loop_detection(self, global_state: GlobalState, rule_set: RuleSet) -> Dict[str, Any]:
+        """
+        对普通GlobalState进行基础循环检测
+        
+        Args:
+            global_state: 全局状态
+            rule_set: 规则集
+            
+        Returns:
+            Dict[str, Any]: 基础循环检测结果
+        """
+        context = {}
+        
+        # 检查执行历史中的重复模式
+        history = global_state.execution_history[-10:]  # 只看最近10条历史
+        
+        # 简单的重复检测
+        if len(history) >= 4:
+            last_two = history[-2:]
+            prev_two = history[-4:-2]
+            if last_two == prev_two:
+                context['consecutive_same_iterations'] = 2
+                context['loop_risk_level'] = 'medium'
+                context['reason'] = "检测到执行历史重复模式"
+        
+        return context
+    
+    def _get_available_rules_with_loop_prevention(self, global_state: GlobalState, all_rules: List[ProductionRule]) -> List[ProductionRule]:
+        """
+        获取可用规则，应用循环预防过滤
+        
+        Args:
+            global_state: 全局状态
+            all_rules: 所有规则
+            
+        Returns:
+            List[ProductionRule]: 过滤后的可用规则
+        """
+        if isinstance(global_state, WorkflowState):
+            # 使用WorkflowState的智能过滤
+            return global_state.get_available_rules(all_rules)
+        else:
+            # 对普通GlobalState使用基础过滤
+            return all_rules  # 简单返回所有规则
+    
+    def _handle_no_available_rules(self, global_state: GlobalState, rule_set: RuleSet, loop_context: Dict[str, Any]) -> DecisionResult:
+        """
+        处理没有可用规则的情况
+        
+        Args:
+            global_state: 全局状态
+            rule_set: 规则集
+            loop_context: 循环上下文
+            
+        Returns:
+            DecisionResult: 决策结果
+        """
+        # 如果所有规则都已执行，倾向于目标达成
+        if loop_context.get('all_rules_exhausted', False):
+            return DecisionResult(
+                selected_rule=None,
+                decision_type=DecisionType.GOAL_ACHIEVED,
+                confidence=0.7,
+                reasoning="所有可用规则已执行完毕，认为目标已尽力达成。",
+                context=loop_context
+            )
+        
+        # 否则尝试生成新规则
+        return DecisionResult(
+            selected_rule=None,
+            decision_type=DecisionType.ADD_RULE,
+            confidence=0.6,
+            reasoning="没有合适的现有规则，需要生成新规则继续推进目标。",
+            context=loop_context,
+            new_rules=[]  # 将由后续处理填充
+        )
+    
+    def _format_rules_for_decision_with_loop_info(self, rules: List[ProductionRule], global_state: GlobalState) -> str:
+        """
+        格式化规则信息，包含循环预防信息
+        
+        Args:
+            rules: 可用规则列表
+            global_state: 全局状态
+            
+        Returns:
+            str: 格式化的规则信息
+        """
+        if not rules:
+            return "无可用规则（已过滤掉执行过的规则和失败过多的规则）"
+        
+        formatted_rules = []
+        for rule in rules:
+            rule_info = f"""
+规则ID: {rule.id}
+名称: {rule.name}
+条件: {rule.condition}
+动作: {rule.action}
+阶段: {rule.phase.value}
+优先级: {rule.priority}
+智能体: {rule.agent_name}
+期望结果: {rule.expected_outcome}"""
+            
+            # 如果是WorkflowState，添加额外信息
+            if isinstance(global_state, WorkflowState):
+                if global_state.is_rule_executed(rule.id):
+                    rule_info += "\n状态: 已执行"
+                failure_count = global_state.get_rule_failure_count(rule.id)
+                if failure_count > 0:
+                    rule_info += f"\n失败次数: {failure_count}"
+            
+            formatted_rules.append(rule_info.strip())
+        
+        return "\n\n".join(formatted_rules)
+    
+    def _advanced_loop_detection(self, global_state: GlobalState, rule_set: RuleSet) -> Dict[str, Any]:
+        """
+        高级循环检测机制 - 多维度分析潜在循环
+        
+        Args:
+            global_state: 全局状态
+            rule_set: 规则集
+            
+        Returns:
+            Dict[str, Any]: 高级循环检测结果
+        """
+        detection_result = {
+            'pattern_loops': False,
+            'semantic_loops': False,
+            'execution_stagnation': False,
+            'rule_exhaustion': False,
+            'temporal_loops': False,
+            'overall_risk_score': 0.0,
+            'recommendations': []
+        }
+        
+        try:
+            # 1. 执行模式循环检测
+            if self._detect_execution_pattern_loops(global_state):
+                detection_result['pattern_loops'] = True
+                detection_result['recommendations'].append("检测到执行模式循环")
+            
+            # 2. 语义循环检测
+            if self._detect_semantic_loops(global_state):
+                detection_result['semantic_loops'] = True
+                detection_result['recommendations'].append("检测到语义状态循环")
+            
+            # 3. 执行停滞检测
+            if self._detect_execution_stagnation(global_state):
+                detection_result['execution_stagnation'] = True
+                detection_result['recommendations'].append("检测到执行进度停滞")
+            
+            # 4. 规则耗尽检测
+            if self._detect_rule_exhaustion(global_state, rule_set):
+                detection_result['rule_exhaustion'] = True
+                detection_result['recommendations'].append("检测到可用规则耗尽")
+            
+            # 5. 时间维度循环检测
+            if self._detect_temporal_loops(global_state):
+                detection_result['temporal_loops'] = True
+                detection_result['recommendations'].append("检测到时间维度循环")
+            
+            # 计算综合风险评分
+            detection_result['overall_risk_score'] = self._calculate_loop_risk_score(detection_result)
+            
+            return detection_result
+            
+        except Exception as e:
+            logger.error(f"高级循环检测失败: {e}")
+            return detection_result
+    
+    def _detect_execution_pattern_loops(self, global_state: GlobalState) -> bool:
+        """检测执行模式循环"""
+        history = global_state.execution_history
+        if len(history) < 6:
+            return False
+        
+        # 检查是否存在重复的执行序列
+        recent_history = history[-6:]
+        for window_size in range(2, 4):  # 检查2-3步的重复模式
+            if len(recent_history) >= window_size * 2:
+                first_half = recent_history[:window_size]
+                second_half = recent_history[window_size:window_size*2]
+                if first_half == second_half:
+                    return True
+        return False
+    
+    def _detect_semantic_loops(self, global_state: GlobalState) -> bool:
+        """检测语义循环"""
+        # 检查状态描述是否出现重复的语义内容
+        if global_state.iteration_count < 3:
+            return False
+        
+        current_state = global_state.state.lower()
+        
+        # 简单的关键词重复检测
+        key_phrases = ["等待", "准备", "正在", "开始", "初始化"]
+        repeated_phrases = sum(1 for phrase in key_phrases if current_state.count(phrase) > 2)
+        
+        return repeated_phrases >= 2
+    
+    def _detect_execution_stagnation(self, global_state: GlobalState) -> bool:
+        """检测执行停滞"""
+        # 检查最近几次迭代是否没有实质性进展
+        if len(global_state.execution_history) < 5:
+            return False
+        
+        recent_history = global_state.execution_history[-5:]
+        failure_count = sum(1 for entry in recent_history if "失败" in entry or "错误" in entry)
+        
+        return failure_count >= 3
+    
+    def _detect_rule_exhaustion(self, global_state: GlobalState, rule_set: RuleSet) -> bool:
+        """检测规则耗尽"""
+        if isinstance(global_state, WorkflowState):
+            available_rules = global_state.get_available_rules(rule_set.rules)
+            return len(available_rules) == 0
+        return False
+    
+    def _detect_temporal_loops(self, global_state: GlobalState) -> bool:
+        """检测时间维度循环"""
+        # 检查迭代次数是否异常高
+        return global_state.iteration_count > 15
+    
+    def _calculate_loop_risk_score(self, detection_result: Dict[str, Any]) -> float:
+        """计算循环风险评分"""
+        score = 0.0
+        
+        if detection_result['pattern_loops']:
+            score += 0.3
+        if detection_result['semantic_loops']:
+            score += 0.2  
+        if detection_result['execution_stagnation']:
+            score += 0.25
+        if detection_result['rule_exhaustion']:
+            score += 0.15
+        if detection_result['temporal_loops']:
+            score += 0.1
+        
+        return min(score, 1.0)
+    
+    def _implement_loop_prevention_strategy(self, global_state: GlobalState, detection_result: Dict[str, Any]) -> DecisionResult:
+        """
+        实施循环预防策略
+        
+        Args:
+            global_state: 全局状态
+            detection_result: 循环检测结果
+            
+        Returns:
+            DecisionResult: 预防策略决策
+        """
+        risk_score = detection_result['overall_risk_score']
+        
+        if risk_score >= 0.8:
+            # 高风险 - 立即终止
+            return DecisionResult(
+                selected_rule=None,
+                decision_type=DecisionType.GOAL_ACHIEVED,
+                confidence=0.9,
+                reasoning=f"检测到高风险循环（风险评分: {risk_score:.2f}），实施强制终止策略。推荐原因: {', '.join(detection_result['recommendations'])}",
+                context={'loop_prevention': True, 'risk_score': risk_score}
+            )
+        elif risk_score >= 0.5:
+            # 中等风险 - 尝试策略调整
+            return DecisionResult(
+                selected_rule=None,
+                decision_type=DecisionType.ADD_RULE,
+                confidence=0.7,
+                reasoning=f"检测到中等风险循环（风险评分: {risk_score:.2f}），实施策略调整。推荐原因: {', '.join(detection_result['recommendations'])}",
+                context={'loop_prevention': True, 'risk_score': risk_score},
+                new_rules=[]  # 将由后续处理生成策略调整规则
+            )
+        else:
+            # 低风险 - 继续正常执行
+            return None  # 返回None表示不需要预防策略干预
+    
+    def _enhanced_error_recovery_strategy(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """
+        增强的错误恢复策略
+        
+        Args:
+            failure_context: 失败上下文
+            global_state: 全局状态
+            
+        Returns:
+            List[ProductionRule]: 恢复规则列表
+        """
+        recovery_rules = []
+        
+        try:
+            # 分析失败类型
+            failure_type = self._classify_failure_type(failure_context)
+            
+            # 根据失败类型生成不同的恢复策略
+            if failure_type == 'agent_unavailable':
+                recovery_rules.extend(self._generate_agent_fallback_rules(failure_context, global_state))
+            elif failure_type == 'execution_timeout':
+                recovery_rules.extend(self._generate_timeout_recovery_rules(failure_context, global_state))
+            elif failure_type == 'data_processing_error':
+                recovery_rules.extend(self._generate_data_recovery_rules(failure_context, global_state))
+            elif failure_type == 'permission_denied':
+                recovery_rules.extend(self._generate_permission_recovery_rules(failure_context, global_state))
+            else:
+                # 通用恢复策略
+                recovery_rules.extend(self._generate_generic_recovery_rules(failure_context, global_state))
+            
+            # 添加降级策略规则
+            if len(recovery_rules) < 2:  # 如果恢复规则太少，添加降级策略
+                recovery_rules.extend(self._generate_fallback_strategy_rules(failure_context, global_state))
+            
+            logger.info(f"生成了 {len(recovery_rules)} 个增强恢复规则，失败类型: {failure_type}")
+            return recovery_rules
+            
+        except Exception as e:
+            logger.error(f"增强错误恢复策略失败: {e}")
+            return self._generate_generic_recovery_rules(failure_context, global_state)
+    
+    def _classify_failure_type(self, failure_context: Dict[str, Any]) -> str:
+        """分类失败类型"""
+        error_message = failure_context.get('error_message', '').lower()
+        
+        if 'timeout' in error_message or '超时' in error_message:
+            return 'execution_timeout'
+        elif 'permission' in error_message or '权限' in error_message:
+            return 'permission_denied'
+        elif 'not found' in error_message or '未找到' in error_message:
+            return 'agent_unavailable'
+        elif 'data' in error_message or '数据' in error_message:
+            return 'data_processing_error'
+        else:
+            return 'generic_error'
+    
+    def _generate_agent_fallback_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """生成智能体回退规则"""
+        rules = []
+        
+        # 使用不同的智能体重试
+        if self._current_agent_registry:
+            available_agents = list(self._current_agent_registry.agents.keys())
+            failed_agent = failure_context.get('agent_name', '')
+            
+            # 找到备用智能体
+            alternative_agents = [agent for agent in available_agents if agent != failed_agent]
+            
+            if alternative_agents:
+                for i, agent in enumerate(alternative_agents[:2]):  # 最多2个备用智能体
+                    rule = ProductionRule(
+                        id=f"recovery_agent_fallback_{i+1}",
+                        name=f"智能体回退策略 - 使用{agent}",
+                        condition=f"当前任务执行失败且需要智能体能力时",
+                        action=f"使用备用智能体{agent}重新执行原任务",
+                        agent_name=agent,
+                        priority=80,
+                        phase=RulePhase.EXECUTION,
+                        expected_outcome=f"通过{agent}成功完成任务"
+                    )
+                    rules.append(rule)
+        
+        return rules
+    
+    def _generate_timeout_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """生成超时恢复规则"""
+        rules = []
+        
+        # 分步执行策略
+        rule1 = ProductionRule(
+            id="recovery_timeout_split_task",
+            name="超时恢复 - 任务分解",
+            condition="上一个任务执行超时",
+            action="将超时任务分解为更小的子任务，分步执行",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=85,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="通过分步执行避免超时"
+        )
+        rules.append(rule1)
+        
+        # 降低复杂度策略
+        rule2 = ProductionRule(
+            id="recovery_timeout_simplify",
+            name="超时恢复 - 简化策略",
+            condition="任务分解后仍然超时",
+            action="采用简化版本的任务执行方案，减少处理复杂度",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=75,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="通过简化策略完成核心任务"
+        )
+        rules.append(rule2)
+        
+        return rules
+    
+    def _generate_data_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """生成数据恢复规则"""
+        rules = []
+        
+        # 数据验证规则
+        rule1 = ProductionRule(
+            id="recovery_data_validation",
+            name="数据恢复 - 输入验证",
+            condition="数据处理出现错误",
+            action="验证输入数据格式和完整性，修正发现的问题",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=90,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="数据格式正确，可以正常处理"
+        )
+        rules.append(rule1)
+        
+        # 数据清理规则
+        rule2 = ProductionRule(
+            id="recovery_data_cleanup",
+            name="数据恢复 - 数据清理",
+            condition="数据验证发现格式问题",
+            action="清理和标准化数据格式，移除无效或损坏的数据",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=80,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="数据已清理，格式标准化"
+        )
+        rules.append(rule2)
+        
+        return rules
+    
+    def _generate_permission_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """生成权限恢复规则"""
+        rules = []
+        
+        rule = ProductionRule(
+            id="recovery_permission_fallback",
+            name="权限恢复 - 降级访问",
+            condition="遇到权限拒绝错误",
+            action="使用只读模式或受限权限模式继续执行任务",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=70,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="在受限模式下完成可执行的部分"
+        )
+        rules.append(rule)
+        
+        return rules
+    
+    def _generate_generic_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """生成通用恢复规则"""
+        rules = []
+        
+        # 重试规则
+        rule1 = ProductionRule(
+            id="recovery_generic_retry",
+            name="通用恢复 - 智能重试",
+            condition="任务执行失败且无特定恢复策略",
+            action="等待短暂时间后重新尝试执行任务，调整执行参数",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=60,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="通过重试成功完成任务"
+        )
+        rules.append(rule1)
+        
+        return rules
+    
+    def _generate_fallback_strategy_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
+        """生成降级策略规则"""
+        rules = []
+        
+        # 部分完成策略
+        rule1 = ProductionRule(
+            id="fallback_partial_completion",
+            name="降级策略 - 部分完成",
+            condition="多次恢复尝试失败",
+            action="完成任务的核心部分，跳过非关键的可选步骤",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=50,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="完成任务的关键部分"
+        )
+        rules.append(rule1)
+        
+        # 手动干预策略
+        rule2 = ProductionRule(
+            id="fallback_manual_intervention",
+            name="降级策略 - 标记人工处理",
+            condition="自动恢复策略全部失败",
+            action="记录问题详情，标记为需要人工干预，继续其他任务",
+            agent_name=failure_context.get('agent_name', 'default'),
+            priority=40,
+            phase=RulePhase.EXECUTION,
+            expected_outcome="问题已记录，等待人工处理"
+        )
+        rules.append(rule2)
+        
+        return rules

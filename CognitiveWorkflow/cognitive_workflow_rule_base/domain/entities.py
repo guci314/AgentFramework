@@ -165,8 +165,213 @@ class RuleExecution:
 
 
 @dataclass
+class WorkflowState:
+    """
+    增强版工作流状态管理 - 解决死循环问题的核心类
+    
+    新增功能:
+    - 执行规则历史跟踪
+    - 完成任务列表管理
+    - 失败尝试记录
+    - 循环检测机制
+    """
+    id: str
+    state: str                  # 自然语言状态描述
+    context_variables: Dict[str, Any] = field(default_factory=dict)
+    execution_history: List[str] = field(default_factory=list)
+    workflow_id: str = ""
+    iteration_count: int = 0
+    goal_achieved: bool = False
+    
+    # 🔑 关键增强：防止死循环的核心字段
+    executed_rules: set = field(default_factory=set)           # 已执行规则ID集合
+    completed_tasks: List[str] = field(default_factory=list)   # 已完成任务列表
+    failed_attempts: Dict[str, int] = field(default_factory=dict)  # 规则失败次数计数
+    last_decision_context: Dict[str, Any] = field(default_factory=dict)  # 上次决策上下文
+    
+    # 循环检测相关
+    state_fingerprints: List[str] = field(default_factory=list)  # 状态指纹历史
+    consecutive_same_rule_count: int = 0                         # 连续执行相同规则计数
+    last_executed_rule_id: Optional[str] = None                 # 上次执行的规则ID
+    
+    def __post_init__(self):
+        """初始化后验证和处理"""
+        # 确保executed_rules是set类型
+        if not isinstance(self.executed_rules, set):
+            self.executed_rules = set(self.executed_rules) if self.executed_rules else set()
+    
+    def mark_rule_executed(self, rule_id: str, success: bool = True) -> None:
+        """标记规则已执行"""
+        self.executed_rules.add(rule_id)
+        
+        # 更新连续相同规则计数
+        if rule_id == self.last_executed_rule_id:
+            self.consecutive_same_rule_count += 1
+        else:
+            self.consecutive_same_rule_count = 1
+            self.last_executed_rule_id = rule_id
+        
+        # 记录失败尝试
+        if not success:
+            self.failed_attempts[rule_id] = self.failed_attempts.get(rule_id, 0) + 1
+    
+    def is_rule_executed(self, rule_id: str) -> bool:
+        """检查规则是否已执行"""
+        return rule_id in self.executed_rules
+    
+    def add_completed_task(self, task_description: str) -> None:
+        """添加已完成任务"""
+        if task_description not in self.completed_tasks:
+            self.completed_tasks.append(task_description)
+    
+    def get_rule_failure_count(self, rule_id: str) -> int:
+        """获取规则失败次数"""
+        return self.failed_attempts.get(rule_id, 0)
+    
+    def should_skip_rule(self, rule_id: str, max_failures: int = 3) -> bool:
+        """判断是否应该跳过规则（失败次数过多）"""
+        return self.get_rule_failure_count(rule_id) >= max_failures
+    
+    def detect_potential_loop(self, max_consecutive: int = 3) -> bool:
+        """检测潜在的死循环"""
+        return self.consecutive_same_rule_count >= max_consecutive
+    
+    def generate_state_fingerprint(self) -> str:
+        """生成状态指纹用于循环检测"""
+        import hashlib
+        
+        # 创建状态的唯一标识
+        fingerprint_data = {
+            'state': self.state,
+            'executed_rules': sorted(list(self.executed_rules)),
+            'completed_tasks': self.completed_tasks,
+            'iteration': self.iteration_count
+        }
+        
+        fingerprint_str = json.dumps(fingerprint_data, sort_keys=True)
+        return hashlib.md5(fingerprint_str.encode()).hexdigest()[:16]
+    
+    def check_state_cycle(self, lookback_window: int = 5) -> bool:
+        """检查状态是否陷入循环"""
+        current_fingerprint = self.generate_state_fingerprint()
+        
+        # 添加当前指纹到历史
+        self.state_fingerprints.append(current_fingerprint)
+        
+        # 只保留最近的指纹记录
+        if len(self.state_fingerprints) > lookback_window * 2:
+            self.state_fingerprints = self.state_fingerprints[-lookback_window * 2:]
+        
+        # 检查是否有重复的指纹在回溯窗口内
+        if len(self.state_fingerprints) >= lookback_window:
+            recent_fingerprints = self.state_fingerprints[-lookback_window:]
+            return current_fingerprint in recent_fingerprints[:-1]  # 排除当前指纹
+        
+        return False
+    
+    def get_available_rules(self, all_rules: List['ProductionRule']) -> List['ProductionRule']:
+        """获取可执行的规则列表（过滤已执行和失败过多的规则）"""
+        available_rules = []
+        
+        for rule in all_rules:
+            # 跳过已执行的规则
+            if self.is_rule_executed(rule.id):
+                continue
+            
+            # 跳过失败次数过多的规则
+            if self.should_skip_rule(rule.id):
+                continue
+            
+            available_rules.append(rule)
+        
+        return available_rules
+    
+    def reset_rule_execution_state(self, rule_id: str) -> None:
+        """重置规则执行状态（用于错误恢复）"""
+        self.executed_rules.discard(rule_id)
+        if rule_id in self.failed_attempts:
+            del self.failed_attempts[rule_id]
+    
+    def get_execution_summary(self) -> Dict[str, Any]:
+        """获取执行摘要信息"""
+        return {
+            'total_rules_executed': len(self.executed_rules),
+            'completed_tasks_count': len(self.completed_tasks),
+            'total_failures': sum(self.failed_attempts.values()),
+            'iteration_count': self.iteration_count,
+            'potential_loop_detected': self.detect_potential_loop(),
+            'state_cycle_detected': self.check_state_cycle() if self.state_fingerprints else False,
+            'most_failed_rule': max(self.failed_attempts.items(), key=lambda x: x[1])[0] if self.failed_attempts else None
+        }
+    
+    def update_from_result(self, execution_result: WorkflowResult, executed_rule_id: Optional[str] = None) -> 'WorkflowState':
+        """根据执行结果更新状态，返回新的状态实例"""
+        # 创建新的状态实例（保持不可变性）
+        new_state = WorkflowState(
+            id=f"{self.id}_iter_{self.iteration_count + 1}",
+            state=self.state,
+            context_variables=self.context_variables.copy(),
+            execution_history=self.execution_history.copy(),
+            workflow_id=self.workflow_id,
+            iteration_count=self.iteration_count + 1,
+            goal_achieved=self.goal_achieved,
+            
+            # 复制增强字段
+            executed_rules=self.executed_rules.copy(),
+            completed_tasks=self.completed_tasks.copy(),
+            failed_attempts=self.failed_attempts.copy(),
+            last_decision_context=self.last_decision_context.copy(),
+            state_fingerprints=self.state_fingerprints.copy(),
+            consecutive_same_rule_count=self.consecutive_same_rule_count,
+            last_executed_rule_id=self.last_executed_rule_id
+        )
+        
+        # 标记规则执行
+        if executed_rule_id:
+            new_state.mark_rule_executed(executed_rule_id, execution_result.success)
+        
+        # 更新执行历史
+        history_entry = f"[iter_{new_state.iteration_count}] {execution_result.message}"
+        new_state.execution_history.append(history_entry)
+        
+        # 更新上下文变量
+        if execution_result.metadata:
+            new_state.context_variables.update(execution_result.metadata)
+        
+        # 如果执行成功，可能需要更新状态描述
+        if execution_result.success and execution_result.data:
+            if isinstance(execution_result.data, dict) and 'new_state' in execution_result.data:
+                new_state.state = execution_result.data['new_state']
+            
+            # 添加完成的任务
+            if isinstance(execution_result.data, dict) and 'completed_task' in execution_result.data:
+                new_state.add_completed_task(execution_result.data['completed_task'])
+        
+        return new_state
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'id': self.id,
+            'state': self.state,
+            'context_variables': self.context_variables,
+            'execution_history': self.execution_history,
+            'workflow_id': self.workflow_id,
+            'iteration_count': self.iteration_count,
+            'goal_achieved': self.goal_achieved,
+            'executed_rules': list(self.executed_rules),
+            'completed_tasks': self.completed_tasks,
+            'failed_attempts': self.failed_attempts,
+            'last_decision_context': self.last_decision_context,
+            'consecutive_same_rule_count': self.consecutive_same_rule_count,
+            'last_executed_rule_id': self.last_executed_rule_id,
+            'execution_summary': self.get_execution_summary()
+        }
+
+
+@dataclass
 class GlobalState:
-    """全局状态实体 - 系统的全局状态管理"""
+    """全局状态实体 - 系统的全局状态管理（保持向后兼容）"""
     id: str
     state: str                  # 自然语言状态描述
     context_variables: Dict[str, Any] = field(default_factory=dict)

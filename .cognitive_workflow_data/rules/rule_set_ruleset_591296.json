@@ -1,0 +1,42 @@
+{
+  "id": "ruleset_591296",
+  "goal": "读取/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt,并执行其中的指令",
+  "rules": [
+    {
+      "id": "rule_311536",
+      "name": "读取指令文件",
+      "condition": "IF 目标是读取并执行'command.txt'文件中的指令",
+      "action": "读取文件 '/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt' 的全部内容，并将其存储以供后续步骤使用。",
+      "agent_name": "main_agent",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "文件'command.txt'的内容被成功读取到内存中。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_398186",
+      "name": "执行文件中的指令",
+      "condition": "IF 'command.txt'文件的内容已被成功读取",
+      "action": "将从文件中读取到的内容作为shell指令进行执行，并捕获执行的输出和返回状态。",
+      "agent_name": "main_agent",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "文件中的指令被系统成功执行，并记录了执行结果。",
+      "metadata": {}
+    },
+    {
+      "id": "rule_944531",
+      "name": "验证指令执行结果",
+      "condition": "IF 文件中的指令已被执行",
+      "action": "检查上一步指令执行的返回状态码。如果状态码为0，则认为执行成功；否则，记录错误信息。",
+      "agent_name": "main_agent",
+      "priority": 50,
+      "phase": "verification",
+      "expected_outcome": "确认指令执行成功（返回码为0），或已捕获到相关的错误信息。",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

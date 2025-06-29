@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_597148",
+  "goal": "读取/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt,并执行其中的指令",
+  "rules": [
+    {
+      "id": "rule_390803",
+      "name": "check_command_file_existence",
+      "condition": "IF 需要执行command.txt中的指令",
+      "action": "THEN 检查文件/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt是否存在",
+      "agent_name": "main_agent",
+      "priority": 90,
+      "phase": "information_gathering",
+      "expected_outcome": "确认command.txt文件存在且可读",
+      "metadata": {}
+    },
+    {
+      "id": "rule_821454",
+      "name": "read_command_file",
+      "condition": "IF command.txt文件确认存在",
+      "action": "THEN 读取/home/guci/aiProjects/AgentFrameWork/CognitiveWorkflow/command.txt文件内容",
+      "agent_name": "main_agent",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "获取command.txt文件中的指令内容",
+      "metadata": {}
+    },
+    {
+      "id": "rule_503749",
+      "name": "execute_commands",
+      "condition": "IF 已获取command.txt中的指令内容",
+      "action": "THEN 逐行执行command.txt中的指令",
+      "agent_name": "main_agent",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "成功执行所有指令",
+      "metadata": {}
+    },
+    {
+      "id": "rule_157101",
+      "name": "verify_execution_results",
+      "condition": "IF 指令执行完成",
+      "action": "THEN 检查每条指令的执行结果是否成功",
+      "agent_name": "main_agent",
+      "priority": 60,
+      "phase": "verification",
+      "expected_outcome": "确认所有指令都成功执行",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

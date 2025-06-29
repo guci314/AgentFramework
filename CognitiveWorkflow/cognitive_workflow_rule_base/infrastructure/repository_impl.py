@@ -20,6 +20,7 @@ from ..domain.repositories import (
     RuleRepository, StateRepository, ExecutionRepository
 )
 from ..domain.value_objects import RulePhase, ExecutionStatus
+from ..utils.concurrent_safe_id_generator import id_generator, SafeFileOperations
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,15 @@ class RuleRepositoryImpl(RuleRepository):
         self._load_existing_data()
     
     def save_rule_set(self, rule_set: RuleSet) -> None:
-        """保存规则集"""
+        """保存规则集（并发安全）"""
         try:
             file_path = self.storage_path / f"rule_set_{rule_set.id}.json"
+            
+            # 🔑 检查文件冲突
+            if SafeFileOperations.check_file_conflict(file_path):
+                logger.warning(f"检测到文件冲突，等待后重试: {file_path}")
+                import time
+                time.sleep(0.1)
             
             # 转换为可序列化的格式
             rule_set_data = {
@@ -61,15 +68,16 @@ class RuleRepositoryImpl(RuleRepository):
                 'modification_history': [self._modification_to_dict(mod) for mod in rule_set.modification_history]
             }
             
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(rule_set_data, f, ensure_ascii=False, indent=2)
+            # 🔑 使用原子性写入
+            if not SafeFileOperations.atomic_write_json(file_path, rule_set_data):
+                raise IOError(f"原子性写入失败: {file_path}")
             
             # 更新缓存
             self._rule_sets_cache[rule_set.id] = rule_set
             for rule in rule_set.rules:
                 self._rules_cache[rule.id] = rule
             
-            logger.debug(f"规则集已保存: {rule_set.id}")
+            logger.debug(f"规则集已安全保存: {rule_set.id}")
             
         except Exception as e:
             logger.error(f"保存规则集失败: {e}")
@@ -348,14 +356,21 @@ class StateRepositoryImpl(StateRepository):
         self._workflow_states: Dict[str, List[GlobalState]] = {}
     
     def save_state(self, global_state: GlobalState) -> None:
-        """保存状态"""
+        """保存状态（并发安全）"""
         try:
             file_path = self.storage_path / f"state_{global_state.id}.json"
             
+            # 🔑 检查文件冲突
+            if SafeFileOperations.check_file_conflict(file_path):
+                logger.warning(f"检测到状态文件冲突，等待后重试: {file_path}")
+                import time
+                time.sleep(0.05)
+            
             state_data = global_state.to_dict()
             
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(state_data, f, ensure_ascii=False, indent=2)
+            # 🔑 使用原子性写入
+            if not SafeFileOperations.atomic_write_json(file_path, state_data):
+                raise IOError(f"状态原子性写入失败: {file_path}")
             
             # 更新缓存
             self._states_cache[global_state.id] = global_state
@@ -367,7 +382,7 @@ class StateRepositoryImpl(StateRepository):
                     self._workflow_states[workflow_id] = []
                 self._workflow_states[workflow_id].append(global_state)
             
-            logger.debug(f"状态已保存: {global_state.id}")
+            logger.debug(f"状态已安全保存: {global_state.id}")
             
         except Exception as e:
             logger.error(f"保存状态失败: {e}")

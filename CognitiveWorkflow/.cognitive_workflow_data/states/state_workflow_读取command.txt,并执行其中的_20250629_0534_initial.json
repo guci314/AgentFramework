@@ -1,0 +1,13 @@
+{
+  "id": "workflow_读取command.txt,并执行其中的_20250629_0534_initial",
+  "state": "工作流已启动，目标：读取command.txt,并执行其中的指令。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "读取command.txt,并执行其中的指令"
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_读取command.txt,并执行其中的_20250629_0534",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

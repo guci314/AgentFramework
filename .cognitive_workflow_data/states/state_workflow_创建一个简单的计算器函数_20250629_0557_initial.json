@@ -1,0 +1,13 @@
+{
+  "id": "workflow_创建一个简单的计算器函数_20250629_0557_initial",
+  "state": "工作流已启动，目标：创建一个简单的计算器函数。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "创建一个简单的计算器函数"
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_创建一个简单的计算器函数_20250629_0557",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

@@ -2,40 +2,34 @@
 
 ## 概述
 
-基于产生式规则的Agent包装器是一个简洁的设计模式，将`pythonTask.py`中的基础`Agent`类包装成具备认知推理能力的智能体。该包装器使用IF-THEN产生式规则系统，让Agent能够处理复杂的多步骤任务。
+使用包装器设计模式，通过RuleEngineService将`pythonTask.py`中的基础`Agent`类包装成具备认知工作流能力的智能体。
 
-## 核心理念
+**实现文件：** `cognitive_workflow_agent_wrapper.py`
 
-### 产生式规则系统
-- **IF-THEN规则**：基于自然语言的条件-动作模式
-- **语义匹配**：LLM驱动的规则条件匹配
-- **动态生成**：运行时智能生成新规则
-- **自我修正**：基于执行结果的规则优化
+**文件位置：** `CognitiveWorkflow/cognitive_workflow_rule_base/cognitive_workflow_agent_wrapper.py`
 
 ## 系统架构
 
 ```mermaid
 graph TB
-    subgraph "认知Agent包装器"
+    subgraph "认知工作流Agent包装器"
         subgraph "包装器层"
-            CogWrapper["CognitiveAgentWrapper<br/>认知包装器<br/>🧠"]
+            CogWrapper["CognitiveAgent<br/>认知包装器<br/>🧠"]
         end
         
         subgraph "认知工作流层"
             RuleEngine["产生式规则引擎<br/>📐"]
-            RuleGen["规则生成器<br/>🔧"]
-            StateManager["状态管理器<br/>📊"]
+            
         end
         
         subgraph "基础Agent层"
-            BaseAgent["pythonTask.Agent<br/>基础智能体<br/>🤖"]
+            Agent["pythonTask.Agent<br/>基础智能体<br/>🤖"]
         end
     end
     
     CogWrapper --> RuleEngine
-    RuleEngine --> RuleGen
-    RuleEngine --> StateManager
-    RuleEngine --> BaseAgent
+    RuleEngine --> Agent
+    
 ```
 
 ## 包装器接口
@@ -43,92 +37,172 @@ graph TB
 ### 核心包装器类
 
 ```python
-class CognitiveAgentWrapper:
+class CognitiveAgent:
     """基于产生式规则的Agent包装器"""
     
     def __init__(self, 
                  base_agent: Agent,
-                 additional_agents: Dict[str, Agent] = None,
-                 llm: BaseChatModel = None,
                  enable_auto_recovery: bool = True):
         """
         初始化认知Agent包装器
         
         Args:
             base_agent: 基础Agent实例
-            additional_agents: 额外的专用Agent字典
-            llm: 用于规则推理的语言模型
             enable_auto_recovery: 是否启用自动错误恢复
         """
         self.base_agent = base_agent
-        self.llm = llm or base_agent.llm
         
         # 构建Agent集合
         self.agents = {"main_agent": base_agent}
-        if additional_agents:
-            self.agents.update(additional_agents)
         
         # 创建认知工作流引擎
         self.workflow_engine = create_production_rule_system(
-            llm=self.llm,
+            llm=base_agent.llm,
             agents=self.agents,
             enable_auto_recovery=enable_auto_recovery
         )
     
-    def execute_goal(self, goal: str) -> WorkflowExecutionResult:
-        """执行目标任务"""
+    def classify_instruction(self, instruction: str) -> tuple[str, str]:
+        """
+        指令分类方法
+        
+        Args:
+            instruction: 输入指令
+            
+        Returns:
+            tuple[str, str]: (指令类型, 执行方式)
+            - 指令类型: "informational" | "executable" 
+            - 执行方式: "single_step" | "multi_step" | "chat"
+        """
+        # 使用LLM分析指令类型
+        classification_prompt = f"""
+分析以下指令的类型：
+
+指令: "{instruction}"
+
+请判断这是：
+1. 信息性指令 -> 返回: informational
+   - 特征：询问、查询、解释、讨论、学习等
+   - 行为：只通过chat_sync/chat_stream改变Agent的记忆和知识状态
+   - 限制：不会对外部世界做观察或执行任何行为操作
+   - 示例：什么是机器学习？解释Python装饰器、讨论算法复杂度
+   
+2. 执行性指令 -> 返回: executable
+   - 特征：创建、编写、实现、开发、运行、测试等
+   - 行为：需要对外部世界进行观察或执行具体操作
+   - 包括：文件操作、代码执行、系统调用、网络请求等
+   - 示例：写代码、创建文件、运行程序、部署应用
+
+如果是执行性指令，进一步判断复杂度：
+- 单步骤指令（简单任务，一步完成） -> 返回: single_step  
+- 多步骤指令（复杂任务，需要多个步骤） -> 返回: multi_step
+
+请只返回分类结果，格式：类型|步骤复杂度
+例如：informational|chat 或 executable|single_step 或 executable|multi_step
+"""
+        
+        try:
+            response = self.base_agent.llm.invoke(classification_prompt).content.strip()
+            parts = response.split('|')
+            if len(parts) == 2:
+                instruction_type = parts[0].strip()
+                execution_mode = parts[1].strip()
+                return instruction_type, execution_mode
+            else:
+                # 默认为多步骤执行性指令
+                return "executable", "multi_step"
+        except Exception:
+            # 异常情况下默认为多步骤执行性指令
+            return "executable", "multi_step"
+    
+    def execute_instruction_syn(self, instruction: str):
+        """
+        智能执行指令（同步版本）
+        
+        Args:
+            instruction: 输入指令
+            
+        Returns:
+            根据指令类型返回相应结果:
+            - 信息性指令: chat_sync的返回值
+            - 单步骤执行性指令: execute_sync的Result对象
+            - 多步骤执行性指令: WorkflowExecutionResult对象
+        """
+        instruction_type, execution_mode = self.classify_instruction(instruction)
+        
+        if instruction_type == "informational":
+            # 信息性指令：使用chat_sync方法
+            return self.base_agent.chat_sync(instruction)
+                
+        elif instruction_type == "executable":
+            if execution_mode == "single_step":
+                # 单步骤执行性指令：使用execute_sync方法
+                return self.base_agent.execute_sync(instruction)
+            else:
+                # 多步骤执行性指令：使用认知工作流
+                return self.execute_multi_step(instruction)
+        
+        # 默认情况：使用认知工作流
+        return self.execute_multi_step(instruction)
+    
+    def execute_instruction_stream(self, instruction: str) -> Iterator[object]:
+        """
+        智能执行指令（流式版本）
+        
+        Args:
+            instruction: 输入指令
+            
+        Returns:
+            Iterator[object]: 流式输出迭代器
+            - 前面的元素：中间过程信息（字符串状态、进度提示等）
+            - 最后一个元素：Result对象（最终执行结果）
+            
+        执行路由:
+            - 信息性指令: chat_stream的迭代器
+            - 单步骤执行性指令: execute_stream的迭代器  
+            - 多步骤执行性指令: execute_multi_step_stream的迭代器
+        """
+        instruction_type, execution_mode = self.classify_instruction(instruction)
+        
+        yield f"🔍 指令分析: {instruction_type} | {execution_mode}"
+        
+        if instruction_type == "informational":
+            # 信息性指令：使用chat_stream方法
+            for result in self.base_agent.chat_stream(instruction):
+                yield result
+                
+        elif instruction_type == "executable":
+            if execution_mode == "single_step":
+                # 单步骤执行性指令：使用execute_stream方法
+                for result in self.base_agent.execute_stream(instruction):
+                    yield result
+            else:
+                # 多步骤执行性指令：使用认知工作流
+                for result in self.execute_multi_step_stream(instruction):
+                    yield result
+        else:
+            # 默认情况：使用认知工作流
+            for result in self.execute_multi_step_stream(instruction):
+                yield result
+    
+    def execute_multi_step(self, goal: str) -> WorkflowExecutionResult:
+        """执行多步骤目标任务（使用认知工作流）"""
         return self.workflow_engine.execute_goal(goal)
     
-    def execute_sync(self, instruction: str) -> Result:
-        """保持Agent接口兼容性（同步）"""
-        workflow_result = self.execute_goal(instruction)
+    def execute_multi_step_stream(self, goal: str) -> Iterator[object]:
+        """执行多步骤目标任务（流式，使用认知工作流）"""
+        yield f"🧠 开始认知工作流分析: {goal}"
+        yield f"📋 生成执行规则..."
         
-        # 转换为Agent Result格式
-        return Result(
-            success=workflow_result.is_successful,
-            stdout=workflow_result.final_message,
-            stderr="" if workflow_result.is_successful else workflow_result.final_message,
-            code="",
-            return_value=workflow_result.final_message
-        )
+        workflow_result = self.execute_multi_step(goal)
+        
+        yield f"⚙️ 执行中... ({workflow_result.total_iterations}步骤)"
+        yield f"✅ 认知工作流完成"
+        yield workflow_result
     
-    def execute_stream(self, instruction: str) -> Iterator[object]:
-        """保持Agent接口兼容性（流式）"""
-        # 简化实现：直接返回最终结果
-        result = self.execute_sync(instruction)
-        yield f"开始执行认知工作流: {instruction}"
-        yield f"使用产生式规则推理..."
-        yield f"执行完成"
-        yield result
+    
 ```
 
-## 产生式规则工作原理
-
-### 1. 规则生成
-系统会根据目标自动生成IF-THEN规则：
-```
-IF 需要编写Python代码 THEN 调用代码专家Agent
-IF 需要测试代码 THEN 调用测试专家Agent  
-IF 需要分析数据 THEN 调用数据分析Agent
-```
-
-### 2. 规则匹配
-使用LLM进行语义匹配：
-- 分析当前状态和目标
-- 匹配适用的规则条件
-- 选择最合适的规则执行
-
-### 3. 动作执行
-执行规则的THEN部分：
-- 调用指定的Agent
-- 执行自然语言指令
-- 收集执行结果
-
-### 4. 状态更新
-根据执行结果更新全局状态：
-- 记录执行历史
-- 更新上下文变量
-- 判断是否达成目标
 
 ## 使用示例
 
@@ -136,178 +210,136 @@ IF 需要分析数据 THEN 调用数据分析Agent
 
 ```python
 from pythonTask import Agent, llm_deepseek
-from cognitive_workflow_rule_base import CognitiveAgentWrapper
+from CognitiveWorkflow.cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
 
 # 创建基础Agent
 base_agent = Agent(llm=llm_deepseek)
 
 # 包装成认知Agent
-cognitive_agent = CognitiveAgentWrapper(
+cognitive_agent = CognitiveAgent(
     base_agent=base_agent,
     enable_auto_recovery=True
 )
 
-# 执行复杂任务
-result = cognitive_agent.execute_goal(
-    "创建一个计算器程序，包含加减乘除功能，并编写测试"
+# 准备测试环境：创建命令文件
+# echo "写个python的hello world程序" > command.txt
+
+# 智能指令路由 - 自动识别指令类型并选择合适的执行方式
+result1 = cognitive_agent.execute_instruction_syn("什么是机器学习？")     # 信息性指令 -> chat_sync
+result2 = cognitive_agent.execute_instruction_syn("打印hello world")    # 单步骤指令 -> execute_sync  
+
+# 假设存在文件 command.txt，内容为："写个python的hello world程序"
+result3 = cognitive_agent.execute_instruction_syn("读取command.txt,并执行其中的指令") # 多步骤指令 -> 认知工作流
+
+print(f"信息性结果: {result1}")                    # chat_sync返回值
+print(f"单步骤结果: {result2.return_value}")        # Result对象
+print(f"多步骤结果: {result3.final_message}")       # WorkflowExecutionResult对象（读取文件并执行指令的结果）
+```
+
+### 指令分类演示
+
+```python
+# 手动分类测试
+instruction_type, execution_mode = cognitive_agent.classify_instruction("解释Python装饰器")
+print(f"指令类型: {instruction_type}, 执行方式: {execution_mode}")
+# 输出: 指令类型: informational, 执行方式: chat
+
+instruction_type, execution_mode = cognitive_agent.classify_instruction("写一个排序函数")
+print(f"指令类型: {instruction_type}, 执行方式: {execution_mode}")
+# 输出: 指令类型: executable, 执行方式: single_step
+
+instruction_type, execution_mode = cognitive_agent.classify_instruction("开发一个电商系统")
+print(f"指令类型: {instruction_type}, 执行方式: {execution_mode}")
+# 输出: 指令类型: executable, 执行方式: multi_step
+```
+
+### 流式执行
+
+```python
+# 流式执行 - 自动路由（前面是过程，最后是结果）
+stream_results = list(cognitive_agent.execute_instruction_stream("创建一个计算器程序，包含测试"))
+
+# 处理中间过程
+for i, update in enumerate(stream_results):
+    if i < len(stream_results) - 1:
+        print(f"进度 {i+1}: {update}")  # 中间过程信息
+    else:
+        print(f"最终结果: {update}")     # 最后一个元素是Result对象
+
+# 或者直接遍历
+result=None
+for update in cognitive_agent.execute_instruction_stream("解释Python GIL机制"):
+    result=update
+    # 判断result是否为字符串类型
+    if isinstance(result, str):
+        print(result, flush=True, end='')
+        
+print(f"最终结果: {result}")
+
+# 获取最终结果的便捷方法
+stream_iterator = cognitive_agent.execute_instruction_stream("运行python -c 'print(42)'")
+*process_updates, final_result = stream_iterator
+print(f"执行过程: {process_updates}")    # 所有中间过程
+print(f"最终结果: {final_result}")       # Result对象
+```
+
+### 智能路由方法对比
+
+```python
+# 同步智能路由方法 - 返回不同类型的结果对象
+chat_result = cognitive_agent.execute_instruction_syn("什么是Python？")
+print(f"Chat结果类型: {type(chat_result)}")  # chat_sync的返回值
+
+exec_result = cognitive_agent.execute_instruction_syn("计算1+1") 
+print(f"执行结果类型: {type(exec_result)}")  # Result对象
+print(f"执行结果值: {exec_result.return_value}")
+
+workflow_result = cognitive_agent.execute_instruction_syn("开发Web应用")
+print(f"工作流结果类型: {type(workflow_result)}")  # WorkflowExecutionResult对象
+print(f"工作流成功: {workflow_result.is_successful}")
+
+# 流式智能路由方法 - 统一返回Iterator[object]
+# 前面是过程信息，最后是Result对象
+stream_items = list(cognitive_agent.execute_instruction_stream("什么是机器学习？"))
+for i, item in enumerate(stream_items):
+    if i < len(stream_items) - 1:
+        print(f"过程 {i+1}: {item}")      # 中间过程信息
+    else:
+        print(f"最终结果: {item}")        # Result对象
+```
+
+### 直接调用特定方法
+
+```python
+# 直接调用多步骤认知工作流
+workflow_result = cognitive_agent.execute_multi_step(
+    "创建一个包含用户认证的Web API"
 )
-
-print(f"任务成功: {result.is_successful}")
-print(f"执行步骤: {result.total_iterations}")
-print(f"最终结果: {result.final_message}")
+print(f"任务成功: {workflow_result.is_successful}")
+print(f"执行步骤: {workflow_result.total_iterations}")
+print(f"最终结果: {workflow_result.final_message}")
 ```
 
-### 多Agent协作
-
-```python
-# 创建专用Agent
-coder = Agent(llm=llm_deepseek)
-coder.api_specification = "代码专家，擅长编写和调试代码"
-
-tester = Agent(llm=llm_deepseek) 
-tester.api_specification = "测试专家，擅长编写测试用例"
-
-# 使用多Agent认知包装器
-cognitive_agent = CognitiveAgentWrapper(
-    base_agent=coder,
-    additional_agents={
-        "coder": coder,
-        "tester": tester
-    }
-)
-
-# 执行需要多Agent协作的任务
-result = cognitive_agent.execute_goal(
-    "开发一个Web API，包含用户认证功能，需要完整的测试覆盖"
-)
-```
-
-### 兼容性使用
-
-```python
-# 作为普通Agent使用（保持接口兼容）
-result = cognitive_agent.execute_sync("写一个hello world程序")
-print(f"结果: {result.return_value}")
-
-# 流式执行
-for update in cognitive_agent.execute_stream("分析sales.csv数据"):
-    if isinstance(update, str):
-        print(f"进度: {update}")
-    elif isinstance(update, Result):
-        print(f"最终结果: {update.return_value}")
-```
-
-## 核心优势
-
-### 🧠 智能推理
-- **语义理解**：深度理解任务意图和上下文
-- **自动规划**：智能分解复杂任务为执行步骤
-- **动态适应**：根据执行结果调整策略
-
-### 🔧 自动修正
-- **错误恢复**：自动检测和修复执行错误
-- **规则优化**：基于历史经验优化规则
-- **知识学习**：从执行过程中学习新知识
-
-### 🎯 简洁易用
-- **统一接口**：保持Agent原有API不变
-- **即插即用**：现有Agent代码无需修改
-- **灵活配置**：支持单Agent或多Agent模式
-
-### 📊 透明可控
-- **规则可视**：清晰的IF-THEN规则逻辑
-- **过程追踪**：详细的执行步骤记录
-- **状态管理**：完整的上下文状态跟踪
-
-## 工作流程图
-
-```mermaid
-flowchart TD
-    A[接收目标] --> B[分析目标意图]
-    B --> C[生成初始规则集]
-    C --> D[匹配适用规则]
-    D --> E{找到匹配规则?}
-    E -->|是| F[执行规则动作]
-    E -->|否| G[生成新规则]
-    G --> D
-    F --> H[收集执行结果]
-    H --> I[更新全局状态]
-    I --> J{目标已达成?}
-    J -->|否| D
-    J -->|是| K[返回最终结果]
-    
-    style A fill:#e1f5fe
-    style K fill:#c8e6c9
-    style F fill:#fff3e0
-```
-
-## 配置选项
-
-### 认知能力配置
-
-```python
-cognitive_agent = CognitiveAgentWrapper(
-    base_agent=agent,
-    enable_auto_recovery=True,        # 自动错误恢复
-    enable_adaptive_replacement=True,  # 自适应规则替换
-    max_iterations=20,                # 最大推理迭代次数
-    rule_generation_strategy="smart"   # 规则生成策略
-)
-```
-
-### Agent能力配置
-
-```python
-# 为Agent设置能力描述（提高规则匹配精度）
-agent.api_specification = """
-数据分析专家，擅长：
-- CSV/Excel数据处理
-- 统计分析和可视化
-- 数据清洗和转换
-"""
-
-# 加载专业知识
-agent.loadKnowledge("pandas和matplotlib使用最佳实践")
-```
-
-## 最佳实践
-
-### 1. Agent能力描述
-为每个Agent设置清晰的能力描述，帮助规则引擎正确选择Agent：
-
-```python
-coder.api_specification = "代码开发专家，精通Python、JavaScript、数据库设计"
-tester.api_specification = "质量保证专家，精通单元测试、集成测试、性能测试"
-```
-
-### 2. 知识预加载
-预先加载相关领域知识，提升执行效果：
-
-```python
-agent.loadKnowledge("项目使用FastAPI框架，数据库为PostgreSQL")
-```
-
-### 3. 渐进式任务分解
-将复杂任务逐步分解为更具体的目标：
-
-```python
-# 好的做法：具体明确的目标
-result = cognitive_agent.execute_goal(
-    "使用FastAPI创建用户注册API，包含邮箱验证和密码加密功能"
-)
-
-# 避免：过于宽泛的目标
-# "创建一个完整的社交媒体平台"
-```
 
 ## 总结
 
-基于产生式规则的Agent包装器提供了一种简洁而强大的方式，将基础Agent升级为具备认知推理能力的智能体。通过IF-THEN规则系统，Agent能够：
+基于产生式规则的Agent包装器提供了一种简洁而强大的方式，将基础Agent升级为具备认知推理能力的智能体。通过**智能指令分类系统**和**IF-THEN规则引擎**，Agent能够：
 
-- 🎯 **智能理解**复杂任务意图
-- 🔄 **自动分解**多步骤执行计划
-- 🧠 **动态推理**最优执行路径
-- 🛡️ **自我修正**错误和优化规则
-- 🔧 **无缝集成**现有Agent代码
+### 🧠 **智能指令路由**
+- **自动分类**：LLM驱动的指令类型识别
+- **智能选择**：根据指令特征选择最优执行方式
+- **透明执行**：保持原有Agent接口的完全兼容
 
-这种包装器设计既保持了Agent接口的简洁性，又大幅提升了处理复杂任务的能力，是Agent智能化升级的理想解决方案。 
+### 🎯 **三级执行策略**
+- **信息性指令** → `chat_sync/stream` (问答、解释类)
+- **单步骤指令** → `execute_sync/stream` (简单任务)  
+- **多步骤指令** → `认知工作流` (复杂任务)
+
+### 🔄 **核心能力增强**
+- 🎯 **智能理解**复杂任务意图和执行需求
+- 🔄 **自动分解**多步骤执行计划和推理链
+- 🧠 **动态推理**最优执行路径和资源调度
+- 🛡️ **自我修正**错误恢复和规则优化
+- 🔧 **无缝集成**现有Agent代码和工作流
+
+这种包装器设计不仅保持了Agent接口的简洁性，还通过智能分类大幅提升了处理各类任务的精确性和效率，是Agent智能化升级的理想解决方案。 
