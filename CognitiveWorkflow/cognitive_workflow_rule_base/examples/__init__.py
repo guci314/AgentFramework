@@ -12,6 +12,7 @@ Available Examples:
 - simple_cognitive_demo: CognitiveAgent简化演示
 - cognitive_agent_wrapper_test: CognitiveAgent包装器测试套件
 - test_api_specification: API规范继承功能测试 🆕
+- test_workflow_result_deduplication: WorkflowExecutionResult重复定义解决方案验证 🆕
 
 Quick Start:
 ```python
@@ -26,6 +27,9 @@ python cognitive_agent_wrapper_test.py
 
 # 测试API规范继承功能
 python test_api_specification.py
+
+# 验证WorkflowExecutionResult重复定义解决方案
+python test_workflow_result_deduplication.py
 ```
 """
 
@@ -35,5 +39,6 @@ __all__ = [
     'cognitive_agent_wrapper_demo',
     'simple_cognitive_demo',
     'cognitive_agent_wrapper_test',
-    'test_api_specification'
+    'test_api_specification',
+    'test_workflow_result_deduplication'
 ]

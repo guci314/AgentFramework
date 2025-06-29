@@ -29,20 +29,13 @@ if project_root not in sys.path:
 try:
     from cognitive_workflow_rule_base import create_production_rule_system
     from cognitive_workflow_rule_base.domain.value_objects import WorkflowExecutionResult
+    WORKFLOW_COMPONENTS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"无法导入认知工作流组件: {e}")
-    # 定义虚拟类以保证包装器基本功能可用
+    # 认知工作流组件不可用时的降级模式
     create_production_rule_system = None
-    
-    class WorkflowExecutionResult:
-        def __init__(self, goal="", is_successful=False, final_state="", total_iterations=0, execution_metrics=None, final_message="", completion_timestamp=None):
-            self.goal = goal
-            self.is_successful = is_successful
-            self.final_state = final_state
-            self.total_iterations = total_iterations
-            self.execution_metrics = execution_metrics
-            self.final_message = final_message
-            self.completion_timestamp = completion_timestamp
+    WorkflowExecutionResult = None
+    WORKFLOW_COMPONENTS_AVAILABLE = False
 
 
 class CognitiveAgent:
@@ -381,7 +374,7 @@ class CognitiveAgent:
             else:
                 raise
     
-    def execute_multi_step(self, goal: str) -> WorkflowExecutionResult:
+    def execute_multi_step(self, goal: str):
         """
         执行多步骤目标任务（使用认知工作流）
         
@@ -390,33 +383,22 @@ class CognitiveAgent:
             
         Returns:
             WorkflowExecutionResult: 工作流执行结果
+            
+        Raises:
+            RuntimeError: 当认知工作流组件不可用时
         """
+        if not WORKFLOW_COMPONENTS_AVAILABLE:
+            raise RuntimeError(
+                "认知工作流组件不可用，无法执行多步骤任务。"
+                "请确保cognitive_workflow_rule_base模块及其依赖项已正确安装。"
+            )
+        
         if self.workflow_engine is None:
-            logger.warning("⚠️ 认知工作流引擎不可用，使用基础Agent降级执行")
-            # 降级到基础Agent执行
-            try:
-                result = self.base_agent.execute_sync(goal)
-                
-                # 包装为WorkflowExecutionResult格式
-                return WorkflowExecutionResult(
-                    goal=goal,
-                    is_successful=True,
-                    final_state="completed",
-                    total_iterations=1,
-                    execution_metrics=None,
-                    final_message=str(result.return_value if hasattr(result, 'return_value') else result),
-                    completion_timestamp=datetime.now()
-                )
-            except Exception as e:
-                return WorkflowExecutionResult(
-                    goal=goal,
-                    is_successful=False,
-                    final_state="failed",
-                    total_iterations=1,
-                    execution_metrics=None,
-                    final_message=f"执行失败: {e}",
-                    completion_timestamp=datetime.now()
-                )
+            logger.warning("⚠️ 认知工作流引擎不可用，无法执行多步骤任务")
+            raise RuntimeError(
+                "认知工作流引擎初始化失败，无法执行多步骤任务。"
+                "请检查系统配置和依赖项。"
+            )
         
         logger.info(f"🧠 启动认知工作流: {goal}")
         start_time = datetime.now()
