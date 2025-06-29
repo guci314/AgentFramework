@@ -70,7 +70,30 @@ python3 client.py
 python3 llm_mcp_example.py
 ```
 
-### 6. `requirements.txt` - 依赖管理
+### 6. `deepseek_mcp_example.py` - DeepSeek 集成示例 ⭐ **新增**
+**展示 DeepSeek 模型与 MCP 的集成**
+
+- 🤖 **模型**: DeepSeek-Chat (支持 Function Calling)
+- 💰 **优势**: 价格便宜 ($0.14/1M tokens)，中文处理能力强
+- 🔧 **兼容**: OpenAI 兼容 API，易于集成
+- 🌏 **本地化**: 针对中文用户优化
+
+```bash
+# 设置环境变量
+export DEEPSEEK_API_KEY=your_api_key_here
+
+# 运行 DeepSeek 集成演示
+python3 deepseek_mcp_example.py
+```
+
+**DeepSeek 特点**:
+- ✅ 支持 Function Calling/Tool Use
+- ✅ 64K 上下文窗口
+- ✅ 中文理解和生成能力强
+- ✅ API 兼容 OpenAI 格式
+- ✅ 价格优势明显
+
+### 7. `requirements.txt` - 依赖管理
 **项目所需的 Python 包**
 
 ```bash
@@ -98,8 +121,13 @@ python3 enhanced_server.py
 ```
 
 ### 方案 3: 语言模型集成（需要 API 密钥）
-1. 在 `llm_mcp_example.py` 中设置你的 API 密钥
-2. 运行集成演示
+
+**选择模型**：
+- **Claude/GPT**: `python3 llm_mcp_example.py`
+- **DeepSeek**: `python3 deepseek_mcp_example.py` ⭐ **推荐中文用户**
+
+1. 设置对应的 API 密钥环境变量
+2. 运行相应的集成演示
 
 ## 🔧 MCP 的四大组件
 

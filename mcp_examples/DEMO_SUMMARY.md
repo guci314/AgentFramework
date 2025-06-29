@@ -4,15 +4,16 @@
 
 | 文件名 | 大小 | 功能 |
 |--------|------|------|
-| `simple_mcp_demo.py` | 12K | 🌟 **入门演示** - 模拟完整交互流程 |
-| `enhanced_server.py` | 16K | 🚀 **完整服务器** - 工具+资源+提示 |
-| `llm_mcp_example.py` | 16K | 🤖 **AI集成** - 真实语言模型调用 |
+| `simple_mcp_demo.py` | 11K | 🌟 **入门演示** - 模拟完整交互流程 |
+| `enhanced_server.py` | 13K | 🚀 **完整服务器** - 工具+资源+提示 |
+| `llm_mcp_example.py` | 15K | 🤖 **AI集成** - Claude/GPT模型调用 |
+| `deepseek_mcp_example.py` | 7K | 🌏 **DeepSeek集成** - 中文优化AI模型 ⭐ |
 | `server.py` | 4K | 📚 **基础服务器** - 简单计算器 |
-| `client.py` | 8K | 🔗 **客户端** - 连接测试示例 |
+| `client.py` | 5K | 🔗 **客户端** - 连接测试示例 |
 | `README.md` | 8K | 📖 **文档** - 完整使用说明 |
-| `requirements.txt` | 4K | 📦 **依赖** - Python包列表 |
+| `requirements.txt` | 1K | 📦 **依赖** - Python包列表 |
 
-**总计**: 68K 的完整 MCP 示例代码
+**总计**: 84K 的完整 MCP 示例代码
 
 ## 🎯 核心概念验证
 
@@ -52,7 +53,9 @@ python3 enhanced_server.py
 1. **理解概念**: `simple_mcp_demo.py` ⭐
 2. **基础实现**: `server.py` + `client.py`
 3. **完整功能**: `enhanced_server.py`
-4. **AI集成**: `llm_mcp_example.py`
+4. **AI集成**: 
+   - **国际模型**: `llm_mcp_example.py` (Claude/GPT)
+   - **中文优化**: `deepseek_mcp_example.py` (DeepSeek) 🌏
 
 ## 🎉 演示成功验证
 
