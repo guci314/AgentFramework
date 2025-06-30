@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_860898",
+  "goal": "\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 文件保存在calculator.py\n    ",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Initialize Project Structure",
+      "condition": "Project structure not initialized",
+      "action": "Create a new directory for the project and initialize a new Python file named calculator.py",
+      "agent_name": "coder",
+      "priority": 100,
+      "phase": "execution",
+      "expected_outcome": "Project directory and calculator.py file created",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Implement Basic Operations",
+      "condition": "calculator.py file exists and is empty",
+      "action": "Implement add, subtract, multiply, and divide functions in calculator.py",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "Basic operations implemented in calculator.py",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Write Unit Tests",
+      "condition": "Basic operations implemented in calculator.py",
+      "action": "Write unit tests for each operation in a new file named test_calculator.py",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "Unit tests for all operations written in test_calculator.py",
+      "metadata": {}
+    },
+    {
+      "id": "rule_004",
+      "name": "Run Unit Tests",
+      "condition": "Unit tests written in test_calculator.py",
+      "action": "Execute the unit tests to ensure all operations work as expected",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "All unit tests pass",
+      "metadata": {}
+    },
+    {
+      "id": "rule_005",
+      "name": "Finalize Project",
+      "condition": "All unit tests pass",
+      "action": "Review code and tests, make any necessary adjustments, and finalize the project",
+      "agent_name": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "Project completed and ready for use",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

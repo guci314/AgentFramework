@@ -112,12 +112,32 @@ class RuleEngineService:
             iteration_count = 0
             goal_achieved = False
             
+            # 循环检测机制
+            decision_history = []  # 存储最近的决策历史
+            MAX_LOOP_DETECTION = 5  # 检测循环的最大历史记录数
+            
             while iteration_count < self.max_iterations and not goal_achieved:
                 iteration_count += 1
                 logger.info(f"开始第 {iteration_count} 次迭代")
                 
                 # 进行决策（选择规则、添加规则、或判断目标达成）
                 decision = self.rule_generation.make_decision(global_state, rule_set)
+                
+                # 循环检测：记录决策历史
+                decision_signature = f"{decision.decision_type.value}_{getattr(decision, 'selected_rule', None) and decision.selected_rule.id}_{global_state.state[:50]}"
+                decision_history.append(decision_signature)
+                
+                # 保持历史记录在合理范围内
+                if len(decision_history) > MAX_LOOP_DETECTION:
+                    decision_history.pop(0)
+                
+                # 检测循环：如果最近的决策重复出现，可能陷入循环
+                if len(decision_history) >= 3:
+                    recent_decisions = decision_history[-3:]
+                    if len(set(recent_decisions)) == 1:  # 最近3次决策完全相同
+                        logger.warning(f"检测到决策循环: {recent_decisions[0]}")
+                        logger.warning("强制终止循环，标记目标失败")
+                        break
                 
                 # 处理决策结果
                 if decision.decision_type == DecisionType.EXECUTE_SELECTED_RULE:

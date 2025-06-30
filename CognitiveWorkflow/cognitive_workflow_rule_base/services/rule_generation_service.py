@@ -14,6 +14,7 @@ from datetime import datetime
 from ..domain.entities import ProductionRule, RuleSet, AgentRegistry, GlobalState, DecisionResult, WorkflowState
 from ..domain.value_objects import RulePhase, RuleSetStatus, RuleConstants, DecisionType
 from .language_model_service import LanguageModelService
+from .cognitive_advisor import CognitiveAdvisor
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,14 @@ class RuleGenerationService:
         self.llm_service = llm_service
         self._agent_registry = agent_registry
         
+        # 创建CognitiveAdvisor来接管规划和决策功能
+        if agent_registry:
+            self.advisor = CognitiveAdvisor(llm_service.primary_llm, agent_registry)
+            logger.info("✅ CognitiveAdvisor已集成到RuleGenerationService")
+        else:
+            self.advisor = None
+            logger.warning("⚠️ AgentRegistry未提供，无法创建CognitiveAdvisor")
+        
     def generate_rule_set(self, goal: str, agent_registry: AgentRegistry) -> RuleSet:
         """
         根据目标生成初始规则集
@@ -46,12 +55,27 @@ class RuleGenerationService:
         try:
             logger.info(f"开始生成规则集，目标: {goal}")
             
-            # 获取可用的智能体信息
-            available_agents = agent_registry.list_all_agents()
-            agents_desc = self._format_agents_for_rule_generation(available_agents)
-            
-            # 生成规则
-            rules = self._generate_initial_rules(goal, agents_desc)
+            # 使用CognitiveAdvisor进行规划（如果可用）
+            if self.advisor:
+                logger.info("🧠 使用CognitiveAdvisor进行工作流规划")
+                advisor_result = self.advisor.plan_workflow(goal)
+                
+                # 解析CognitiveAdvisor的响应
+                rules = self._convert_manager_rules_to_production_rules(advisor_result.get('rules', []))
+                decision = advisor_result.get('decision', {})
+                
+                # 验证decision类型
+                if decision.get('type') != 'INITIALIZE_WORKFLOW':
+                    logger.warning(f"期望INITIALIZE_WORKFLOW，但收到: {decision.get('type')}")
+                
+                logger.info(f"✅ CognitiveAdvisor规划完成: {decision.get('reasoning', '无推理信息')}")
+                
+            else:
+                # 回退到原有LLM方法
+                logger.info("⚠️ CognitiveAdvisor不可用，使用传统LLM方法")
+                available_agents = agent_registry.list_all_agents()
+                agents_desc = self._format_agents_for_rule_generation(available_agents)
+                rules = self._generate_initial_rules(goal, agents_desc)
             
             # 创建规则集
             rule_set = RuleSet(
@@ -501,13 +525,36 @@ class RuleGenerationService:
             # 解析阶段 - 支持新旧字段名和值
             phase_str = rule_data.get('execution_phase') or rule_data.get('phase', 'execution')
             
-            # 支持旧的 problem_solving 值
-            if phase_str == 'problem_solving':
-                phase_str = 'execution'
+            # 阶段映射表 - 将各种可能的阶段值映射到标准的RulePhase
+            phase_mapping = {
+                'problem_solving': 'execution',
+                'initialization': 'information_gathering',
+                'init': 'information_gathering', 
+                'gather': 'information_gathering',
+                'planning': 'information_gathering',
+                'testing': 'verification',
+                'test': 'verification',
+                'validation': 'verification',
+                'review': 'verification',
+                'check': 'verification',
+                'implement': 'execution',
+                'implementation': 'execution',
+                'develop': 'execution',
+                'development': 'execution',
+                'coding': 'execution',
+                'create': 'execution'
+            }
+            
+            # 应用映射
+            if phase_str in phase_mapping:
+                mapped_phase = phase_mapping[phase_str]
+                logger.debug(f"阶段映射: {phase_str} -> {mapped_phase}")
+                phase_str = mapped_phase
             
             try:
                 phase = RulePhase(phase_str)
             except ValueError:
+                logger.warning(f"无效的阶段值: {phase_str}，使用默认值")
                 phase = RulePhase.EXECUTION
             
             # 生成确定性ID
@@ -666,7 +713,7 @@ class RuleGenerationService:
 
             # 调用语言模型生成策略调整规则
             try:
-                response = self.llm_service.generate_response(strategy_prompt)
+                response = self.llm_service.generate_natural_language_response(strategy_prompt)
                 logger.debug(f"LLM策略调整响应: {response[:500]}...")
                 
                 # 解析LLM响应为ProductionRule对象
@@ -978,8 +1025,14 @@ class RuleGenerationService:
                     reasoning="目标已成功达成"
                 )
             
-            # 2. 使用单次LLM调用进行智能决策
-            return self._make_llm_decision(global_state, rule_set)
+            # 2. 使用CognitiveAdvisor进行智能决策（如果可用）
+            if self.advisor:
+                logger.info("🧠 使用CognitiveAdvisor进行决策")
+                return self._make_advisor_decision(global_state, rule_set)
+            else:
+                # 回退到原有LLM方法
+                logger.info("⚠️ CognitiveAdvisor不可用，使用传统LLM决策")
+                return self._make_llm_decision(global_state, rule_set)
             
         except Exception as e:
             logger.error(f"工作流决策失败: {e}")
@@ -1283,13 +1336,13 @@ class RuleGenerationService:
             DecisionResult: 解析后的决策结果
         """
         try:
-            decision_type_str = decision_data.get('decision_type', 'GOAL_FAILED')
+            decision_type_str = decision_data.get('decision', {}).get('type', 'GOAL_FAILED')
             confidence = float(decision_data.get('confidence', 0.0))
             reasoning = decision_data.get('reasoning', '无决策理由')
             
             # 解析决策类型
             if decision_type_str == 'EXECUTE_SELECTED_RULE':
-                selected_rule_id = decision_data.get('selected_rule_id')
+                selected_rule_id = decision_data.get('decision', {}).get('selected_rule_id')
                 if selected_rule_id:
                     # 查找对应的规则
                     selected_rule = None
@@ -1304,7 +1357,8 @@ class RuleGenerationService:
                             selected_rule=selected_rule,
                             decision_type=DecisionType.EXECUTE_SELECTED_RULE,
                             confidence=confidence,
-                            reasoning=reasoning
+                            reasoning=reasoning,
+                            context=decision_data,
                         )
                 
                 # 如果没找到规则，回退到目标失败
@@ -1312,12 +1366,13 @@ class RuleGenerationService:
                     selected_rule=None,
                     decision_type=DecisionType.GOAL_FAILED,
                     confidence=0.3,
-                    reasoning=f"指定的规则ID {selected_rule_id} 不存在"
+                    reasoning=f"指定的规则ID {selected_rule_id} 不存在",
+                    context=decision_data,
                 )
             
             elif decision_type_str == 'ADD_RULE':
                 # 解析新规则
-                new_rules_data = decision_data.get('new_rules', [])
+                new_rules_data = decision_data.get('rules', [])
                 new_rules = []
                 
                 for rule_data in new_rules_data:
@@ -1335,25 +1390,28 @@ class RuleGenerationService:
                     decision_type=DecisionType.ADD_RULE,
                     confidence=confidence,
                     reasoning=reasoning,
-                    new_rules=new_rules
+                    new_rules=new_rules,
+                    context=decision_data,
                 )
             
-            else:  # GOAL_FAILED
-                logger.warning("LLM决策：目标失败")
+            else:  # GOAL_FAILED or other types
+                logger.warning(f"LLM决策：{decision_type_str}")
                 return DecisionResult(
                     selected_rule=None,
-                    decision_type=DecisionType.GOAL_FAILED,
+                    decision_type=DecisionType[decision_type_str],
                     confidence=confidence,
-                    reasoning=reasoning
+                    reasoning=reasoning,
+                    context=decision_data,
                 )
                 
         except Exception as e:
-            logger.error(f"解析LLM决策失败: {e}")
+            logger.error(f"解析LLM决策失败: {e}", exc_info=True)
             return DecisionResult(
                 selected_rule=None,
                 decision_type=DecisionType.GOAL_FAILED,
                 confidence=0.0,
-                reasoning=f"决策解析失败: {str(e)}"
+                reasoning=f"决策解析失败: {str(e)}",
+                context=decision_data,
             )
     
     def _print_decision_in_red(self, decision_result, decision_data) -> None:
@@ -1983,3 +2041,152 @@ class RuleGenerationService:
         rules.append(rule2)
         
         return rules
+    
+    def _convert_manager_rules_to_production_rules(self, manager_rules: List[dict]) -> List[ProductionRule]:
+        """
+        将ManagerAgent返回的规则字典列表转换为ProductionRule对象列表
+        
+        Args:
+            manager_rules: ManagerAgent返回的规则字典列表
+            
+        Returns:
+            List[ProductionRule]: 转换后的产生式规则列表
+        """
+        rules = []
+        
+        for i, rule_data in enumerate(manager_rules):
+            try:
+                # 提取规则字段
+                rule_id = rule_data.get('id', f"manager_rule_{i+1}_{hash(str(rule_data)) % 100000:05d}")
+                name = rule_data.get('name', f"Manager生成规则{i+1}")
+                condition = rule_data.get('condition', '需要执行任务')
+                action = rule_data.get('action', '执行相应操作')
+                agent_name = rule_data.get('agent_name', 'coder')
+                priority = int(rule_data.get('priority', 50))
+                expected_outcome = rule_data.get('expected_outcome', '任务完成')
+                
+                # 解析执行阶段
+                phase_str = rule_data.get('phase', 'execution')
+                try:
+                    if isinstance(phase_str, str):
+                        phase = RulePhase(phase_str.lower())
+                    else:
+                        phase = RulePhase.EXECUTION
+                except ValueError:
+                    logger.warning(f"无效的阶段值: {phase_str}，使用默认值")
+                    phase = RulePhase.EXECUTION
+                
+                # 创建ProductionRule对象
+                production_rule = ProductionRule(
+                    id=rule_id,
+                    name=name,
+                    condition=condition,
+                    action=action,
+                    agent_name=agent_name,
+                    priority=priority,
+                    phase=phase,
+                    expected_outcome=expected_outcome
+                )
+                
+                rules.append(production_rule)
+                logger.debug(f"✅ 转换规则成功: {name}")
+                
+            except Exception as e:
+                logger.error(f"❌ 转换规则失败: {e}, 数据: {rule_data}")
+                # 创建一个基础的规则作为备用
+                fallback_rule = ProductionRule(
+                    id=f"fallback_rule_{i+1}",
+                    name=f"备用规则{i+1}",
+                    condition="需要执行备用操作",
+                    action="执行基础操作",
+                    agent_name='coder',
+                    priority=30,
+                    phase=RulePhase.EXECUTION,
+                    expected_outcome="基础任务完成"
+                )
+                rules.append(fallback_rule)
+                continue
+        
+        logger.info(f"✅ 成功转换 {len(rules)} 个ManagerAgent规则为ProductionRule")
+        return rules
+    
+    def _make_advisor_decision(self, global_state: GlobalState, rule_set: RuleSet) -> DecisionResult:
+        """
+        使用CognitiveAdvisor进行智能决策
+        
+        Args:
+            global_state: 当前全局状态
+            rule_set: 规则集
+            
+        Returns:
+            DecisionResult: 决策结果
+        """
+        try:
+            # 调用CognitiveAdvisor进行决策，获取原始字典
+            decision_data = self.advisor.make_decision(global_state, rule_set.rules, rule_set.goal)
+            
+            # 解析决策结果
+            decision_result = self._parse_llm_decision(decision_data, rule_set)
+
+            # 打印决策信息
+            self._print_decision_in_red(decision_result, decision_data)
+            
+            return decision_result
+            
+        except Exception as e:
+            logger.error(f"CognitiveAdvisor决策失败: {e}", exc_info=True)
+            return DecisionResult(
+                selected_rule=None,
+                decision_type=DecisionType.GOAL_FAILED,
+                confidence=0.0,
+                reasoning=f"CognitiveAdvisor决策异常: {str(e)}"
+            )
+    
+    def _parse_rules_from_llm_response(self, response: str, rule_type: str = "standard") -> List[ProductionRule]:
+        """
+        从LLM响应中解析规则
+        
+        Args:
+            response: LLM响应文本
+            rule_type: 规则类型标识符
+            
+        Returns:
+            List[ProductionRule]: 解析出的规则列表
+        """
+        try:
+            logger.debug(f"开始解析{rule_type}规则，响应长度: {len(response)}")
+            
+            # 尝试解析JSON响应
+            rules_data = self.llm_service._parse_json_response(response)
+            
+            rules = []
+            if isinstance(rules_data, dict):
+                # 可能的JSON结构: {"rules": [...]} 或 {"recovery_rules": [...]}
+                rules_list = rules_data.get('rules') or rules_data.get('recovery_rules') or rules_data.get('strategy_rules')
+                
+                if rules_list and isinstance(rules_list, list):
+                    for i, rule_data in enumerate(rules_list):
+                        rule = self._create_rule_from_data(rule_data)
+                        if rule:
+                            # 为策略规则添加特殊前缀
+                            if rule_type == "strategic":
+                                rule.id = f"strategy_{rule.id}"
+                                rule.name = f"策略调整_{rule.name}"
+                            rules.append(rule)
+                            
+            elif isinstance(rules_data, list):
+                # 直接是规则列表
+                for i, rule_data in enumerate(rules_data):
+                    rule = self._create_rule_from_data(rule_data)
+                    if rule:
+                        if rule_type == "strategic":
+                            rule.id = f"strategy_{rule.id}"
+                            rule.name = f"策略调整_{rule.name}"
+                        rules.append(rule)
+            
+            logger.info(f"成功解析 {len(rules)} 个{rule_type}规则")
+            return rules
+            
+        except Exception as e:
+            logger.error(f"解析{rule_type}规则失败: {e}")
+            return []

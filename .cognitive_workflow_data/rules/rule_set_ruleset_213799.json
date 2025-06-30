@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_213799",
+  "goal": "coder, please create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division.",
+  "rules": [
+    {
+      "id": "strategy_rule_488251",
+      "name": "策略调整_目标分解优化",
+      "condition": "当前进度为0.0%，需要开始实现计算器程序",
+      "action": "将目标分解为四个子任务：1) 实现加法功能 2) 实现减法功能 3) 实现乘法功能 4) 实现除法功能",
+      "agent_name": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "明确四个可独立实现的子任务，便于逐步完成计算器程序",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Implement Subtraction",
+      "condition": "Addition function is implemented",
+      "action": "Implement subtraction function in calculator.py",
+      "agent_name": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "Subtraction function is correctly implemented",
+      "metadata": {}
+    },
+    {
+      "id": "rule_004",
+      "name": "Implement Multiplication",
+      "condition": "Subtraction function is implemented",
+      "action": "Implement multiplication function in calculator.py",
+      "agent_name": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "Multiplication function is correctly implemented",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_074082",
+      "name": "策略调整_进度加速策略",
+      "condition": "每个子任务完成后",
+      "action": "立即进行单元测试验证功能正确性",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "及时发现并修复问题，避免问题累积影响整体进度",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

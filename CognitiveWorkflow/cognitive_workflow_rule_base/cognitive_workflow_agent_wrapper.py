@@ -57,6 +57,9 @@ class CognitiveAgent:
     
     def __init__(self, 
                  base_agent: Any,
+                 agent_name: Optional[str] = None,
+                 team_members: Optional[Dict[str, 'CognitiveAgent']] = None,
+                 cognitive_advisor: Optional[Any] = None,
                  enable_auto_recovery: bool = True,
                  classification_cache_size: int = 100):
         """
@@ -64,14 +67,21 @@ class CognitiveAgent:
         
         Args:
             base_agent: 基础Agent实例（来自pythonTask.Agent）
+            agent_name: Agent名称，如果不提供则尝试从base_agent.name获取，否则使用"main_agent"
+            team_members: 该Agent管理的下属Agent团队
+            cognitive_advisor: 认知顾问，用于规划和决策
             enable_auto_recovery: 是否启用自动错误恢复
             classification_cache_size: 指令分类结果缓存大小
         """
         self.base_agent = base_agent
         self.enable_auto_recovery = enable_auto_recovery
         
+        # 递归团队管理
+        self.team = team_members or {}
+        self.cognitive_advisor = cognitive_advisor
+        
         # 指令分类缓存
-        self._classification_cache: Dict[str, Tuple[str, str]] = {}
+        self._classification_cache: Dict[str, tuple[str, str]] = {}
         self._cache_max_size = classification_cache_size
         
         # 性能统计
@@ -86,24 +96,46 @@ class CognitiveAgent:
             }
         }
         
-        # 构建Agent集合
-        self.agents = {"main_agent": base_agent}
+        # 确定Agent名称
+        if agent_name:
+            self.agent_name = agent_name
+        elif hasattr(base_agent, 'name') and base_agent.name:
+            self.agent_name = base_agent.name
+        else:
+            self.agent_name = "main_agent"
         
-        # 创建认知工作流引擎
+        # 构建Agent集合，只包含自己
+        self.agents = {self.agent_name: base_agent}
+        
+        # 创建认知工作流引擎 - 每个CognitiveAgent都有自己的认知引擎
+        # 这体现了层次化认知架构：每个Agent独立思考，然后协作
         if create_production_rule_system is not None:
             try:
                 self.workflow_engine = create_production_rule_system(
                     llm=base_agent.llm,
-                    agents=self.agents,
-                    enable_auto_recovery=enable_auto_recovery
+                    agents=self.agents,  # 使用完整的Agent集合
+                    enable_auto_recovery=enable_auto_recovery,
+                    # enable_adaptive_replacement=False
                 )
-                logger.info("✅ 认知工作流引擎初始化成功")
+                logger.info(f"✅ {self.agent_name}的认知工作流引擎初始化成功")
             except Exception as e:
-                logger.error(f"❌ 认知工作流引擎初始化失败: {e}")
+                logger.error(f"❌ {self.agent_name}的认知工作流引擎初始化失败: {e}")
                 self.workflow_engine = None
         else:
-            logger.warning("⚠️ 认知工作流系统不可用，将使用降级模式")
+            logger.warning(f"⚠️ {self.agent_name}的认知工作流系统不可用，将使用降级模式")
             self.workflow_engine = None
+    
+    def set_workflow_engine(self, workflow_engine: Any) -> None:
+        """
+        设置外部的workflow_engine实例
+        
+        Args:
+            workflow_engine: 外部创建的workflow_engine实例
+        """
+        self.workflow_engine = workflow_engine
+        logger.info(f"✅ 为 {self.agent_name} 设置了外部workflow_engine")
+    
+    
     
     @property
     def api_specification(self) -> Optional[str]:
@@ -128,7 +160,7 @@ class CognitiveAgent:
         else:
             logger.warning("⚠️ base_agent没有api_specification属性，无法设置")
             
-    def _update_classification_cache(self, instruction: str, result: Tuple[str, str]) -> None:
+    def _update_classification_cache(self, instruction: str, result: tuple[str, str]) -> None:
         """更新指令分类缓存"""
         # 如果缓存已满，删除最旧的条目
         if len(self._classification_cache) >= self._cache_max_size:
@@ -199,7 +231,7 @@ class CognitiveAgent:
 
 分析结果："""
 
-    def classify_instruction(self, instruction: str) -> Tuple[str, str]:
+    def classify_instruction(self, instruction: str) -> tuple[str, str]:
         """
         智能指令分类方法
         
@@ -209,7 +241,7 @@ class CognitiveAgent:
             instruction: 输入指令
             
         Returns:
-            Tuple[str, str]: (指令类型, 执行方式)
+            tuple[str, str]: (指令类型, 执行方式)
             - 指令类型: "informational" | "executable" 
             - 执行方式: "single_step" | "multi_step" | "chat"
         """
@@ -256,6 +288,53 @@ class CognitiveAgent:
             result = ("executable", "multi_step")
             self._update_classification_cache(instruction, result)
             return result
+
+    def _decide_delegation(self, instruction: str) -> tuple[bool, str, str]:
+        """
+        决策是否将任务委托给团队成员。
+        
+        这是一个简化的实现。在实际应用中，这里可以调用 cognitive_advisor
+        进行更复杂的LLM规划，以确定最佳的下一步。
+        
+        Args:
+            instruction: 输入指令
+            
+        Returns:
+            tuple[bool, str, str]: (是否委托, 目标Agent名, 新的指令)
+        """
+        if not self.team:
+            return False, "", instruction
+
+        # 简化决策逻辑：如果指令中提到了团队成员的名字，就委托
+        for agent_name in self.team.keys():
+            if agent_name.lower() in instruction.lower():
+                logger.info(f"决策：指令 '{instruction}' 包含关键词 '{agent_name}'，委托任务。")
+                # 这里的指令可以被进一步处理或保持原样
+                return True, agent_name, instruction
+        
+        logger.info(f"决策：指令 '{instruction}' 未触发委托规则，由当前Agent执行。")
+        return False, "", instruction
+
+    def execute(self, instruction: str) -> Any:
+        """
+        统一的、递归的执行入口点。
+        
+        该方法的核心是决定：是自己做，还是分配给下属做。
+        """
+        logger.info(f"[{self.agent_name}] 接收到指令: '{instruction}'")
+        
+        # 1. 决策：判断是委托还是自己执行
+        should_delegate, target_agent_name, sub_instruction = self._decide_delegation(instruction)
+
+        if should_delegate and target_agent_name in self.team:
+            # 2. 委托给下属Agent（递归调用）
+            logger.info(f"[{self.agent_name}] 委托任务给 [{target_agent_name}]，指令: '{sub_instruction}'")
+            target_agent = self.team[target_agent_name]
+            return target_agent.execute(sub_instruction)
+        else:
+            # 3. 自己执行叶节点任务，复用现有的执行逻辑
+            logger.info(f"[{self.agent_name}] 决定亲自执行任务。")
+            return self.execute_instruction_syn(instruction)
     
     def execute_instruction_syn(self, instruction: str) -> Any:
         """

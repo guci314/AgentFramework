@@ -1,0 +1,119 @@
+{
+  "id": "ruleset_567750",
+  "goal": "tester, please create unit tests for `calculator.py` in `test_calculator.py` and run them to ensure everything works correctly.",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Initialize Test Environment",
+      "condition": "Start of unit testing process for `calculator.py`",
+      "action": "Create a new file `test_calculator.py` and setup the testing environment",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "`test_calculator.py` is created with necessary imports and test class structure",
+      "metadata": {}
+    },
+    {
+      "id": "rule_004",
+      "name": "Review and Refactor",
+      "condition": "Unit tests have been run and results are available",
+      "action": "Review test results and refactor code if necessary",
+      "agent_name": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "`calculator.py` is optimized based on test feedback, and all tests pass",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Write Unit Tests",
+      "condition": "`test_calculator.py` is initialized",
+      "action": "Write unit tests for all functions in `calculator.py`",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "All functions in `calculator.py` have corresponding unit tests in `test_calculator.py`",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_502899",
+      "name": "策略调整_执行路径调整",
+      "condition": "测试文件尚未创建且未执行任何测试",
+      "action": "优先创建基础测试框架，包括导入calculator模块和设置基本测试类，然后逐步添加具体测试用例",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "快速建立可执行的测试框架，实现进度从0%突破",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_502899",
+      "name": "策略调整_执行路径调整",
+      "condition": "测试文件尚未创建且未执行任何测试",
+      "action": "优先创建基础测试框架，包括导入calculator模块和设置基本测试类，然后逐步添加具体测试用例",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "快速建立可执行的测试框架，实现进度从0%突破",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Run Unit Tests",
+      "condition": "Unit tests are written in `test_calculator.py`",
+      "action": "Execute the unit tests using a test runner",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "All unit tests pass, confirming `calculator.py` functions work correctly",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_900378",
+      "name": "策略调整_风险规避策略",
+      "condition": "即将开始编写测试用例",
+      "action": "先为calculator.py中最核心的3个功能(如加减乘除)创建测试用例，确保基础功能覆盖",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "避免测试范围过大导致进度延迟，优先保证核心功能正确性",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_900378",
+      "name": "策略调整_风险规避策略",
+      "condition": "即将开始编写测试用例",
+      "action": "先为calculator.py中最核心的3个功能(如加减乘除)创建测试用例，确保基础功能覆盖",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "verification",
+      "expected_outcome": "避免测试范围过大导致进度延迟，优先保证核心功能正确性",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_950286",
+      "name": "策略调整_目标分解优化",
+      "condition": "当前进度为0.0%，且无详细分析结果",
+      "action": "将目标分解为三个子任务：1) 分析calculator.py的功能需求 2) 创建test_calculator.py测试文件 3) 执行测试并验证结果",
+      "agent_name": "analyst",
+      "priority": 85,
+      "phase": "information_gathering",
+      "expected_outcome": "明确测试范围和需求，为后续测试创建提供清晰指导",
+      "metadata": {}
+    },
+    {
+      "id": "strategy_rule_950286",
+      "name": "策略调整_目标分解优化",
+      "condition": "当前进度为0.0%，且无详细分析结果",
+      "action": "将目标分解为三个子任务：1) 分析calculator.py的功能需求 2) 创建test_calculator.py测试文件 3) 执行测试并验证结果",
+      "agent_name": "analyst",
+      "priority": 85,
+      "phase": "information_gathering",
+      "expected_outcome": "明确测试范围和需求，为后续测试创建提供清晰指导",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

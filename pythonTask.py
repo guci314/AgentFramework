@@ -132,7 +132,7 @@ def _map_log_level(custom_level_int):
         return logging.INFO
 
 load_dotenv()  # 加载 .env 文件中的环境变量
-max_turn = 10
+max_turn = 5
 import importlib
 # import mda.prompts
 # importlib.reload(mda.prompts)

@@ -96,6 +96,10 @@ class AgentService:
             ValueError: 如果智能体名称不存在或创建失败
         """
         try:
+            # 调试信息：显示注册表中的所有Agent
+            available_agents = list(self.agent_registry.agents.keys())
+            logger.debug(f"尝试获取Agent: {agent_name}, 可用Agents: {available_agents}")
+            
             # 直接从智能体注册表获取Agent实例
             agent = self.agent_registry.get_agent(agent_name)
             
@@ -112,8 +116,22 @@ class AgentService:
             return agent
             
         except Exception as e:
+            available_agents = list(self.agent_registry.agents.keys())
             logger.error(f"获取Agent失败: {agent_name}, 错误: {e}")
-            raise ValueError(f"无法获取Agent {agent_name}: {str(e)}")
+            logger.error(f"当前注册的Agents: {available_agents}")
+            
+            # 尝试fallback：使用缓存池中的Agent
+            if agent_name in self.agent_pool:
+                logger.warning(f"从缓存池获取Agent: {agent_name}")
+                return self.agent_pool[agent_name]
+            
+            # 尝试找到相似的Agent名称
+            for available_name in available_agents:
+                if available_name.lower() == agent_name.lower():
+                    logger.warning(f"找到大小写不匹配的Agent: {available_name} (请求: {agent_name})")
+                    return self.agent_registry.get_agent(available_name)
+            
+            raise ValueError(f"无法获取Agent {agent_name}: {str(e)}，可用Agents: {available_agents}")
     
     def execute_natural_language_instruction(self, 
                                            instruction: str, 

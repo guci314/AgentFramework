@@ -1,0 +1,13 @@
+{
+  "id": "workflow_tester__please_creat_20250701_022611_751108_1306848_140559330148352_3_a44fe73b_state_0_1751307971766929_4",
+  "state": "工作流已启动，目标：tester, please create unit tests for `calculator.py` in `test_calculator.py` and run them to ensure everything works correctly.。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "tester, please create unit tests for `calculator.py` in `test_calculator.py` and run them to ensure everything works correctly."
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_tester__please_creat_20250701_022611_751108_1306848_140559330148352_3_a44fe73b",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

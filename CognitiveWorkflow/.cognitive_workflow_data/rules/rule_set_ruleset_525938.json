@@ -1,0 +1,53 @@
+{
+  "id": "ruleset_525938",
+  "goal": "\n执行任务: Create project directory and initialize necessary files including calculator.py\n\n当前状态: 工作流已启动，目标：\n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 文件保存在calculator.py\n    。当前处于初始状态，等待规则生成和执行。\n\n规则上下文:\n- 规则名称: Initialize Project Structure\n- 期望结果: Project directory and initial files are created\n- 执行阶段: execution\n\n相关上下文变量:\n- goal: \n    开发一个简单的计算器程序，要求：\n    1. 实现加减乘除四个基本运算\n    2. 编写完整的单元测试\n    3. 运行测试，确保测试通过\n    4. 文件保存在calculator.py\n    \n\n最近执行历史:\n1. [iter_0] 工作流启动\n\n请根据以上信息执行任务: Create project directory and initialize necessary files including calculator.py",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Create Project Directory",
+      "condition": "工作流已启动，目标为开发计算器程序",
+      "action": "创建项目目录",
+      "agent_name": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "项目目录创建成功",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Initialize calculator.py",
+      "condition": "项目目录已存在",
+      "action": "初始化calculator.py文件，包含加减乘除四个基本运算的函数框架",
+      "agent_name": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "calculator.py文件初始化成功，包含四个基本运算的函数框架",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Write Unit Tests",
+      "condition": "calculator.py文件已初始化",
+      "action": "编写完整的单元测试，覆盖所有基本运算",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "单元测试编写完成，覆盖所有基本运算",
+      "metadata": {}
+    },
+    {
+      "id": "rule_004",
+      "name": "Run Tests",
+      "condition": "单元测试编写完成",
+      "action": "运行单元测试，确保所有测试通过",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "所有单元测试通过，计算器程序功能正常",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

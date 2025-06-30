@@ -413,29 +413,59 @@ class LanguageModelService:
             
             raise Exception(f"所有模型调用都失败了: {e}")
     
-    def _parse_json_response(self, response: str) -> Dict[str, Any]:
+    def _parse_json_response(self, response: str):
         """
-        解析JSON响应
+        解析JSON响应，支持对象和数组格式
         
         Args:
             response: 模型响应
             
         Returns:
-            Dict[str, Any]: 解析后的JSON数据
+            Union[Dict[str, Any], List[Any]]: 解析后的JSON数据
         """
         try:
-            # 提取JSON部分
+            # 清理响应中的markdown格式
             import re
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                # 如果没有找到JSON，尝试直接解析
+            cleaned_response = response.strip()
+            
+            # 移除markdown代码块标记
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response[3:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+            
+            # 尝试直接解析清理后的响应
+            try:
+                return json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                # 如果直接解析失败，尝试提取JSON部分
+                
+                # 先尝试提取JSON对象
+                json_object_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
+                if json_object_match:
+                    json_str = json_object_match.group()
+                    try:
+                        return json.loads(json_str)
+                    except json.JSONDecodeError:
+                        pass
+                
+                # 再尝试提取JSON数组
+                json_array_match = re.search(r'\[.*\]', cleaned_response, re.DOTALL)
+                if json_array_match:
+                    json_str = json_array_match.group()
+                    try:
+                        return json.loads(json_str)
+                    except json.JSONDecodeError:
+                        pass
+                
+                # 最后尝试原始响应
                 return json.loads(response)
                 
         except json.JSONDecodeError as e:
-            logger.error(f"JSON解析失败: {e}, 响应内容: {response}")
+            logger.error(f"JSON解析失败: {e}, 响应内容: {response[:500]}...")
             return {}
     
     def _format_context(self, context: Dict[str, Any]) -> str:
