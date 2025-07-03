@@ -1,0 +1,37 @@
+{
+  "id": "rule_001_exec_20250703_143836",
+  "rule_id": "rule_001",
+  "status": "running",
+  "result": null,
+  "completed_at": null,
+  "execution_context": {
+    "rule_info": {
+      "id": "rule_001",
+      "name": "Test Addition Function",
+      "condition": "When testing the addition function of the calculator",
+      "action": "Write test cases to cover positive, negative, and zero values",
+      "expected_outcome": "All addition scenarios are correctly tested",
+      "priority": 90,
+      "phase": "execution"
+    },
+    "state_info": {
+      "description": "工作流已启动，目标：Create comprehensive unit tests in test_calculator.py covering all calculator functions。当前处于初始状态，等待规则生成和执行。",
+      "iteration_count": 0,
+      "workflow_id": "workflow_Create_comprehensive_20250703_143800_467062_1685744_139813001034624_4_480a8be4",
+      "goal_achieved": false
+    },
+    "context_variables": {
+      "goal": "Create comprehensive unit tests in test_calculator.py covering all calculator functions"
+    },
+    "recent_history": [
+      "[iter_0] 工作流启动"
+    ],
+    "execution_config": {
+      "timeout": 60,
+      "retry_attempts": 3,
+      "timestamp": "2025-07-03T14:38:36.651483"
+    }
+  },
+  "failure_reason": null,
+  "confidence_score": 0.0
+}

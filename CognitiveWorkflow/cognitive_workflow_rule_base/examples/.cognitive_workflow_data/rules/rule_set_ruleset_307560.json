@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_307560",
+  "goal": "Please develop a complete calculator program with the following requirements:\n1. Create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division\n2. Create comprehensive unit tests for the calculator in `test_calculator.py` \n3. Run the tests to ensure everything works correctly\n4. The coder should handle the implementation and the tester should handle the testing\n\nThis is a complete software development task that requires both coding and testing expertise.",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Initialize Project Structure",
+      "condition": "Project setup is required",
+      "action": "Create project directory and initialize necessary files (calculator.py, test_calculator.py)",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "Project directory and initial files are created",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Implement Calculator Functions",
+      "condition": "calculator.py exists and is empty",
+      "action": "Implement addition, subtraction, multiplication, and division functions in calculator.py",
+      "agent_name": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "calculator.py contains all required functions",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Write Unit Tests",
+      "condition": "test_calculator.py exists and calculator.py is implemented",
+      "action": "Write comprehensive unit tests for each function in calculator.py",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "test_calculator.py contains tests for all calculator functions",
+      "metadata": {}
+    },
+    {
+      "id": "rule_004",
+      "name": "Run Unit Tests",
+      "condition": "Unit tests are written and calculator is implemented",
+      "action": "Execute unit tests to verify calculator functions work correctly",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "All unit tests pass, confirming calculator functions work as expected",
+      "metadata": {}
+    },
+    {
+      "id": "rule_005",
+      "name": "Review and Refactor",
+      "condition": "Unit tests have been run and results are available",
+      "action": "Review test results and refactor code as necessary",
+      "agent_name": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "Code is optimized and all tests pass",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

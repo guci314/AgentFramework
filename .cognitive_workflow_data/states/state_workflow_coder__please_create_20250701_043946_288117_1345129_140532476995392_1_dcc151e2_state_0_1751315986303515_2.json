@@ -1,0 +1,13 @@
+{
+  "id": "workflow_coder__please_create_20250701_043946_288117_1345129_140532476995392_1_dcc151e2_state_0_1751315986303515_2",
+  "state": "工作流已启动，目标：coder, please create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division.。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "coder, please create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division."
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_coder__please_create_20250701_043946_288117_1345129_140532476995392_1_dcc151e2",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

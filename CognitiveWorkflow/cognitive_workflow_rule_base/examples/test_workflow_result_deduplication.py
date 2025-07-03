@@ -13,9 +13,11 @@ Date: 2025-06-29
 import sys
 import os
 
-# 添加项目路径
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 添加项目根目录和CognitiveWorkflow目录到路径，以便导入模块
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+cognitive_workflow_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(project_root)
+sys.path.append(cognitive_workflow_dir)
 
 def test_workflow_execution_result_source():
     """测试WorkflowExecutionResult的来源和类型"""
@@ -25,7 +27,7 @@ def test_workflow_execution_result_source():
     # 1. 测试从cognitive_workflow_agent_wrapper导入
     print("📝 步骤1: 从cognitive_workflow_agent_wrapper导入")
     try:
-        from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import WorkflowExecutionResult as WrapperResult
+        from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import WorkflowExecutionResult as WrapperResult
         print(f"✅ 导入成功: {WrapperResult}")
         print(f"   模块: {WrapperResult.__module__}")
         print(f"   类型: {type(WrapperResult)}")

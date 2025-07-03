@@ -14,11 +14,14 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 添加父目录到路径，以便导入模块
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# 添加项目根目录和CognitiveWorkflow目录到路径，以便导入模块
+project_root = str(Path(__file__).parent.parent.parent.parent)
+cognitive_workflow_dir = str(Path(__file__).parent.parent.parent)
+sys.path.append(project_root)
+sys.path.append(cognitive_workflow_dir)
 
-from pythonTask import Agent, llm_deepseek,llm_gemini_2_5_flash_google,llm_gemini_2_5_pro_google
-from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
+from pythonTask import Agent, llm_deepseek
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
 
 # 尝试导入WorkflowExecutionResult，如果失败则定义一个虚拟类
 try:
@@ -52,6 +55,7 @@ def demonstrate_recursive_team_execution():
     coder = CognitiveAgent(
         base_agent=base_coder_agent,
         agent_name="coder"
+        # enable_adaptive_replacement=True  # 默认启用自适应规则替换
     )
     tester = CognitiveAgent(
         base_agent=base_tester_agent,
@@ -72,34 +76,51 @@ def demonstrate_recursive_team_execution():
     )
     print(f"   - {project_manager}")
     print(f"   - 管理团队: {list(project_manager.team.keys())}")
+    print(f"   - 统一Agent池: {list(project_manager.available_agents.keys())}")
 
-    # 4. 定义一个需要委托的复杂目标
-    # 注意：为了让简化的_decide_delegation生效，指令中需要包含团队成员的名字
-    # 我们将任务分解为两个子目标，模拟管理者逐一发出指令
+    # 4. 定义一个综合的团队目标
+    # 将开发和测试任务合并为一个完整的目标，让系统自主决定如何分工协作
     print("\n4. 定义团队目标...")
-    goals = [
-        "coder, please create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division.",
-        "tester, please create unit tests for `calculator.py` in `test_calculator.py` and run them to ensure everything works correctly."
-    ]
+    goal = """Please develop a complete calculator program with the following requirements:
+1. Create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division
+2. Create comprehensive unit tests for the calculator in `test_calculator.py` 
+3. Run the tests to ensure everything works correctly
+4. The coder should handle the implementation and the tester should handle the testing
 
-    print(f"   - 目标 1: {goals[0]}")
-    print(f"   - 目标 2: {goals[1]}")
+This is a complete software development task that requires both coding and testing expertise."""
+
+#     goal="""
+#     # 销售数据分析任务
+
+# /home/guci/aiProjects/AgentFrameWork-worktrees/claude-code/sales_data.csv是销售数据文件，请使用此文件进行数据分析。
+
+# # 规则
+# 1. 不要生成图表
+# 2. 报告中必须包含每个地区，每个产品，每个销售人员的销售额
+# 3. 分析报告保存到sales_analysis_report.md
+#     """
+
+    print(f"   - 综合目标: {goal}")
 
     # 5. 通过顶层管理者执行目标
     print("\n5. 开始执行工作流...")
+    print("   简化架构: 统一通过工作流规划处理所有任务")
+    print("   - execute_instruction_syn(): 统一执行入口，自动分类指令")
+    print("   - 工作流引擎: 自动适配单Agent或多Agent场景")
+    
     try:
-        for i, g in enumerate(goals):
-            print(f"\n--- 执行第 {i+1} 个子目标 ---")
-            # 调用顶层Agent的execute方法
-            result = project_manager.execute(g)
-            
-            print(f"\n--- 子目标 {i+1} 执行结果 ---")
-            if isinstance(result, WorkflowExecutionResult):
-                print(f"   成功: {'是' if result.is_successful else '否'}")
-                print(f"   最终消息: {result.final_message}")
-            else:
-                # 可能是来自 single_step 或 informational 查询的直接结果
-                print(f"   结果: {result}")
+        print(f"\n--- 执行综合目标 (统一工作流模式) ---")
+        # 使用execute_instruction_syn()方法进行统一处理
+        # 工作流引擎会自动分析任务并智能分配给合适的Agent
+        result = project_manager.execute_instruction_syn(goal)
+        
+        print(f"\n--- 综合目标执行结果 ---")
+        if isinstance(result, WorkflowExecutionResult):
+            print(f"   成功: {'是' if result.is_successful else '否'}")
+            print(f"   最终消息: {result.final_message}")
+        else:
+            # 可能是来自 single_step 或 informational 查询的直接结果
+            print(f"   结果: {result}")
 
     except Exception as e:
         print(f"   执行失败: {e}")
@@ -120,6 +141,12 @@ def main():
         print("✓ 统一的、可递归的CognitiveAgent")
         print("✓ 通过组合构建层次化团队")
         print("✓ 任务的递归委托与执行")
+        print("\n🔧 简化架构优势:")
+        print("• 统一执行入口: execute_instruction_syn()方法处理所有任务类型")
+        print("• 智能分类系统: 自动识别信息性、单步骤、多步骤任务")
+        print("• 自适应工作流: 根据available_agents自动调整执行策略")
+        print("• 概念简化: 消除委托vs规划的概念重复")
+        print("• 代码维护: 单一执行路径，更易维护和扩展")
         
     except KeyboardInterrupt:
         print("\n\n演示被用户中断")

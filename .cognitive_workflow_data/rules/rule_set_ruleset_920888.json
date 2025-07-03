@@ -1,0 +1,64 @@
+{
+  "id": "ruleset_920888",
+  "goal": "tester, please create unit tests for `calculator.py` in `test_calculator.py` and run them to ensure everything works correctly.",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Initialize Test Environment",
+      "condition": "No test environment is set up for `calculator.py`",
+      "action": "Create a new file `test_calculator.py` and import `calculator.py`",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "`test_calculator.py` is created with necessary imports",
+      "metadata": {}
+    },
+    {
+      "id": "rule_005",
+      "name": "Fix Identified Issues",
+      "condition": "Test failures are identified",
+      "action": "Modify `calculator.py` to fix the issues and rerun tests",
+      "agent_name": "coder",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "All issues are resolved, and all unit tests pass",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Write Unit Tests",
+      "condition": "`test_calculator.py` exists but no tests are written",
+      "action": "Write unit tests for all functions in `calculator.py`",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "All functions in `calculator.py` have corresponding unit tests in `test_calculator.py`",
+      "metadata": {}
+    },
+    {
+      "id": "recovery_agent_fallback_1",
+      "name": "智能体回退策略 - 使用tester",
+      "condition": "当前任务执行失败且需要智能体能力时",
+      "action": "使用备用智能体tester重新执行原任务",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "通过tester成功完成任务",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Run Unit Tests",
+      "condition": "Unit tests are written in `test_calculator.py`",
+      "action": "Execute the unit tests using a test runner",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "verification",
+      "expected_outcome": "All unit tests pass, confirming `calculator.py` works correctly",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

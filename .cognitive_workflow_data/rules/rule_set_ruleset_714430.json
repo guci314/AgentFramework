@@ -1,0 +1,42 @@
+{
+  "id": "ruleset_714430",
+  "goal": "Please develop a complete calculator program with the following requirements:\n1. Create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division\n2. Create comprehensive unit tests for the calculator in `test_calculator.py` \n3. Run the tests to ensure everything works correctly\n4. The coder should handle the implementation and the tester should handle the testing\n\nThis is a complete software development task that requires both coding and testing expertise.",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Implement Calculator Program",
+      "condition": "Task requires implementation of a calculator program",
+      "action": "Develop a calculator program in `calculator.py` that supports addition, subtraction, multiplication, and division",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "A functional calculator program in `calculator.py`",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Create Unit Tests",
+      "condition": "Calculator program implementation is complete",
+      "action": "Develop comprehensive unit tests in `test_calculator.py` for the calculator program",
+      "agent_name": "tester",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "Comprehensive unit tests in `test_calculator.py`",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Run Unit Tests",
+      "condition": "Unit tests for the calculator program are ready",
+      "action": "Execute the unit tests to verify the calculator program's functionality",
+      "agent_name": "tester",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "All unit tests pass, confirming the calculator program works correctly",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

@@ -1,25 +1,20 @@
 class Calculator:
-    """简单的计算器类，实现加减乘除基本运算"""
+    """A simple calculator class that performs basic arithmetic operations."""
     
     def add(self, a, b):
-        """加法运算"""
+        """Return the sum of two numbers."""
         return a + b
     
     def subtract(self, a, b):
-        """减法运算"""
+        """Return the difference between two numbers."""
         return a - b
     
     def multiply(self, a, b):
-        """乘法运算"""
+        """Return the product of two numbers."""
         return a * b
     
     def divide(self, a, b):
-        """除法运算"""
+        """Return the quotient of two numbers."""
         if b == 0:
-            raise ValueError("除数不能为零")
+            raise ValueError("Cannot divide by zero")
         return a / b
-
-
-if __name__ == "__main__":
-    calc = Calculator()
-    print("Calculator initialized")

@@ -1,0 +1,75 @@
+{
+  "id": "ruleset_222939",
+  "goal": "coder, please create a calculator program in `calculator.py` that can perform addition, subtraction, multiplication, and division.",
+  "rules": [
+    {
+      "id": "rule_001",
+      "name": "Initialize Project",
+      "condition": "Project does not exist",
+      "action": "Create a new Python file named calculator.py",
+      "agent_name": "coder",
+      "priority": 100,
+      "phase": "execution",
+      "expected_outcome": "calculator.py file is created",
+      "metadata": {}
+    },
+    {
+      "id": "rule_002",
+      "name": "Implement Addition",
+      "condition": "calculator.py exists",
+      "action": "Implement addition function in calculator.py",
+      "agent_name": "coder",
+      "priority": 90,
+      "phase": "execution",
+      "expected_outcome": "Addition function is correctly implemented",
+      "metadata": {}
+    },
+    {
+      "id": "rule_003",
+      "name": "Implement Subtraction",
+      "condition": "Addition function is implemented",
+      "action": "Implement subtraction function in calculator.py",
+      "agent_name": "coder",
+      "priority": 85,
+      "phase": "execution",
+      "expected_outcome": "Subtraction function is correctly implemented",
+      "metadata": {}
+    },
+    {
+      "id": "rule_004",
+      "name": "Implement Multiplication",
+      "condition": "Subtraction function is implemented",
+      "action": "Implement multiplication function in calculator.py",
+      "agent_name": "coder",
+      "priority": 80,
+      "phase": "execution",
+      "expected_outcome": "Multiplication function is correctly implemented",
+      "metadata": {}
+    },
+    {
+      "id": "rule_005",
+      "name": "Implement Division",
+      "condition": "Multiplication function is implemented",
+      "action": "Implement division function in calculator.py",
+      "agent_name": "coder",
+      "priority": 75,
+      "phase": "execution",
+      "expected_outcome": "Division function is correctly implemented",
+      "metadata": {}
+    },
+    {
+      "id": "rule_006",
+      "name": "Test Calculator",
+      "condition": "All functions are implemented",
+      "action": "Test all calculator functions for correctness",
+      "agent_name": "tester",
+      "priority": 70,
+      "phase": "execution",
+      "expected_outcome": "All functions work as expected",
+      "metadata": {}
+    }
+  ],
+  "version": 1,
+  "status": "active",
+  "modification_history": []
+}

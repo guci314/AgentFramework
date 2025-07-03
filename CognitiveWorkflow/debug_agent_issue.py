@@ -14,7 +14,7 @@ sys.path.append(str(project_root.parent))
 
 from pythonTask import Agent, llm_deepseek
 from cognitive_workflow_rule_base import create_production_rule_system
-from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
 
 def test_agent_registry_issue():
     """测试Agent注册表问题"""

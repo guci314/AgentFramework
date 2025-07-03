@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).parent / "CognitiveWorkflow"))
 
 from pythonTask import Agent, llm_deepseek
-from CognitiveWorkflow.cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
+from CognitiveWorkflow.cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
 
 def test_agent_naming_consistency():
     """测试Agent命名一致性修复效果"""
