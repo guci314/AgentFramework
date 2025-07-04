@@ -1,8 +1,0 @@
-{
-  "id": "ruleset_481660",
-  "goal": "创建一个简单的Python Hello World程序,打印hello world 789 ， 文件保存在hello_world.py",
-  "rules": [],
-  "version": 1,
-  "status": "active",
-  "modification_history": []
-}

@@ -171,14 +171,14 @@ class CognitiveAdvisor(AgentBase):
    - `name`: 规则名称
    - `condition`: IF条件（自然语言）
    - `action`: THEN动作（自然语言）
-   - `agent_name`: 执行的Agent名称
    - `priority`: 优先级（1-100）
    - `phase`: 执行阶段
+   - `agent_name`: 建议的执行Agent（可选，仅作为参考）
 
-3. **质量要求**：
+4. **质量要求**：
    - 条件描述要具体明确
    - 动作描述要可执行
-   - Agent选择要合理匹配
+   - Agent建议要合理（如提供）
    - 优先级设置要有依据
 
 请严格按照上述要求响应用户的每个请求。""".format(agent_info)

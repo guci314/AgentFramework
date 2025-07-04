@@ -383,6 +383,18 @@ class LanguageModelService:
             logger.error(f"执行结果验证失败: {e}")
             return True, 0.5, f"验证失败，默认通过: {str(e)}"  # 验证失败时默认通过，避免阻塞
     
+    def invoke(self, prompt: str) -> str:
+        """
+        公共方法：调用语言模型
+        
+        Args:
+            prompt: 输入提示
+            
+        Returns:
+            str: 模型响应
+        """
+        return self._call_llm(prompt)
+    
     def _call_llm(self, prompt: str) -> str:
         """
         调用语言模型

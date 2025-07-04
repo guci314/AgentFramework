@@ -14,6 +14,7 @@ from .rule_execution_service import RuleExecutionService
 from .state_service import StateService
 from .agent_service import AgentService
 from .language_model_service import LanguageModelService
+from .resource_manager import ResourceManager
 
 __all__ = [
     "RuleEngineService",
@@ -21,5 +22,6 @@ __all__ = [
     "RuleExecutionService",
     "StateService",
     "AgentService",
-    "LanguageModelService"
+    "LanguageModelService",
+    "ResourceManager"
 ]

@@ -34,6 +34,7 @@ from .domain.entities import (
     ProductionRule,
     RuleSet, 
     RuleExecution,
+    RuleSetExecution,
     GlobalState,
     DecisionResult,
     AgentRegistry,
@@ -62,6 +63,7 @@ from .services.core.rule_execution_service import RuleExecutionService
 from .services.core.state_service import StateService
 from .services.core.agent_service import AgentService
 from .services.core.language_model_service import LanguageModelService
+from .services.core.resource_manager import ResourceManager
 
 # 导入基础设施实现
 from .infrastructure.repository_impl import (
@@ -80,6 +82,7 @@ __all__ = [
     "ProductionRule",
     "RuleSet", 
     "RuleExecution",
+    "RuleSetExecution",
     "GlobalState",
     "DecisionResult",
     "AgentRegistry",
@@ -105,6 +108,7 @@ __all__ = [
     "StateService",
     "AgentService",
     "LanguageModelService",
+    "ResourceManager",
     
     # 基础设施实现
     "RuleRepositoryImpl",
@@ -162,10 +166,16 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable
         enable_context_filtering=enable_context_filtering
     )
     
+    # 创建ResourceManager用于智能体动态分配
+    resource_manager = ResourceManager(
+        agent_registry=agent_registry,
+        llm_service=llm_service
+    )
+    
     # 创建专门服务
     rule_generation = RuleGenerationService(llm_service, agent_registry)
     # rule_matching = RuleMatchingService(llm_service, max_workers)  # Removed - functionality integrated into RuleEngineService
-    rule_execution = RuleExecutionService(agent_service, execution_repository, llm_service)
+    rule_execution = RuleExecutionService(agent_service, execution_repository, llm_service, resource_manager)
     state_service = StateService(llm_service, state_repository)
     
     # 创建核心引擎服务
@@ -177,7 +187,8 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable
         rule_generation=rule_generation,
         state_service=state_service,
         enable_auto_recovery=enable_auto_recovery,
-        enable_adaptive_replacement=enable_adaptive_replacement
+        enable_adaptive_replacement=enable_adaptive_replacement,
+        resource_manager=resource_manager
     )
     
     # 创建工作流引擎，传入agent_registry

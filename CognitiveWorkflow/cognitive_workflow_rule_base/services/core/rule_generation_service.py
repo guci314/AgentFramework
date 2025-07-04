@@ -239,15 +239,17 @@ class RuleGenerationService:
                             phase = RulePhase.EXECUTION
                         
                         # 创建恢复规则
+                        suggested_agent = rule_data.get('agent_name', 'coder')
                         recovery_rule = ProductionRule(
                             id=rule_id,
                             name=rule_name,
                             condition=rule_data.get('trigger_condition', '需要恢复操作'),
                             action=rule_data.get('action', '执行恢复操作'),
-                            agent_name=rule_data.get('agent_name', 'coder'),
+                            # agent_name=rule_data.get('agent_name', 'coder'),  # 移至实例层
                             priority=int(rule_data.get('priority', 75)),
                             phase=phase,
-                            expected_outcome=rule_data.get('expected_result', '问题得到解决')
+                            expected_outcome=rule_data.get('expected_result', '问题得到解决'),
+                            metadata={'suggested_agent': suggested_agent}
                         )
                         
                         recovery_rules.append(recovery_rule)
@@ -269,10 +271,11 @@ class RuleGenerationService:
                     name="基础错误恢复",
                     condition="检测到执行失败需要恢复",
                     action=f"分析失败原因: {failure_context.get('failure_reason', '未知错误')}，并尝试修复问题",
-                    agent_name='coder',
+                    # agent_name='coder',  # 移至实例层
                     priority=70,
                     phase=RulePhase.EXECUTION,
-                    expected_outcome="问题得到识别和修复"
+                    expected_outcome="问题得到识别和修复",
+                    metadata={'suggested_agent': 'coder'}
                 )
                 recovery_rules.append(basic_recovery_rule)
             
@@ -326,16 +329,21 @@ class RuleGenerationService:
             optimized_action = self._optimize_action_description(rule)
             
             # 创建扩展后的规则
+            # 保留原规则的建议智能体（如果有）
+            metadata = rule.metadata.copy()
+            if hasattr(rule, 'agent_name') and rule.agent_name:
+                metadata['suggested_agent'] = rule.agent_name
+                
             expanded_rule = ProductionRule(
                 id=rule.id,
                 name=rule.name,
                 condition=rule.condition,
                 action=optimized_action,
-                agent_name=rule.agent_name,
+                # agent_name=rule.agent_name,  # 已移至实例层
                 priority=rule.priority,
                 phase=rule.phase,
                 expected_outcome=detailed_outcome,
-                metadata=rule.metadata.copy()
+                metadata=metadata
             )
             
             logger.debug(f"规则细节已扩展: {rule.name}")
@@ -556,16 +564,18 @@ class RuleGenerationService:
             rule_name = rule_data.get('rule_name') or rule_data.get('name', '未命名规则')
             rule_id = f"rule_{hash(rule_name + str(rule_data)) % 1000000:06d}"
             
-            # 创建规则 - 支持新旧字段名
+            # 创建规则 - 支持新旧字段名（不再指定agent_name）
+            suggested_agent = rule_data.get('agent_name', '')
             rule = ProductionRule(
                 id=rule_id,
                 name=rule_name,
                 condition=rule_data.get('trigger_condition') or rule_data.get('condition', ''),
                 action=rule_data.get('action', ''),
-                agent_name=rule_data.get('agent_name', ''),
+                # agent_name=rule_data.get('agent_name', ''),  # 移至实例层
                 priority=int(rule_data.get('priority', RuleConstants.DEFAULT_RULE_PRIORITY)),
                 phase=phase,
-                expected_outcome=rule_data.get('expected_result') or rule_data.get('expected_outcome', '')
+                expected_outcome=rule_data.get('expected_result') or rule_data.get('expected_outcome', ''),
+                metadata={'suggested_agent': suggested_agent} if suggested_agent else {}
             )
             
             return rule
@@ -757,10 +767,11 @@ class RuleGenerationService:
                     name='重新规划执行策略',
                     condition='当前执行进度缓慢或遇到重大障碍',
                     action=f'重新分析目标"{goal[:50]}..."的执行策略，制定更有效的实施方案',
-                    agent_name='coder',
+                    # agent_name='coder',  # 移至实例层
                     priority=90,
                     phase=RulePhase.INFORMATION_GATHERING,
-                    expected_outcome='制定优化的执行策略，提高执行效率'
+                    expected_outcome='制定优化的执行策略，提高执行效率',
+                    metadata={'suggested_agent': 'coder'}
                 ))
             
             # 通用目标分解规则
@@ -769,10 +780,11 @@ class RuleGenerationService:
                 name='目标分解和优先级调整',
                 condition='当前目标过于复杂或执行困难',
                 action=f'将目标"{goal[:50]}..."分解为更小的可管理子目标，重新排列优先级',
-                agent_name='coder',
+                # agent_name='coder',  # 移至实例层
                 priority=75,
                 phase=RulePhase.INFORMATION_GATHERING,
-                expected_outcome='确定分解后的子目标和执行优先级'
+                expected_outcome='确定分解后的子目标和执行优先级',
+                metadata={'suggested_agent': 'coder'}
             ))
             
             logger.info(f"生成了 {len(default_rules)} 个默认策略调整规则")
@@ -946,16 +958,21 @@ class RuleGenerationService:
         # 为避免修改原规则，创建副本
         optimized_rules = []
         for rule in rules:
+            # 保留原规则的建议智能体（如果有）
+            metadata = rule.metadata.copy()
+            if hasattr(rule, 'agent_name') and rule.agent_name:
+                metadata['suggested_agent'] = rule.agent_name
+            
             optimized_rule = ProductionRule(
                 id=rule.id,
                 name=rule.name,
                 condition=rule.condition,
                 action=rule.action,
-                agent_name=rule.agent_name,
+                # agent_name=rule.agent_name,  # 已移至实例层
                 priority=rule.priority,
                 phase=rule.phase,
                 expected_outcome=rule.expected_outcome,
-                metadata=rule.metadata.copy()
+                metadata=metadata
             )
             optimized_rules.append(optimized_rule)
         
@@ -1895,10 +1912,11 @@ class RuleGenerationService:
                         name=f"智能体回退策略 - 使用{agent}",
                         condition=f"当前任务执行失败且需要智能体能力时",
                         action=f"使用备用智能体{agent}重新执行原任务",
-                        agent_name=agent,
+                        # agent_name=agent,  # 移至实例层
                         priority=80,
                         phase=RulePhase.EXECUTION,
-                        expected_outcome=f"通过{agent}成功完成任务"
+                        expected_outcome=f"通过{agent}成功完成任务",
+                        metadata={'suggested_agent': agent}  # 动态指定备用智能体
                     )
                     rules.append(rule)
         
@@ -1909,15 +1927,17 @@ class RuleGenerationService:
         rules = []
         
         # 分步执行策略
+        suggested_agent = failure_context.get('agent_name', 'default')
         rule1 = ProductionRule(
             id="recovery_timeout_split_task",
             name="超时恢复 - 任务分解",
             condition="上一个任务执行超时",
             action="将超时任务分解为更小的子任务，分步执行",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=85,
             phase=RulePhase.EXECUTION,
-            expected_outcome="通过分步执行避免超时"
+            expected_outcome="通过分步执行避免超时",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule1)
         
@@ -1927,10 +1947,11 @@ class RuleGenerationService:
             name="超时恢复 - 简化策略",
             condition="任务分解后仍然超时",
             action="采用简化版本的任务执行方案，减少处理复杂度",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=75,
             phase=RulePhase.EXECUTION,
-            expected_outcome="通过简化策略完成核心任务"
+            expected_outcome="通过简化策略完成核心任务",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule2)
         
@@ -1939,6 +1960,7 @@ class RuleGenerationService:
     def _generate_data_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
         """生成数据恢复规则"""
         rules = []
+        suggested_agent = failure_context.get('agent_name', 'default')
         
         # 数据验证规则
         rule1 = ProductionRule(
@@ -1946,10 +1968,11 @@ class RuleGenerationService:
             name="数据恢复 - 输入验证",
             condition="数据处理出现错误",
             action="验证输入数据格式和完整性，修正发现的问题",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=90,
             phase=RulePhase.EXECUTION,
-            expected_outcome="数据格式正确，可以正常处理"
+            expected_outcome="数据格式正确，可以正常处理",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule1)
         
@@ -1971,16 +1994,18 @@ class RuleGenerationService:
     def _generate_permission_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
         """生成权限恢复规则"""
         rules = []
+        suggested_agent = failure_context.get('agent_name', 'default')
         
         rule = ProductionRule(
             id="recovery_permission_fallback",
             name="权限恢复 - 降级访问",
             condition="遇到权限拒绝错误",
             action="使用只读模式或受限权限模式继续执行任务",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=70,
             phase=RulePhase.EXECUTION,
-            expected_outcome="在受限模式下完成可执行的部分"
+            expected_outcome="在受限模式下完成可执行的部分",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule)
         
@@ -1989,6 +2014,7 @@ class RuleGenerationService:
     def _generate_generic_recovery_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
         """生成通用恢复规则"""
         rules = []
+        suggested_agent = failure_context.get('agent_name', 'default')
         
         # 重试规则
         rule1 = ProductionRule(
@@ -1996,10 +2022,11 @@ class RuleGenerationService:
             name="通用恢复 - 智能重试",
             condition="任务执行失败且无特定恢复策略",
             action="等待短暂时间后重新尝试执行任务，调整执行参数",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=60,
             phase=RulePhase.EXECUTION,
-            expected_outcome="通过重试成功完成任务"
+            expected_outcome="通过重试成功完成任务",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule1)
         
@@ -2008,6 +2035,7 @@ class RuleGenerationService:
     def _generate_fallback_strategy_rules(self, failure_context: Dict[str, Any], global_state: GlobalState) -> List[ProductionRule]:
         """生成降级策略规则"""
         rules = []
+        suggested_agent = failure_context.get('agent_name', 'default')
         
         # 部分完成策略
         rule1 = ProductionRule(
@@ -2015,10 +2043,11 @@ class RuleGenerationService:
             name="降级策略 - 部分完成",
             condition="多次恢复尝试失败",
             action="完成任务的核心部分，跳过非关键的可选步骤",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=50,
             phase=RulePhase.EXECUTION,
-            expected_outcome="完成任务的关键部分"
+            expected_outcome="完成任务的关键部分",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule1)
         
@@ -2028,10 +2057,11 @@ class RuleGenerationService:
             name="降级策略 - 标记人工处理",
             condition="自动恢复策略全部失败",
             action="记录问题详情，标记为需要人工干预，继续其他任务",
-            agent_name=failure_context.get('agent_name', 'default'),
+            # agent_name=failure_context.get('agent_name', 'default'),  # 移至实例层
             priority=40,
             phase=RulePhase.EXECUTION,
-            expected_outcome="问题已记录，等待人工处理"
+            expected_outcome="问题已记录，等待人工处理",
+            metadata={'suggested_agent': suggested_agent}
         )
         rules.append(rule2)
         
@@ -2071,16 +2101,17 @@ class RuleGenerationService:
                     logger.warning(f"无效的阶段值: {phase_str}，使用默认值")
                     phase = RulePhase.EXECUTION
                 
-                # 创建ProductionRule对象
+                # 创建ProductionRule对象（不再指定agent_name，改为存储在metadata中）
                 production_rule = ProductionRule(
                     id=rule_id,
                     name=name,
                     condition=condition,
                     action=action,
-                    agent_name=agent_name,
+                    # agent_name=agent_name,  # 移至实例层
                     priority=priority,
                     phase=phase,
-                    expected_outcome=expected_outcome
+                    expected_outcome=expected_outcome,
+                    metadata={'suggested_agent': agent_name}  # 作为建议存储在metadata中
                 )
                 
                 rules.append(production_rule)
@@ -2094,10 +2125,11 @@ class RuleGenerationService:
                     name=f"备用规则{i+1}",
                     condition="需要执行备用操作",
                     action="执行基础操作",
-                    agent_name='coder',
+                    # agent_name='coder',  # 移至实例层
                     priority=30,
                     phase=RulePhase.EXECUTION,
-                    expected_outcome="基础任务完成"
+                    expected_outcome="基础任务完成",
+                    metadata={'suggested_agent': 'coder'}
                 )
                 rules.append(fallback_rule)
                 continue

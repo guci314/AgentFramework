@@ -6,7 +6,7 @@
 并管理执行结果的标准化和错误处理。
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 import logging
 from datetime import datetime
 import uuid
@@ -17,6 +17,10 @@ from ...domain.value_objects import ExecutionStatus, ExecutionConstants
 from .agent_service import AgentService
 from .language_model_service import LanguageModelService
 
+if TYPE_CHECKING:
+    from ...domain.entities import RuleSetExecution
+    from .resource_manager import ResourceManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +30,8 @@ class RuleExecutionService:
     def __init__(self, 
                  agent_service: AgentService,
                  execution_repository: ExecutionRepository,
-                 llm_service: LanguageModelService):
+                 llm_service: LanguageModelService,
+                 resource_manager: Optional['ResourceManager'] = None):
         """
         初始化规则执行服务
         
@@ -34,20 +39,24 @@ class RuleExecutionService:
             agent_service: 智能体服务
             execution_repository: 执行仓储
             llm_service: 语言模型服务
+            resource_manager: 资源管理器（可选，用于动态分配智能体）
         """
         self.agent_service = agent_service
         self.execution_repository = execution_repository
         self.llm_service = llm_service
+        self.resource_manager = resource_manager
         
     def execute_rule(self, 
                     rule: ProductionRule, 
-                    global_state: GlobalState) -> RuleExecution:
+                    global_state: GlobalState,
+                    rule_set_execution: Optional['RuleSetExecution'] = None) -> RuleExecution:
         """
         执行单个规则
         
         Args:
             rule: 要执行的规则
             global_state: 全局状态
+            rule_set_execution: 规则集执行实例（可选，用于动态分配智能体）
             
         Returns:
             RuleExecution: 执行结果
@@ -59,6 +68,23 @@ class RuleExecutionService:
             status=ExecutionStatus.RUNNING
             # started_at=datetime.now()  # Removed for LLM caching
         )
+        
+        # 分配智能体
+        if self.resource_manager and rule_set_execution:
+            # 使用ResourceManager进行动态分配
+            assigned_agent = self.resource_manager.allocate_agent_for_rule(
+                rule, rule_set_execution
+            )
+            rule_execution.assigned_agent = assigned_agent
+            logger.info(f"ResourceManager为规则 '{rule.name}' 分配智能体: {assigned_agent}")
+        else:
+            # 后备方案：使用规则中的agent_name（如果存在）
+            if hasattr(rule, 'agent_name') and rule.agent_name:
+                rule_execution.assigned_agent = rule.agent_name
+            else:
+                # 使用默认智能体
+                rule_execution.assigned_agent = next(iter(self.agent_service.agent_registry.agents.keys()))
+            logger.info(f"使用默认分配策略，智能体: {rule_execution.assigned_agent}")
         
         try:
             logger.info(f"开始执行规则: {rule.name}")
@@ -73,7 +99,7 @@ class RuleExecutionService:
             # 执行自然语言动作
             result = self._execute_natural_language_action(
                 rule.action, 
-                rule.agent_name, 
+                rule_execution.assigned_agent,  # 使用分配的智能体
                 execution_context
             )
             

@@ -6,13 +6,16 @@
 负责编排各个专门服务，管理完整的工作流程。
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 import logging
 from datetime import datetime
 import uuid
 
+if TYPE_CHECKING:
+    from .resource_manager import ResourceManager
+
 from ...domain.entities import (
-    ProductionRule, RuleSet, RuleExecution, GlobalState, DecisionResult
+    ProductionRule, RuleSet, RuleExecution, GlobalState, DecisionResult, RuleSetExecution
 )
 from ...domain.repositories import RuleRepository, StateRepository, ExecutionRepository
 from ...domain.value_objects import (
@@ -40,7 +43,8 @@ class RuleEngineService:
                  state_service: StateService,
                  enable_auto_recovery: bool = True,
                  max_iterations: int = RuleConstants.MAX_ITERATIONS,
-                 enable_adaptive_replacement: bool = True):
+                 enable_adaptive_replacement: bool = True,
+                 resource_manager: Optional['ResourceManager'] = None):
         """
         初始化规则引擎服务
         
@@ -64,6 +68,7 @@ class RuleEngineService:
         self.enable_auto_recovery = enable_auto_recovery
         self.max_iterations = max_iterations
         self.enable_adaptive_replacement = enable_adaptive_replacement
+        self.resource_manager = resource_manager
         
         # 初始化自适应替换服务
         if enable_adaptive_replacement:
@@ -77,6 +82,7 @@ class RuleEngineService:
         # 运行时状态
         self._current_rule_set: Optional[RuleSet] = None
         self._workflow_id: Optional[str] = None
+        self._current_rule_set_execution: Optional[RuleSetExecution] = None
         
     def execute_workflow(self, goal: str, agent_registry: Any) -> WorkflowExecutionResult:
         """
@@ -107,6 +113,15 @@ class RuleEngineService:
             
             # 2. 创建初始状态
             global_state = self.state_service.create_initial_state(goal, workflow_id)
+            
+            # 2.5 如果启用了ResourceManager，创建RuleSetExecution
+            if self.resource_manager:
+                self._current_rule_set_execution = RuleSetExecution(
+                    id=f"ruleset_exec_{workflow_id}",
+                    rule_set_id=rule_set.id,
+                    global_state=global_state,
+                    context={'goal': goal, 'workflow_id': workflow_id}
+                )
             
             # 3. 执行主循环
             iteration_count = 0
@@ -143,8 +158,14 @@ class RuleEngineService:
                 if decision.decision_type == DecisionType.EXECUTE_SELECTED_RULE:
                     # 执行选中的规则
                     rule_execution = self.rule_execution.execute_rule(
-                        decision.selected_rule, global_state
+                        decision.selected_rule, 
+                        global_state,
+                        self._current_rule_set_execution  # 传递RuleSetExecution以支持动态分配
                     )
+                    
+                    # 如果使用了RuleSetExecution，记录执行历史
+                    if self._current_rule_set_execution:
+                        self._current_rule_set_execution.add_rule_execution(rule_execution)
                     
                     # 更新状态（包含目标达成检查和规则集上下文）
                     global_state = self.state_service.update_state(
@@ -219,7 +240,12 @@ class RuleEngineService:
                     logger.info("目标已达成（从全局状态中检测到）")
                     break
             
-            # 4. 生成执行结果
+            # 4. 更新RuleSetExecution状态（如果启用）
+            if self._current_rule_set_execution:
+                self._current_rule_set_execution.global_state = global_state
+                self._current_rule_set_execution.mark_completed(success=goal_achieved)
+            
+            # 5. 生成执行结果
             end_time = datetime.now()
             execution_metrics = self._calculate_execution_metrics(workflow_id)
             
