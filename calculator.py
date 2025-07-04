@@ -1,57 +1,93 @@
-def add(a, b):
-    """加法函数"""
-    return a + b
 
-def subtract(a, b):
-    """减法函数"""
-    return a - b
+import math
+from collections import deque
 
-def multiply(a, b):
-    """乘法函数"""
-    return a * b
-
-def divide(a, b):
-    """除法函数"""
-    if b == 0:
-        raise ValueError("除数不能为零")
-    return a / b
-
-import unittest
-from calculator import add, subtract, multiply, divide
-
-class CalculatorTest(unittest.TestCase):
-    """测试计算器基本运算功能"""
+class Calculator:
+    """A simple calculator class with basic mathematical operations and history tracking."""
     
-    def test_add_normal(self):
-        """测试加法正常情况"""
-        self.assertEqual(add(2, 3), 5)
-        self.assertEqual(add(-1, 1), 0)
-        self.assertEqual(add(0, 0), 0)
+    def __init__(self):
+        self._history = deque(maxlen=10)  # Store last 10 operations
+        
+    def add(self, a, b):
+        """Add two numbers with parameter validation."""
+        if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+            raise TypeError("Both arguments must be numbers")
+        result = a + b
+        self._history.append(f"add: {a} + {b} => {result}")
+        return result
     
-    def test_subtract_normal(self):
-        """测试减法正常情况"""
-        self.assertEqual(subtract(5, 3), 2)
-        self.assertEqual(subtract(10, -5), 15)
-        self.assertEqual(subtract(0, 0), 0)
+    def subtract(self, a, b):
+        """Subtract two numbers with parameter validation."""
+        if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+            raise TypeError("Both arguments must be numbers")
+        result = a - b
+        self._history.append(f"subtract: {a} - {b} => {result}")
+        return result
     
-    def test_multiply_normal(self):
-        """测试乘法正常情况"""
-        self.assertEqual(multiply(2, 3), 6)
-        self.assertEqual(multiply(-1, 5), -5)
-        self.assertEqual(multiply(0, 100), 0)
+    def multiply(self, a, b):
+        """Multiply two numbers with parameter validation."""
+        if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+            raise TypeError("Both arguments must be numbers")
+        result = a * b
+        self._history.append(f"multiply: {a} * {b} => {result}")
+        return result
     
-    def test_divide_normal(self):
-        """测试除法正常情况"""
-        self.assertEqual(divide(6, 3), 2)
-        self.assertEqual(divide(10, 2), 5)
-        self.assertEqual(divide(-9, 3), -3)
+    def divide(self, a, b):
+        """Divide two numbers with parameter validation."""
+        if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+            raise TypeError("Both arguments must be numbers")
+        if b == 0:
+            raise ValueError("Cannot divide by zero")
+        result = a / b
+        self._history.append(f"divide: {a} / {b} => {result}")
+        return result
     
-    def test_divide_by_zero(self):
-        """测试除数为零的异常情况"""
-        with self.assertRaises(ValueError):
-            divide(10, 0)
-        with self.assertRaises(ValueError):
-            divide(0, 0)
-
-if __name__ == '__main__':
-    unittest.main()
+    def power(self, base, exponent, force_integer=False):
+        """Calculate base raised to the power of exponent."""
+        if not isinstance(base, (int, float)) or not isinstance(exponent, (int, float)):
+            raise TypeError("Both arguments must be numbers")
+        if exponent == 0:
+            result = 1.0
+        else:
+            result = base ** exponent
+            result = float(result) if exponent < 0 else result
+        self._history.append(f"power: {base}^{exponent} => {result}")
+        return result
+    
+    def square_root(self, x):
+        """Calculate the square root of a number."""
+        if not isinstance(x, (int, float)):
+            raise TypeError("Input must be a number")
+        if x < 0:
+            raise ValueError("Cannot calculate square root of negative number")
+        result = math.sqrt(x)
+        self._history.append(f"square_root: √{x} => {result}")
+        return result
+    
+    def factorial(self, n):
+        """
+        Calculate factorial of a non-negative integer using iterative approach.
+        """
+        if not isinstance(n, int):
+            raise TypeError("Input must be an integer")
+        if n < 0:
+            raise ValueError("Factorial is not defined for negative numbers")
+            
+        if n in (0, 1):
+            result = 1
+        else:
+            use_float = n > 20
+            result = 1.0 if use_float else 1
+            for i in range(2, n + 1):
+                result *= float(i) if use_float else i
+                
+        self._history.append(f"factorial: {n}! => {result}")
+        return result
+    
+    def get_history(self):
+        """Return a list of operation history records."""
+        return list(self._history)
+    
+    def clear_history(self):
+        """Clear all operation history records."""
+        self._history.clear()

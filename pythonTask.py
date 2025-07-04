@@ -132,7 +132,7 @@ def _map_log_level(custom_level_int):
         return logging.INFO
 
 load_dotenv()  # 加载 .env 文件中的环境变量
-max_turn = 10
+max_turn = 5
 import importlib
 # import mda.prompts
 # importlib.reload(mda.prompts)
@@ -676,12 +676,9 @@ class StatefulExecutor(Device):
             # 创建配置对象
             from traitlets.config import Config
             c = Config()
-            # 禁用matplotlib的自动配置
-            c.InteractiveShell.pylab = None
             # 禁用各种可能导致GUI相关问题的功能
             c.InteractiveShell.autoindent = False
             c.InteractiveShell.colors = 'NoColor'
-            c.InteractiveShell.confirm_exit = False
             # 使用带有配置的InteractiveShell
             ipython = InteractiveShell.instance(config=c, display_banner=False)
             
@@ -1539,6 +1536,38 @@ class Agent(AgentBase):
             return False, ["代码执行失败，无明确评估结果"]
 
     def execute_sync(self, instruction:str) -> Result:
+        """
+        同步执行自然语言指令，将其翻译为Python代码并执行。
+        
+        该方法接收自然语言描述的任务，通过以下流程处理：
+        1. 使用 Thinker 将自然语言翻译为Python代码
+        2. 执行生成的代码
+        3. 评估执行结果是否满足任务要求（可选）
+        4. 生成最终的执行结果（可选）
+        
+        Args:
+            instruction (str): 自然语言指令，例如：
+                - "计算 123 + 456"
+                - "生成一个包含10个随机数的列表"
+                - "创建一个简单的计算器函数"
+                - "分析这组数据并生成图表"
+        
+        Returns:
+            Result: 执行结果对象，包含以下属性：
+                - success (bool): 执行是否成功
+                - code (str): 生成的Python代码
+                - stdout (str): 标准输出
+                - stderr (str): 错误输出
+                - return_value: 返回值，根据配置可能是：
+                    - 代码执行的实际返回值（skip_generation=True时）
+                    - LLM生成的自然语言总结（skip_generation=False时）
+                    - 嵌套的Result对象（特定配置下）
+        
+        Note:
+            - 如果 skip_evaluation=True，将跳过结果评估步骤
+            - 如果 skip_generation=True，将跳过最终结果生成步骤
+            - max_retries 控制失败时的重试次数
+        """
         # 首先判断指令是否为动作类型
         # is_action = self.thinker.classify_instruction(instruction)
         # if not is_action:

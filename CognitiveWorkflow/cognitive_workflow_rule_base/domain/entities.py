@@ -54,12 +54,12 @@ class WorkflowResult:
 
 @dataclass
 class ProductionRule:
-    """产生式规则实体 - 系统的核心业务规则"""
+    """产生式规则实体 - 系统的核心业务规则（类型层）"""
     id: str
     name: str
     condition: str              # 自然语言描述的触发条件 (IF部分)
     action: str                # 要执行的动作指令 (THEN部分)
-    agent_name: str            # 直接引用Agent的名称
+    # agent_name: str            # 已移至实例层(RuleExecution.assigned_agent)
     priority: int = RuleConstants.DEFAULT_RULE_PRIORITY  # 规则优先级
     phase: RulePhase = RulePhase.EXECUTION
     expected_outcome: str = ""  # 期望的执行结果
@@ -107,7 +107,7 @@ class ProductionRule:
             'name': self.name,
             'condition': self.condition,
             'action': self.action,
-            'agent_name': self.agent_name,
+            # 'agent_name': self.agent_name,  # 已移至实例层
             'priority': self.priority,
             'phase': self.phase.value,
             'expected_outcome': self.expected_outcome,
@@ -119,9 +119,10 @@ class ProductionRule:
 
 @dataclass
 class RuleExecution:
-    """规则执行实体 - 记录具体规则的执行实例"""
+    """规则执行实体 - 记录具体规则的执行实例（实例层）"""
     id: str
     rule_id: str
+    assigned_agent: Optional[str] = None  # 实例层分配的具体agent
     status: ExecutionStatus = ExecutionStatus.PENDING
     result: Optional[WorkflowResult] = None
     # started_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
@@ -662,3 +663,45 @@ class AgentRegistry:
             del self.agents[name]
             return True
         return False
+
+
+@dataclass
+class RuleSetExecution:
+    """规则集执行实体 - 管理规则集的执行实例（实例层）"""
+    id: str
+    rule_set_id: str  # 对应的规则集ID（类型层）
+    global_state: GlobalState  # 工作流当前状态
+    rule_executions: List[RuleExecution] = field(default_factory=list)  # 规则执行记录
+    status: ExecutionStatus = ExecutionStatus.PENDING
+    # started_at: datetime = field(default_factory=datetime.now)  # Removed for LLM caching
+    completed_at: Optional[datetime] = None
+    context: Dict[str, Any] = field(default_factory=dict)  # 执行上下文
+    
+    def add_rule_execution(self, rule_execution: RuleExecution) -> None:
+        """添加规则执行记录"""
+        self.rule_executions.append(rule_execution)
+    
+    def get_latest_execution(self) -> Optional[RuleExecution]:
+        """获取最新的规则执行记录"""
+        return self.rule_executions[-1] if self.rule_executions else None
+    
+    def is_completed(self) -> bool:
+        """检查执行是否完成"""
+        return self.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]
+    
+    def mark_completed(self, success: bool = True) -> None:
+        """标记执行完成"""
+        self.status = ExecutionStatus.COMPLETED if success else ExecutionStatus.FAILED
+        self.completed_at = datetime.now()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'id': self.id,
+            'rule_set_id': self.rule_set_id,
+            'global_state': self.global_state.to_dict(),
+            'rule_executions': [exec.id for exec in self.rule_executions],
+            'status': self.status.value,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'context': self.context
+        }

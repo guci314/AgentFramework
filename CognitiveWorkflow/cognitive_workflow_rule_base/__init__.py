@@ -34,6 +34,7 @@ from .domain.entities import (
     ProductionRule,
     RuleSet, 
     RuleExecution,
+    RuleSetExecution,
     GlobalState,
     DecisionResult,
     AgentRegistry,
@@ -54,14 +55,15 @@ from .domain.repositories import (
     ExecutionRepository
 )
 
-# 导入核心服务
-from .services.rule_engine_service import RuleEngineService
-from .services.rule_generation_service import RuleGenerationService
+# 导入核心服务 - 使用新的包结构
+from .services.core.rule_engine_service import RuleEngineService
+from .services.core.rule_generation_service import RuleGenerationService
 # from .services.rule_matching_service import RuleMatchingService  # Removed - functionality integrated into RuleEngineService
-from .services.rule_execution_service import RuleExecutionService
-from .services.state_service import StateService
-from .services.agent_service import AgentService
-from .services.language_model_service import LanguageModelService
+from .services.core.rule_execution_service import RuleExecutionService
+from .services.core.state_service import StateService
+from .services.core.agent_service import AgentService
+from .services.core.language_model_service import LanguageModelService
+from .services.core.resource_manager import ResourceManager
 
 # 导入基础设施实现
 from .infrastructure.repository_impl import (
@@ -70,8 +72,9 @@ from .infrastructure.repository_impl import (
     ExecutionRepositoryImpl
 )
 
-# 导入工作流引擎
-from .engine.production_rule_workflow_engine import ProductionRuleWorkflowEngine
+# 导入应用层组件
+from .application.production_rule_workflow_engine import ProductionRuleWorkflowEngine
+from .application.cognitive_workflow_agent_wrapper import CognitiveAgent
 
 # 定义公开的API
 __all__ = [
@@ -79,6 +82,7 @@ __all__ = [
     "ProductionRule",
     "RuleSet", 
     "RuleExecution",
+    "RuleSetExecution",
     "GlobalState",
     "DecisionResult",
     "AgentRegistry",
@@ -104,17 +108,19 @@ __all__ = [
     "StateService",
     "AgentService",
     "LanguageModelService",
+    "ResourceManager",
     
     # 基础设施实现
     "RuleRepositoryImpl",
     "StateRepositoryImpl",
     "ExecutionRepositoryImpl",
     
-    # 工作流引擎
-    "ProductionRuleWorkflowEngine"
+    # 应用层组件
+    "ProductionRuleWorkflowEngine",
+    "CognitiveAgent"
 ]
 
-def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable_adaptive_replacement=True):
+def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable_adaptive_replacement=True, enable_context_filtering=True):
     """
     快速创建产生式规则系统的工厂函数
     
@@ -123,6 +129,7 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable
         agents: 智能体字典 {name: agent_instance}
         enable_auto_recovery: 是否启用自动恢复
         enable_adaptive_replacement: 是否启用自适应规则替换
+        enable_context_filtering: 是否启用上下文过滤（TaskTranslator）
         
     Returns:
         ProductionRuleWorkflowEngine: 配置好的工作流引擎
@@ -142,13 +149,33 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable
     for name, agent in agents.items():
         agent_registry.register_agent(name, agent)
     
-    # 创建Agent服务
-    agent_service = AgentService(agent_registry, agents)
+    # 创建TaskTranslator（如果启用）
+    task_translator = None
+    if enable_context_filtering:
+        try:
+            from .services.cognitive.task_translator import TaskTranslator
+            task_translator = TaskTranslator(llm)
+        except ImportError:
+            task_translator = None
+    
+    # 创建Agent服务，注入TaskTranslator
+    agent_service = AgentService(
+        agent_registry=agent_registry, 
+        agent_instances=agents,
+        task_translator=task_translator,
+        enable_context_filtering=enable_context_filtering
+    )
+    
+    # 创建ResourceManager用于智能体动态分配
+    resource_manager = ResourceManager(
+        agent_registry=agent_registry,
+        llm_service=llm_service
+    )
     
     # 创建专门服务
     rule_generation = RuleGenerationService(llm_service, agent_registry)
     # rule_matching = RuleMatchingService(llm_service, max_workers)  # Removed - functionality integrated into RuleEngineService
-    rule_execution = RuleExecutionService(agent_service, execution_repository, llm_service)
+    rule_execution = RuleExecutionService(agent_service, execution_repository, llm_service, resource_manager)
     state_service = StateService(llm_service, state_repository)
     
     # 创建核心引擎服务
@@ -160,7 +187,8 @@ def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable
         rule_generation=rule_generation,
         state_service=state_service,
         enable_auto_recovery=enable_auto_recovery,
-        enable_adaptive_replacement=enable_adaptive_replacement
+        enable_adaptive_replacement=enable_adaptive_replacement,
+        resource_manager=resource_manager
     )
     
     # 创建工作流引擎，传入agent_registry

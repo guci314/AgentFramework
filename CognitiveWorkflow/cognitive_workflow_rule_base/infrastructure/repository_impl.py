@@ -269,29 +269,23 @@ class RuleRepositoryImpl(RuleRepository):
         return rule_set
     
     def _dict_to_rule(self, data: Dict) -> ProductionRule:
-        """从字典创建规则，支持向后兼容性"""
-        # Handle backward compatibility: agent_capability_id -> agent_name
-        agent_name = data.get('agent_name') or data.get('agent_capability_id', 'coder')
-        
+        """从字典创建规则"""
         rule = ProductionRule(
             id=data['id'],
             name=data['name'],
             condition=data['condition'],
             action=data['action'],
-            agent_name=agent_name,
             priority=data.get('priority', 50),
-            phase=self._parse_phase_with_compatibility(data.get('phase', 'execution')),
+            phase=self._parse_phase(data.get('phase', 'execution')),
             expected_outcome=data.get('expected_outcome', ''),
-            # created_at=datetime.fromisoformat(data['created_at']),  # Removed for LLM caching
-            # updated_at=datetime.fromisoformat(data['updated_at']),  # Removed for LLM caching
             metadata=data.get('metadata', {})
         )
         
         return rule
     
-    def _parse_phase_with_compatibility(self, phase_value: str) -> RulePhase:
+    def _parse_phase(self, phase_value: str) -> RulePhase:
         """
-        解析阶段值，支持向后兼容性
+        解析阶段值
         
         Args:
             phase_value: 阶段字符串值
@@ -300,17 +294,7 @@ class RuleRepositoryImpl(RuleRepository):
             RulePhase: 解析后的阶段枚举
         """
         try:
-            # 处理旧的阶段值映射
-            if phase_value == 'problem_solving':
-                logger.debug("将旧的 'problem_solving' 阶段转换为 'execution'")
-                return RulePhase.EXECUTION
-            elif phase_value == 'cleanup':
-                logger.debug("将旧的 'cleanup' 阶段转换为 'verification'")
-                return RulePhase.VERIFICATION
-            else:
-                # 尝试直接解析
-                return RulePhase(phase_value)
-                
+            return RulePhase(phase_value)
         except ValueError as e:
             logger.warning(f"无法解析阶段值 '{phase_value}'，使用默认值 'execution': {e}")
             return RulePhase.EXECUTION

@@ -508,7 +508,12 @@ class AgentBase:
         human_msg = HumanMessage(message)
         self.memory.append(human_msg)
         content = ''
-        for chunk in self.llm.stream(self.memory, response_format=response_format):
+        # Only pass response_format if it's not None to avoid API compatibility issues
+        stream_kwargs = {}
+        if response_format is not None:
+            stream_kwargs['response_format'] = response_format
+        chunks = self.llm.stream(self.memory, **stream_kwargs)
+        for chunk in chunks:
             content += chunk.content
             yield chunk.content
         ai_msg = AIMessage(content)
@@ -526,7 +531,11 @@ class AgentBase:
         '''
         human_msg = HumanMessage(message)
         self.memory.append(human_msg)
-        content = self.llm.invoke(self.memory, response_format=response_format).content
+        # Only pass response_format if it's not None to avoid API compatibility issues
+        invoke_kwargs = {}
+        if response_format is not None:
+            invoke_kwargs['response_format'] = response_format
+        content = self.llm.invoke(self.memory, **invoke_kwargs).content
         ai_msg = AIMessage(content)
         self.memory.append(ai_msg)
         return Result(True, "", "", None, content)

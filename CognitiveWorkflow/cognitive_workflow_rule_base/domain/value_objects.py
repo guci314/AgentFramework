@@ -31,10 +31,11 @@ class ExecutionStatus(Enum):
 
 class DecisionType(Enum):
     """决策类型枚举"""
-    EXECUTE_SELECTED_RULE = "execute_selected_rule"  # 执行选中的规则
-    ADD_RULE = "add_rule"                           # 添加新规则
-    GOAL_ACHIEVED = "goal_achieved"                 # 目标达成
-    GOAL_FAILED = "goal_failed"                     # 目标失败
+    EXECUTE_SELECTED_RULE = "EXECUTE_SELECTED_RULE"  # 执行选中的规则
+    ADD_RULE = "ADD_RULE"                           # 添加新规则
+    GOAL_ACHIEVED = "GOAL_ACHIEVED"                 # 目标达成
+    GOAL_FAILED = "GOAL_FAILED"                     # 目标失败
+    INITIALIZE_WORKFLOW = "INITIALIZE_WORKFLOW"     # 初始化工作流
 
 
 class RuleSetStatus(Enum):

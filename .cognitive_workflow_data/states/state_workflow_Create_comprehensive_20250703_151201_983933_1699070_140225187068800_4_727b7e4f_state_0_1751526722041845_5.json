@@ -1,0 +1,13 @@
+{
+  "id": "workflow_Create_comprehensive_20250703_151201_983933_1699070_140225187068800_4_727b7e4f_state_0_1751526722041845_5",
+  "state": "工作流已启动，目标：Create comprehensive unit tests in test_calculator.py covering all calculator functions。当前处于初始状态，等待规则生成和执行。",
+  "context_variables": {
+    "goal": "Create comprehensive unit tests in test_calculator.py covering all calculator functions"
+  },
+  "execution_history": [
+    "[iter_0] 工作流启动"
+  ],
+  "workflow_id": "workflow_Create_comprehensive_20250703_151201_983933_1699070_140225187068800_4_727b7e4f",
+  "iteration_count": 0,
+  "goal_achieved": false
+}

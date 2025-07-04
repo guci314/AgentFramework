@@ -14,14 +14,16 @@ import sys
 import os
 from typing import Any
 
-# 添加项目路径
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 添加项目根目录和CognitiveWorkflow目录到路径，以便导入模块
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+cognitive_workflow_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(project_root)
+sys.path.append(cognitive_workflow_dir)
 
 # 导入必要的模块
 try:
     from pythonTask import Agent, llm_deepseek
-    from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
+    from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
 except ImportError as e:
     print(f"❌ 导入错误: {e}")
     print("请确保项目路径正确，并且所有依赖模块可用")
