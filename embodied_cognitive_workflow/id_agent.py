@@ -29,26 +29,28 @@ class IdAgent(AgentBase):
 
 你的核心职责：
 1. 从用户指令中识别核心需求和价值目标
-2. 建立清晰的成功标准和评估准则
-3. 响应自我的评估请求，主动观察目标状态
+2. 建立实用的成功标准（要宽松合理，不要过于严格）
+3. 响应自我的评估请求，生成简单的观察指令
 4. 基于观察结果判断目标是否达成，给出明确反馈
 
 工作原则：
-- 始终以用户的真实需求为导向
-- 建立明确、可验证的成功标准
-- 主动监控目标达成情况
-- 给出明确的评估结论和建议
+- 以用户的核心需求为导向，不追求完美
+- 建立简单、实用的成功标准
+- 观察指令要简洁明了，易于执行
+- 评估要宽松合理，只要核心功能满足就算成功
 
 响应格式：
-- 评估结论只能是："工作流结束"或具体的未满足原因
-- 观察指令要明确具体，便于身体执行
-- 所有交互都用自然语言，清晰易懂
+- 观察指令要简洁（1-2个核心检查项即可）
+- 避免复杂的测试要求（如覆盖率、代码质量评分等）
+- 评估标准要实用导向，不追求技术完美
+- 所有交互都用自然语言，简单易懂
 """
         
         super().__init__(llm, system_message or default_system)
         self.name = "本我智能体"
         self.value_standard = ""
         self.goal_description = ""
+        self.task_specification = ""  # 任务规格：包含目标、标准、验证方法
     
     def initialize_value_system(self, instruction: str) -> str:
         """
@@ -84,7 +86,10 @@ class IdAgent(AgentBase):
         result = self.chat_sync(message)
         response = result.return_value
         
-        # 保存价值标准和目标描述到实例变量
+        # 保存完整的任务规格到实例变量
+        self.task_specification = response
+        
+        # 解析并保存各个部分到对应属性
         if "目标描述：" in response:
             self.goal_description = response.split("目标描述：")[1].split("价值标准：")[0].strip()
         if "价值标准：" in response:
@@ -102,7 +107,7 @@ class IdAgent(AgentBase):
         Returns:
             str: 发给身体的观察指令
         """
-        message = f"""收到自我的评估请求，需要生成观察指令来了解当前状态：
+        message = f"""收到自我的评估请求，需要生成简单的观察指令：
 
 评估请求：
 {evaluation_request}
@@ -113,13 +118,13 @@ class IdAgent(AgentBase):
 我的价值标准：
 {self.value_standard}
 
-请生成一个具体的观察指令，告诉身体需要检查什么信息来判断目标是否达成。
+请生成1-2个简单的观察指令，重点检查核心功能是否满足。
 
-观察指令应该：
-1. 明确说明要观察的具体内容
-2. 为什么需要这些信息
-3. 如何获取这些信息
-4. 用自然语言表达，便于身体理解执行
+观察指令要求：
+1. 简洁明了，只检查最核心的1-2项
+2. 避免复杂的测试要求（如覆盖率、代码质量等）
+3. 实用导向，能运行且基本功能正确即可
+4. 用自然语言表达，便于身体执行
 
 只返回观察指令，不要其他内容。"""
 
@@ -134,7 +139,7 @@ class IdAgent(AgentBase):
             observation_result: 身体观察和检查的结果
             
         Returns:
-            str: 评估结论 - "工作流结束"或具体的未满足原因
+            str: JSON格式的评估结果，包含目标是否达成和原因
         """
         message = f"""基于观察结果，评估目标是否达成：
 
@@ -147,21 +152,32 @@ class IdAgent(AgentBase):
 我的价值标准：
 {self.value_standard}
 
-请根据价值标准仔细评估观察结果，判断目标是否真正达成。
+请根据价值标准评估观察结果，判断目标是否达成。
 
-如果目标已经达成，请回答："工作流结束"
+评估标准：
+- 只要核心功能满足就算成功，不追求完美
+- 如果目标已经达成，设置"目标是否达成"为true
+- 如果目标未达成，设置"目标是否达成"为false
 
-如果目标未达成，请说明具体的原因：
-- 缺少什么关键要素
-- 哪些标准没有满足
-- 需要什么补充工作
+请返回JSON格式：
+{{
+    "目标是否达成": true/false,
+    "原因": "简要说明原因"
+}}"""
 
-只返回评估结论，要么是"工作流结束"，要么是具体的未满足原因。"""
-
-        result = self.chat_sync(message)
+        # 使用response_format强制要求JSON格式响应
+        result = self.chat_sync(message, response_format={"type": "json_object"})
         response = result.return_value.strip()
         
-        return response
+        # 验证JSON格式（使用response_format后应该已经是有效JSON）
+        try:
+            import json
+            # 尝试解析JSON以验证格式
+            json.loads(response)
+            return response
+        except json.JSONDecodeError:
+            # 如果仍然解析失败，构造一个安全的默认响应
+            return '{"目标是否达成": false, "原因": "JSON格式错误，无法解析评估结果"}'
     
     def get_current_goal(self) -> str:
         """
@@ -224,3 +240,12 @@ class IdAgent(AgentBase):
         result = self.chat_sync(message)
         self.value_standard = result.return_value
         return self.value_standard
+    
+    def get_task_specification(self) -> str:
+        """
+        获取完整的任务规格
+        
+        Returns:
+            str: 任务规格，包含目标、标准、验证方法
+        """
+        return self.task_specification

@@ -90,23 +90,34 @@ class EgoAgent(AgentBase):
 状态分析：
 {state_analysis}
 
-请从以下三个选项中选择一个，只返回选项名称：
+请分析情况并选择下一步行动。返回JSON格式：
 
-1. "继续循环" - 如果认为可以继续执行下去，还有明确的下一步行动
-2. "请求评估" - 如果认为可能已经达到目标，需要本我进行评估确认
-3. "判断失败" - 如果认为目标无法达成，存在无法解决的问题
+{{
+    "决策": "选择的行动",
+    "理由": "简要说明理由"
+}}
 
-只返回选项名称，不要其他解释。"""
+可选的行动：
+- "继续循环" - 如果认为可以继续执行下去，还有明确的下一步行动
+- "请求评估" - 如果认为可能已经达到目标，需要本我进行评估确认  
+- "判断失败" - 如果认为目标无法达成，存在无法解决的问题"""
 
-        result = self.chat_sync(message)
-        decision = result.return_value.strip().strip('"').strip("'")
+        result = self.chat_sync(message, response_format={"type": "json_object"})
         
-        # 确保返回值是有效选项之一
-        valid_options = ["继续循环", "请求评估", "判断失败"]
-        if decision in valid_options:
-            return decision
-        else:
-            # 如果返回值不明确，默认请求评估
+        try:
+            import json
+            response_data = json.loads(result.return_value.strip())
+            decision = response_data.get("决策", "").strip()
+            
+            # 确保返回值是有效选项之一
+            valid_options = ["继续循环", "请求评估", "判断失败"]
+            if decision in valid_options:
+                return decision
+            else:
+                # 如果返回值不明确，默认请求评估
+                return "请求评估"
+        except (json.JSONDecodeError, KeyError):
+            # JSON解析失败，默认请求评估
             return "请求评估"
     
     def request_id_evaluation(self, current_state: str) -> str:

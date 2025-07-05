@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from embodied_cognitive_workflow import EmbodiedCognitiveWorkflow
 from langchain_openai import ChatOpenAI
 import os
-
+from pythonTask import llm_gemini_2_5_flash_google,llm_deepseek
 
 def 运行Calculator演示():
     """
@@ -23,13 +23,7 @@ def 运行Calculator演示():
     # 初始化语言模型
     # 注意：需要设置环境变量 DEEPSEEK_API_KEY
     try:
-        llm = ChatOpenAI(
-            model="deepseek-chat",
-            base_url="https://api.deepseek.com",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            temperature=0.1,
-            max_tokens=2000
-        )
+        llm = llm_gemini_2_5_flash_google
         print("✓ DeepSeek语言模型初始化成功")
     except Exception as e:
         print(f"❌ 语言模型初始化失败：{e}")
@@ -50,33 +44,23 @@ def 运行Calculator演示():
     
     # 定义任务：生成Calculator类和单元测试
     任务描述 = """
-请开发一个完整的Calculator类和对应的单元测试。要求如下：
+请开发一个完整的Calculator类和对应的单元测试。请创建两个文件：calculator.py（Calculator类）和 test_calculator.py（单元测试）要求如下：
 
 1. Calculator类功能：
    - 基本四则运算：加法、减法、乘法、除法
-   - 高级功能：求幂、开方、阶乘
-   - 历史记录：记录计算历史
-   - 错误处理：除零检查、负数开方检查等
+   - 错误处理：除零检查
 
 2. 单元测试要求：
    - 测试所有基本功能
    - 测试边界条件和错误情况
    - 使用unittest框架
-   - 测试覆盖率要高
 
-3. 代码质量：
-   - 代码结构清晰，注释完整
-   - 遵循Python编码规范
-   - 包含文档字符串
-
-4. 验证要求：
+3. 验证要求：
    - 代码能够正常运行
    - 所有测试能够通过
    - 功能完整可用
 
-5. calculator.py和test_calculator.py文件都能正常运行
-
-请创建两个文件：calculator.py（Calculator类）和 test_calculator.py（单元测试）
+请使用python3运行
 """
     
     print(f"\n📋 任务描述：\n{任务描述}\n")
