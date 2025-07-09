@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from pythonTask import Agent, llm_deepseek
 from cognitive_workflow_rule_base import create_production_rule_system
-from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def test_simple_workflow():
     """测试简单工作流"""
@@ -23,7 +23,7 @@ def test_simple_workflow():
     base_coder = Agent(llm=llm_deepseek)
     base_coder.api_specification = "代码专家"
     
-    coder = CognitiveAgent(base_agent=base_coder, agent_name="coder")
+    coder = IntelligentAgentWrapper(base_agent=base_coder, agent_name="coder")
     
     agents = {"coder": coder}
     

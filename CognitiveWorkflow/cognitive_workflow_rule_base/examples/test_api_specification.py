@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CognitiveAgent api_specification属性测试
+IntelligentAgentWrapper api_specification属性测试
 
-测试CognitiveAgent从base_agent自动获取api_specification的功能。
+测试IntelligentAgentWrapper从base_agent自动获取api_specification的功能。
 
 Author: Claude Code Assistant
 Date: 2025-06-29
@@ -19,11 +19,11 @@ sys.path.append(project_root)
 sys.path.append(cognitive_workflow_dir)
 
 from pythonTask import Agent, llm_deepseek
-from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def test_api_specification():
     """测试api_specification属性功能"""
-    print("🚀 测试CognitiveAgent的api_specification属性")
+    print("🚀 测试IntelligentAgentWrapper的api_specification属性")
     print("=" * 60)
     
     # 1. 创建基础Agent
@@ -61,12 +61,11 @@ Python编程专家，精通以下领域：
     print(f"✅ 已设置base_agent.api_specification")
     print(f"📄 内容长度: {len(original_api_spec)}字符")
     
-    # 3. 创建CognitiveAgent
-    print("\n🧠 步骤3: 创建CognitiveAgent")
-    cognitive_agent = CognitiveAgent(
+    # 3. 创建IntelligentAgentWrapper
+    print("\n🧠 步骤3: 创建IntelligentAgentWrapper")
+    cognitive_agent = IntelligentAgentWrapper(
         base_agent=base_agent,
-        enable_auto_recovery=True,
-        classification_cache_size=50
+        enable_auto_recovery=True
     )
     print(f"✅ 认知Agent: {cognitive_agent}")
     
@@ -75,7 +74,7 @@ Python编程专家，精通以下领域：
     
     # 4.1 测试getter
     retrieved_api_spec = cognitive_agent.api_specification
-    print(f"📋 从CognitiveAgent获取的api_specification:")
+    print(f"📋 从IntelligentAgentWrapper获取的api_specification:")
     if retrieved_api_spec:
         print(f"   长度: {len(retrieved_api_spec)}字符")
         print(f"   内容预览: {retrieved_api_spec[:100]}...")

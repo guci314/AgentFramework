@@ -46,7 +46,7 @@ def _get_production_rule_system():
         return None
 
 
-class CognitiveAgent:
+class IntelligentAgentWrapper:
     """
     基于产生式规则的Agent包装器
     
@@ -67,7 +67,7 @@ class CognitiveAgent:
     def __init__(self, 
                  base_agent: Any,
                  agent_name: Optional[str] = None,
-                 team_members: Optional[Dict[str, 'CognitiveAgent']] = None,
+                 team_members: Optional[Dict[str, 'IntelligentAgentWrapper']] = None,
                  enable_auto_recovery: bool = True,
                  enable_adaptive_replacement: bool = True):
         """
@@ -109,7 +109,7 @@ class CognitiveAgent:
         # 统一的Agent池：自己 + 团队成员
         self.available_agents = {self.agent_name: self, **self.team}
         
-        # 创建认知工作流引擎 - 每个CognitiveAgent都有自己的认知引擎
+        # 创建认知工作流引擎 - 每个IntelligentAgentWrapper都有自己的认知引擎
         # 这体现了层次化认知架构：每个Agent独立思考，然后协作
         create_production_rule_system = _get_production_rule_system()
         if create_production_rule_system is not None:
@@ -701,7 +701,11 @@ class CognitiveAgent:
             preview = self.api_specification[:50].replace('\n', ' ')
             api_spec_preview = f", api_spec='{preview}...'" if len(self.api_specification) > 50 else f", api_spec='{preview}'"
         
-        return (f"CognitiveAgent("
+        return (f"IntelligentAgentWrapper("
                 f"base_agent={type(self.base_agent).__name__}, "
                 f"workflow_engine={'✅' if self.workflow_engine else '❌'}"
                 f"{api_spec_preview})")
+
+
+# Backward compatibility alias
+CognitiveAgent = IntelligentAgentWrapper

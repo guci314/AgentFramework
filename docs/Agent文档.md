@@ -1,13 +1,95 @@
 # Agent系统文档
 
+> **📢 重要更新**：框架已升级到v2.0！新的模块架构提供7.3倍导入性能提升。
+> 
+> 🚀 **快速迁移**：将 `from pythonTask import Agent` 改为 `from python_core import Agent`
+> 
+> 📖 **详细指南**：参见下方[模块架构升级](#模块架构升级重要)章节
+
 ## 概述
 
 Agent系统是本框架的核心组件，提供了智能体的基础架构和功能。本文档详细介绍了Agent系统的完整架构，包括：
 
 - **`agent_base.py`** 中的核心基础类：Result类、内存管理装饰器、AgentBase基类
-- **`pythonTask.py`** 中的具体实现类：执行器类(Device、StatefulExecutor)、代码生成器(Thinker)、评估器(Evaluator)、完整智能体(Agent)
+- **`python_core.py`** 中的具体实现类：执行器类(Device、StatefulExecutor)、代码生成器(Thinker)、评估器(Evaluator)、完整智能体(Agent)
+- **`llm_lazy.py`** 中的懒加载模型获取：真正的懒加载实现，按需获取语言模型
+- **`llm_models.py`** 中的模型集中管理：所有语言模型的统一定义和管理
 
 这些组件共同构成了一个完整的智能体系统，支持自然语言到代码的转换、执行、评估和优化。
+
+## 模块架构升级（重要）
+
+**⚠️ 重要变更**：框架已从单一的`pythonTask.py`模块升级为分离式模块架构，以解决导入性能问题和提高维护性。
+
+### 新模块架构
+
+#### 1. 核心模块分离
+```python
+# 旧方式（已废弃）- 导入慢，26.3秒
+from pythonTask import Agent, StatefulExecutor
+from pythonTask import llm_gemini_2_5_flash_google
+
+# 新方式（推荐）- 导入快，3.6秒
+from python_core import Agent, StatefulExecutor
+from llm_lazy import get_model
+llm = get_model('gemini_2_5_flash')
+```
+
+#### 2. 模块说明
+
+| 模块文件 | 用途 | 导入时间 | 特点 |
+|---------|------|----------|------|
+| `python_core.py` | 核心类定义 | ~4秒 | 轻量级，无模型初始化 |
+| `llm_lazy.py` | 懒加载模型 | 0.067秒 | 真正按需加载，7.3倍性能提升 |
+| `llm_models.py` | 模型集中管理 | ~20秒 | 传统方式，仍初始化所有模型 |
+| `pythonTask.py` | 遗留兼容 | 26.3秒 | 仅供向后兼容，不推荐使用 |
+
+#### 3. 迁移指南
+
+**新项目使用方式：**
+```python
+# 导入核心组件
+from python_core import Agent, Device, StatefulExecutor, Thinker, Evaluator
+
+# 懒加载语言模型
+from llm_lazy import get_model
+
+# 创建智能体
+llm = get_model('gemini_2_5_flash')  # 支持的模型名称
+agent = Agent(llm=llm, stateful=True)
+```
+
+**支持的模型名称：**
+- `gemini_2_5_flash`, `gemini_2_5_pro`, `gemini_2_flash`
+- `deepseek_v3`, `deepseek_r1`, `deepseek_chat`
+- `qwen_qwq_32b`, `qwen_2_5_coder_32b`
+- `claude_35_sonnet`, `claude_37_sonnet`, `claude_sonnet_4`
+- `gpt_4o_mini`, `o3_mini`
+
+**便捷函数：**
+```python
+from llm_lazy import get_default, get_smart, get_coder, get_reasoner
+
+llm_default = get_default()    # Gemini 2.5 Flash
+llm_smart = get_smart()        # Gemini 2.5 Pro  
+llm_coder = get_coder()        # DeepSeek V3
+llm_reasoner = get_reasoner()  # Qwen QwQ 32B
+```
+
+**向后兼容：**
+```python
+# 支持旧模型名称
+from llm_lazy import get_model_by_old_name
+llm = get_model_by_old_name('llm_gemini_2_5_flash_google')
+```
+
+#### 4. 性能对比
+
+| 导入方式 | 导入时间 | 性能提升 | 内存使用 |
+|---------|----------|----------|----------|
+| pythonTask.py | 26.3秒 | 1x | 高（全部模型） |
+| python_core + llm_models | 23.4秒 | 1.1x | 高（全部模型） |
+| **python_core + llm_lazy** | **3.6秒** | **7.3x** | 低（按需加载） |
 
 ## 系统架构
 
@@ -604,13 +686,38 @@ def calculate_memory_tokens(self, model_name: str = "gpt-3.5-turbo") -> int:
 
 ## 最佳实践
 
-### 1. 内存管理
+### 1. 模块导入（重要）
+
+**推荐的导入方式：**
+```python
+# 1. 导入核心组件（快速）
+from python_core import Agent, StatefulExecutor, Thinker, Evaluator
+
+# 2. 懒加载模型（按需）
+from llm_lazy import get_model
+llm = get_model('gemini_2_5_flash')
+
+# 3. 创建智能体
+agent = Agent(llm=llm, stateful=True)
+```
+
+**避免的导入方式：**
+```python
+# ❌ 避免 - 导入慢，性能差
+import pythonTask
+from pythonTask import Agent, llm_gemini_2_5_flash_google
+
+# ❌ 避免 - 仍然慢
+from llm_models import get_model  # 仍初始化所有模型
+```
+
+### 2. 内存管理
 
 - 为长时间运行的智能体使用内存管理装饰器
 - 将重要的系统消息和知识标记为protected
 - 监控`memory_overloaded`标志以了解内存状态
 
-### 2. 消息保护
+### 3. 消息保护
 
 ```python
 # 标记消息为受保护
@@ -618,13 +725,13 @@ system_msg = SystemMessage("重要的系统消息")
 system_msg.protected = True
 ```
 
-### 3. 错误处理
+### 4. 错误处理
 
 - 检查Result对象的success字段判断执行状态
 - 适当处理stderr中的错误信息
 - 对于测试类指令，检查return_value获取实际结果
 
-### 4. 性能优化
+### 5. 性能优化
 
 - 使用流式方法处理长时间运行的任务
 - 适当配置max_tokens以平衡性能和功能性
@@ -722,6 +829,22 @@ if agent.memory_overloaded:
 
 ## 版本信息
 
-当前文档版本：1.0  
-最后更新时间：2025-01-21  
-适用代码版本：agent_base.py v2.0+ 
+当前文档版本：2.0  
+最后更新时间：2025-01-09  
+适用代码版本：
+- agent_base.py v2.0+
+- python_core.py v1.0+
+- llm_lazy.py v1.0+
+
+## 重要变更记录
+
+### v2.0 (2025-01-09)
+- ✅ **模块架构重构**：从pythonTask.py分离为python_core.py + llm_lazy.py
+- ✅ **性能大幅提升**：导入速度提升7.3倍（26.3s → 3.6s）
+- ✅ **真正懒加载**：按需创建语言模型，内存使用大幅减少
+- ✅ **向后兼容**：保持旧接口可用，支持渐进式迁移
+- ✅ **友好输出**：改进WorkflowContext和Result的字符串表示
+
+### v1.0 (2025-01-21)
+- 初始文档版本
+- 基于pythonTask.py的单一模块架构 

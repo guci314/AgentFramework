@@ -13,11 +13,29 @@ The framework has undergone significant architectural evolution:
 
 2. **Mid-Stage (`MultiStepAgent_v3.py`)**: Iterative optimization of early versions with improved core logic but still with limitations.
 
-3. **Current State**: Two major advanced systems:
+3. **Current State**: Three major advanced systems:
    - **CognitiveWorkflow**: Revolutionary dynamic navigation with planner-decider-executor roles
    - **TaskMasterAgent**: Integration with external "Task Master AI" for intelligent task decomposition
+   - **EmbodiedCognitiveWorkflow**: Four-layer cognitive architecture with natural language state management
 
 ## Core Architecture
+
+### 🧠 Foundational Design Principle: Natural Language First
+
+**The entire framework is built on a fundamental principle: ALL communication and state management uses natural language.**
+
+- **Instructions are Natural Language**: User commands, task descriptions, and agent communications are all in natural language
+- **States are Natural Language**: All cognitive states, evaluations, and context information are stored and transmitted as natural language descriptions
+- **No Hard-coded Enums**: The system avoids rigid state enumerations, instead using flexible natural language descriptions
+- **Human-Readable Transparency**: Every aspect of the cognitive process can be understood and audited by humans
+- **AI-Model Friendly**: Natural language states are inherently compatible with Large Language Models
+
+This design enables:
+- **Cognitive Transparency**: All agent thinking processes are human-readable
+- **Dynamic Flexibility**: States can evolve and adapt without code changes
+- **Cross-Agent Communication**: Different agent types can understand each other's states
+- **Debugging Simplicity**: All states and decisions are in plain language
+- **Extensibility**: New cognitive patterns can be added without structural changes
 
 ### Current Advanced Systems
 
@@ -38,13 +56,45 @@ Advanced production rule-based cognitive workflow engine with DDD architecture:
 - **Production Rule Engine**: IF-THEN natural language rule execution with adaptive optimization
 - **Context Pollution Solution**: Hierarchical cognitive architecture with task translation layer for filtering complex upper-layer context
 
-#### 2. TaskMasterAgent System (`task_master_agent.py`)
+#### 2. Embodied Cognitive Workflow System (`embodied_cognitive_workflow/`)
+**The most advanced natural language cognitive architecture featuring four-layer intelligence:**
+
+**🧠 Four-Layer Cognitive Architecture:**
+- **SuperEgo (超我)**: Meta-cognitive supervision and ethical constraints with UltraThink capabilities
+- **Ego (自我)**: Rational analysis and decision-making with state analysis and action planning
+- **Id (本我)**: Value-driven evaluation and goal monitoring with task specification management
+- **Body (身体)**: Execution and perception layer based on existing Agent systems
+
+**🌟 Natural Language State Management:**
+- **WorkflowContext**: Central context manager with natural language state representation
+  - `current_state`: Natural language description of cognitive analysis by Ego
+  - `id_evaluation`: Natural language evaluation results from Id
+  - `goal_achieved`: Boolean control variable for workflow termination
+- **Dynamic Navigation**: Real-time cognitive cycle based on natural language state analysis
+- **Incremental Planning (增量式规划)**: Step-by-step adaptive execution without predefined workflows
+
+**🔄 Cognitive Cycle Process:**
+1. **Complexity Assessment**: Ego evaluates if task needs cognitive cycle
+2. **State Analysis**: Ego analyzes current situation in natural language
+3. **Decision Making**: Ego decides next action based on state analysis
+4. **Value Evaluation**: Id evaluates goal achievement using natural language assessment
+5. **Body Execution**: Body executes concrete actions
+6. **Cycle Control**: WorkflowContext.goal_achieved determines continuation
+
+**💡 Key Innovations:**
+- **Natural Language Preconditions**: Replace static dependencies with flexible language descriptions
+- **Cognitive Debugging**: CognitiveDebugger provides step-by-step execution analysis
+- **Streaming Support**: Real-time cognitive process observation
+- **JSON-based Evaluation**: Structured goal achievement assessment
+- **Multi-modal Evaluation**: Both internal (Id) and external (Body observation) evaluation modes
+
+#### 3. TaskMasterAgent System (`task_master_agent.py`)
 Integration with external "Task Master AI" system:
 - Intelligent task decomposition and complexity analysis
 - Advanced dependency management
 - Automated task expansion and prioritization
 
-#### 3. Legacy Foundation Systems
+#### 4. Legacy Foundation Systems
 
 ##### Agent System
 - **AgentBase** (`agent_base.py`): Base class for all agents with memory management, chat and execution capabilities
@@ -97,7 +147,13 @@ python test_workflow_examples.py
 
 ### Running Examples
 ```bash
-# CognitiveWorkflow demos (Recommended)
+# Embodied Cognitive Workflow demos (Most Advanced - Recommended)
+cd embodied_cognitive_workflow
+python debug_demo.py
+python test_goal_achieved_fix_final.py
+python demo_workflow_context_docstring.py
+
+# CognitiveWorkflow demos
 cd CognitiveWorkflow
 python demo_cognitive_workflow.py
 python hello_world.py
@@ -130,6 +186,17 @@ pip install -r requirements.txt
 ## Key Files Structure
 
 ### Current Advanced Systems
+
+#### Embodied Cognitive Workflow System (`embodied_cognitive_workflow/`)
+**🧠 Four-Layer Cognitive Architecture with Natural Language State Management**
+- `embodied_cognitive_workflow.py` - Main CognitiveAgent with four-layer architecture
+- `super_ego_agent.py` - SuperEgo intelligence with UltraThink capabilities  
+- `ego_agent.py` - Ego intelligence for rational analysis and decision-making
+- `id_agent.py` - Id intelligence for value-driven evaluation and goal monitoring
+- `cognitive_debugger.py` - Advanced debugging system with step-by-step cognitive analysis
+- `demo_workflow_context_docstring.py` - Natural language state management demonstration
+- `debug_demo.py` - Complete cognitive debugging workflow demonstration
+- `test_goal_achieved_fix_final.py` - WorkflowContext.goal_achieved control validation
 
 #### CognitiveWorkflow System (`CognitiveWorkflow/`)
 - `cognitive_workflow.py` - Core cognitive workflow engine (1000+ lines)
@@ -188,7 +255,69 @@ pip install -r requirements.txt
 
 ## Agent Interaction Patterns
 
-### CognitiveWorkflow Execution (Recommended)
+### 🧠 Embodied Cognitive Workflow Execution (Most Advanced - Recommended)
+**Natural Language State Management with Four-Layer Cognitive Architecture**
+
+```python
+from embodied_cognitive_workflow import CognitiveAgent
+import pythonTask
+
+# Create cognitive agent with natural language state management
+agent = CognitiveAgent(
+    llm=pythonTask.llm_gemini_2_5_flash_google,
+    max_cycles=5,                    # Maximum cognitive cycles
+    verbose=True,                    # Show natural language process
+    enable_super_ego=True,           # Enable meta-cognitive supervision
+    evaluation_mode="external"       # Use JSON-based goal evaluation
+)
+
+# ✨ All instructions are natural language
+instruction = "开发一个Python计算器程序，包含基本的四则运算功能"
+
+# Synchronous execution with natural language states
+result = agent.execute_sync(instruction)
+print(f"Result: {result.return_value}")
+
+# Streaming execution - observe natural language cognitive process
+for chunk in agent.execute_stream(instruction):
+    if isinstance(chunk, Result):
+        print(f"Final Result: {chunk.return_value}")
+    else:
+        print(f"Cognitive Process: {chunk}")  # Natural language descriptions
+
+# Chat mode with natural language state persistence
+chat_result = agent.chat_sync("Please explain the calculator architecture")
+```
+
+**🔍 Natural Language Cognitive Debugging:**
+```python
+from embodied_cognitive_workflow.cognitive_debugger import CognitiveDebugger, StepType
+
+# Create debugger for step-by-step natural language analysis
+debugger = CognitiveDebugger(agent)
+debugger.start_debug("计算 15 + 23 的结果")
+
+# Single-step execution with natural language state inspection
+while not debugger.debug_state.is_finished:
+    step_result = debugger.run_one_step()
+    if step_result.step_type == StepType.ID_EVALUATION:
+        # Inspect natural language evaluation
+        print(f"本我评估 (Natural Language): {step_result.output_data}")
+        print(f"目标达成状态: {debugger.debug_state.workflow_context.goal_achieved}")
+```
+
+**🎯 Natural Language State Access:**
+```python
+# Access natural language states directly
+context = agent.workflow_context  # If available from execution
+print("Natural Language Context:")
+print(f"- Current State: {context.current_state}")      # Natural language analysis
+print(f"- Id Evaluation: {context.id_evaluation}")     # Natural language evaluation  
+print(f"- Goal Achieved: {context.goal_achieved}")     # Boolean control variable
+print(f"- Full Context:\n{context.get_current_context()}")  # Complete natural language context
+```
+
+### CognitiveWorkflow Execution
 ```python
 # Direct usage
 from CognitiveWorkflow.cognitive_workflow import CognitiveWorkflowEngine
@@ -237,13 +366,19 @@ result = agent.execute_multi_step("task description")
 - CognitiveWorkflow includes automatic error recovery and task generation
 
 ### Agent Development
-- **New Projects**: Use CognitiveWorkflow system directly
+- **🧠 New Projects**: Use EmbodiedCognitiveWorkflow for natural language state management
+- **Advanced Projects**: Use CognitiveWorkflow system for dynamic navigation
 - **Legacy Migration**: Use CognitiveMultiStepAgent adapter
 - **Foundation**: Inherit from `AgentBase` for basic functionality
 - **Stateful Execution**: Use `Agent` class with StatefulExecutor
 - **Streaming**: Implement streaming methods for real-time feedback
 - **Memory**: Add memory decorators for automatic memory management
-- **Natural Language**: Use natural language preconditions for task dependencies
+- **🌟 Natural Language First**: ALL states, instructions, and communications must be in natural language
+  - Instructions: Always accept natural language user commands
+  - States: Store all cognitive states as natural language descriptions
+  - Evaluation: Use natural language assessment with JSON structure for parsing
+  - Context: Maintain human-readable context for transparency
+  - Avoid: Hard-coded enums, binary flags, or numeric state codes
 
 ### Testing Patterns
 - Use `unittest.TestCase` for structured testing
@@ -288,22 +423,27 @@ result = agent.execute_multi_step("task description")
 ## Working with This Codebase
 
 ### Priority Areas for Understanding
-1. **CognitiveWorkflow System** - The most advanced and recommended approach
-2. **Memory Management** - Critical for production deployments
-3. **Agent Workflow Patterns** - Understanding execution models
-4. **State Management** - Both GlobalState and WorkflowState systems
+1. **🧠 Embodied Cognitive Workflow System** - The most advanced natural language cognitive architecture
+2. **🌟 Natural Language State Management** - Core principle: instructions and states are natural language
+3. **CognitiveWorkflow System** - Advanced dynamic navigation approach
+4. **Memory Management** - Critical for production deployments
+5. **Agent Workflow Patterns** - Understanding execution models
 
 ### Recommended Development Path
-1. Start with CognitiveWorkflow examples (`CognitiveWorkflow/demo_cognitive_workflow.py`)
-2. Understand the three-role architecture (Planner-Decider-Executor)
-3. Explore natural language preconditions and state satisfaction
-4. Use the adapter pattern for legacy system integration
-5. Implement comprehensive testing following the established patterns
+1. **Start with Embodied Cognitive Workflow** (`embodied_cognitive_workflow/debug_demo.py`)
+2. **Understand Natural Language Principles**: All states are natural language descriptions
+3. **Explore Four-Layer Architecture**: SuperEgo → Ego → Id → Body cognitive layers
+4. **Study WorkflowContext**: Natural language state management and goal_achieved control
+5. **Use CognitiveDebugger**: Step-by-step natural language cognitive process analysis
+6. **Explore CognitiveWorkflow** for dynamic navigation patterns
+7. **Implement Testing**: Following natural language state validation patterns
 
 ### Migration Strategy
-- **New features**: Use CognitiveWorkflow directly
-- **Existing code**: Use CognitiveMultiStepAgent adapter
+- **🧠 New features**: Use EmbodiedCognitiveWorkflow for natural language state management
+- **Advanced features**: Use CognitiveWorkflow for dynamic navigation
+- **Existing code**: Use CognitiveMultiStepAgent adapter for legacy integration
 - **Performance critical**: Consider static workflow for deterministic behavior
 - **Complex tasks**: Leverage TaskMaster AI integration
+- **🌟 Always maintain**: Natural language first principle in all implementations
 
-This framework represents a paradigm shift from static to dynamic agent workflows, with CognitiveWorkflow being the current state-of-the-art implementation.
+This framework represents a paradigm shift from static to dynamic agent workflows, with **EmbodiedCognitiveWorkflow** being the most advanced implementation featuring natural language state management and four-layer cognitive architecture.

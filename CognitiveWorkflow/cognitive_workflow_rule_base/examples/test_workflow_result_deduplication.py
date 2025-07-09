@@ -147,19 +147,19 @@ def test_workflow_execution_result_source():
         print(f"❌ 实例创建测试失败: {e}")
 
 def test_cognitive_agent_integration():
-    """测试CognitiveAgent中的WorkflowExecutionResult集成"""
-    print("\n🧠 验证CognitiveAgent集成")
+    """测试IntelligentAgentWrapper中的WorkflowExecutionResult集成"""
+    print("\n🧠 验证IntelligentAgentWrapper集成")
     print("-" * 70)
     
     try:
         from pythonTask import Agent, llm_deepseek
-        from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
+        from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
         
-        # 创建CognitiveAgent
+        # 创建IntelligentAgentWrapper
         base_agent = Agent(llm=llm_deepseek)
-        cognitive_agent = CognitiveAgent(base_agent)
+        cognitive_agent = IntelligentAgentWrapper(base_agent)
         
-        print("✅ CognitiveAgent创建成功")
+        print("✅ IntelligentAgentWrapper创建成功")
         
         # 检查是否可以正常访问execute_multi_step方法
         method_exists = hasattr(cognitive_agent, 'execute_multi_step')
@@ -171,10 +171,10 @@ def test_cognitive_agent_integration():
             sig = inspect.signature(cognitive_agent.execute_multi_step)
             print(f"   方法签名: {sig}")
             
-        print("✅ CognitiveAgent与WorkflowExecutionResult集成正常")
+        print("✅ IntelligentAgentWrapper与WorkflowExecutionResult集成正常")
         
     except Exception as e:
-        print(f"❌ CognitiveAgent集成测试失败: {e}")
+        print(f"❌ IntelligentAgentWrapper集成测试失败: {e}")
 
 def show_resolution_summary():
     """显示问题解决总结"""

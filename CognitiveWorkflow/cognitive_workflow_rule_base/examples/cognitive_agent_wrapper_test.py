@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-CognitiveAgent包装器测试套件
+IntelligentAgentWrapper包装器测试套件
 
 完整的测试示例，包含功能测试、分类准确性测试和使用场景演示。
 用于验证基于产生式规则的Agent包装器的各项功能。
@@ -23,7 +23,7 @@ sys.path.append(cognitive_workflow_dir)
 # 导入必要的模块
 try:
     from pythonTask import Agent, llm_deepseek
-    from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
+    from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 except ImportError as e:
     print(f"❌ 导入错误: {e}")
     print("请确保项目路径正确，并且所有依赖模块可用")
@@ -47,10 +47,9 @@ def test_agent_wrapper():
     # 2. 创建认知工作流包装器
     print("\n🧠 步骤2: 创建认知工作流包装器")
     try:
-        cognitive_agent = CognitiveAgent(
+        cognitive_agent = IntelligentAgentWrapper(
             base_agent=base_agent,
-            enable_auto_recovery=True,
-            classification_cache_size=50
+            enable_auto_recovery=True
         )
         print(f"✅ 认知包装器创建成功: {cognitive_agent}")
     except Exception as e:
@@ -157,7 +156,7 @@ def test_classification_accuracy():
     # 创建简化的测试环境
     try:
         base_agent = Agent(llm=llm_deepseek)
-        cognitive_agent = CognitiveAgent(base_agent)
+        cognitive_agent = IntelligentAgentWrapper(base_agent)
     except Exception as e:
         print(f"❌ 初始化失败: {e}")
         return
@@ -224,7 +223,7 @@ def demo_usage_scenarios():
     
     try:
         base_agent = Agent(llm=llm_deepseek)
-        cognitive_agent = CognitiveAgent(base_agent)
+        cognitive_agent = IntelligentAgentWrapper(base_agent)
     except Exception as e:
         print(f"❌ 初始化失败: {e}")
         return

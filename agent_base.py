@@ -40,20 +40,34 @@ class Result:
         self.return_value = return_value
     
     def __str__(self) -> str:
-        code = self.code or ""
-        stdout = self.stdout or ""
-        stderr = self.stderr or ""
-        try:
-            return_value = str(self.return_value) if self.return_value else ""
-        except:
-            return_value = ""
-        return f''' 
-            "success":{self.success} 
-            "code":{code} 
-            "stdout":{stdout} 
-            "stderr":{stderr} 
-            "return_value":{return_value} 
-        '''
+        """返回简洁的人类友好字符串表示"""
+        status = "✅成功" if self.success else "❌失败"
+        
+        # 构建简短的描述
+        parts = [f"Result({status})"]
+        
+        if self.code and self.code.strip():
+            code_preview = self.code.strip()[:50].replace('\n', ' ')
+            if len(self.code.strip()) > 50:
+                code_preview += "..."
+            parts.append(f"代码={code_preview}")
+        
+        if self.stdout and self.stdout.strip():
+            stdout_preview = self.stdout.strip()[:30].replace('\n', ' ')
+            if len(self.stdout.strip()) > 30:
+                stdout_preview += "..."
+            parts.append(f"输出={stdout_preview}")
+        
+        if self.stderr and self.stderr.strip():
+            parts.append("有错误")
+        
+        if self.return_value:
+            return_preview = str(self.return_value)[:40].replace('\n', ' ')
+            if len(str(self.return_value)) > 40:
+                return_preview += "..."
+            parts.append(f"返回={return_preview}")
+        
+        return " ".join(parts)
     
     def __repr__(self) -> str:
         return self.__str__()
@@ -472,6 +486,40 @@ class AgentBase:
         '''
         encoding = tiktoken.encoding_for_model(model_name)
         return sum(len(encoding.encode(msg.content)) for msg in self.memory)
+    
+    def reset(self) -> None:
+        """
+        重置智能体的内存，清空所有非保护的消息。
+        
+        保留的消息：
+        - 所有的系统消息（SystemMessage）
+        - 所有标记为protected=True的消息（如通过loadKnowledge加载的知识）
+        
+        副作用：
+        - 重置memory_overloaded标志为False
+        
+        示例：
+            agent = AgentBase(llm=llm, system_message="你是一个助手")
+            agent.chat_sync("对话1")
+            agent.chat_sync("对话2")
+            agent.reset()  # 清除对话历史，保留系统消息
+        """
+        # 筛选需要保留的消息
+        messages_to_keep = []
+        
+        for msg in self.memory:
+            # 保留系统消息
+            if isinstance(msg, SystemMessage):
+                messages_to_keep.append(msg)
+            # 保留受保护的消息
+            elif hasattr(msg, 'protected') and msg.protected:
+                messages_to_keep.append(msg)
+        
+        # 更新内存
+        self.memory = messages_to_keep
+        
+        # 重置内存超载标志
+        self.memory_overloaded = False
 
     # @reduce_memory_decorator
     def execute_stream(self, instruction:str=None) -> Iterator[object]:

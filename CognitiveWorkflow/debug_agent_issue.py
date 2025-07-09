@@ -14,7 +14,7 @@ sys.path.append(str(project_root.parent))
 
 from pythonTask import Agent, llm_deepseek
 from cognitive_workflow_rule_base import create_production_rule_system
-from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def test_agent_registry_issue():
     """测试Agent注册表问题"""
@@ -28,20 +28,20 @@ def test_agent_registry_issue():
     base_tester = Agent(llm=llm_deepseek)
     base_tester.api_specification = '测试专家，擅长编写测试用例'
     
-    # 2. 创建CognitiveAgent包装器 - 显式指定名称
-    coder = CognitiveAgent(
+    # 2. 创建IntelligentAgentWrapper包装器 - 显式指定名称
+    coder = IntelligentAgentWrapper(
         base_agent=base_coder,
         agent_name="coder",
         enable_auto_recovery=True
     )
     
-    tester = CognitiveAgent(
+    tester = IntelligentAgentWrapper(
         base_agent=base_tester,
         agent_name="tester", 
         enable_auto_recovery=True
     )
     
-    print(f"CognitiveAgent名称: coder={coder.agent_name}, tester={tester.agent_name}")
+    print(f"IntelligentAgentWrapper名称: coder={coder.agent_name}, tester={tester.agent_name}")
     
     # 3. 创建外部workflow_engine
     agents = {"coder": coder, "tester": tester}
@@ -60,7 +60,7 @@ def test_agent_registry_issue():
     external_agent_service = workflow_engine.rule_engine_service.rule_execution.agent_service
     print(f"外部AgentService的agent_registry: {list(external_agent_service.agent_registry.agents.keys())}")
     
-    # CognitiveAgent内部workflow_engine的AgentService
+    # IntelligentAgentWrapper内部workflow_engine的AgentService
     coder_agent_service = coder.workflow_engine.rule_engine_service.rule_execution.agent_service
     print(f"coder内部AgentService的agent_registry: {list(coder_agent_service.agent_registry.agents.keys())}")
     

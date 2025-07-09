@@ -3,20 +3,20 @@
 示例和演示代码
 
 包含基础使用示例和高级使用示例，展示如何使用产生式规则认知工作流系统。
-特别包含CognitiveAgent包装器的完整演示代码。
+特别包含IntelligentAgentWrapper包装器的完整演示代码。
 
 Available Examples:
 - basic_example: 基础产生式规则系统演示
 - advanced_example: 高级功能和专门化Agent演示
-- cognitive_agent_wrapper_demo: CognitiveAgent包装器完整演示 ⭐
-- simple_cognitive_demo: CognitiveAgent简化演示
-- cognitive_agent_wrapper_test: CognitiveAgent包装器测试套件
+- cognitive_agent_wrapper_demo: IntelligentAgentWrapper包装器完整演示 ⭐
+- simple_cognitive_demo: IntelligentAgentWrapper简化演示
+- cognitive_agent_wrapper_test: IntelligentAgentWrapper包装器测试套件
 - test_api_specification: API规范继承功能测试 🆕
 - test_workflow_result_deduplication: WorkflowExecutionResult重复定义解决方案验证 🆕
 
 Quick Start:
 ```python
-# 运行CognitiveAgent包装器演示
+# 运行IntelligentAgentWrapper包装器演示
 python cognitive_agent_wrapper_demo.py
 
 # 运行简化演示

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CognitiveAgent包装器演示
+IntelligentAgentWrapper包装器演示
 
-展示CognitiveAgent类的智能指令分类和执行路由功能。
+展示IntelligentAgentWrapper类的智能指令分类和执行路由功能。
 这是一个完整的演示，展示了如何使用认知工作流包装器来增强基础Agent。
 
 Author: Claude Code Assistant
@@ -20,11 +20,11 @@ sys.path.append(project_root)
 sys.path.append(cognitive_workflow_dir)
 
 from pythonTask import Agent, llm_deepseek, llm_gemini_2_5_pro_google
-from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def main():
     """主演示函数"""
-    print("🚀 CognitiveAgent包装器完整演示")
+    print("🚀 IntelligentAgentWrapper包装器完整演示")
     print("=" * 60)
     
     # 1. 创建基础Agent
@@ -32,12 +32,11 @@ def main():
     base_agent = Agent(llm=llm_gemini_2_5_pro_google)
     print(f"✅ 基础Agent: {type(base_agent).__name__}")
     
-    # 2. 创建CognitiveAgent
-    print("\n🧠 步骤2: 创建CognitiveAgent")
-    cognitive_agent = CognitiveAgent(
+    # 2. 创建IntelligentAgentWrapper
+    print("\n🧠 步骤2: 创建IntelligentAgentWrapper")
+    cognitive_agent = IntelligentAgentWrapper(
         base_agent=base_agent,
-        enable_auto_recovery=True,
-        classification_cache_size=50
+        enable_auto_recovery=True
     )
     print(f"✅ 认知Agent: {cognitive_agent}")
     
@@ -129,7 +128,7 @@ def main():
     
     print(f"\n🔧 工作流引擎: {'正常' if stats['workflow_engine_status'] else '异常'}")
     
-    print("\n🎉 CognitiveAgent包装器演示完成！")
+    print("\n🎉 IntelligentAgentWrapper包装器演示完成！")
 
 if __name__ == "__main__":
     main()

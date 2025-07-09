@@ -133,7 +133,7 @@ python test_api_specification.py
 ### Basic Usage
 ```python
 from pythonTask import Agent, llm_deepseek
-from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 # Create base agent
 base_agent = Agent(llm=llm_deepseek)
@@ -142,10 +142,9 @@ base_agent = Agent(llm=llm_deepseek)
 base_agent.api_specification = "Python编程专家，精通Web开发和数据分析"
 
 # Wrap with cognitive capabilities
-cognitive_agent = CognitiveAgent(
+cognitive_agent = IntelligentAgentWrapper(
     base_agent=base_agent,
-    enable_auto_recovery=True,
-    classification_cache_size=50
+    enable_auto_recovery=True
 )
 
 # API specification is automatically inherited

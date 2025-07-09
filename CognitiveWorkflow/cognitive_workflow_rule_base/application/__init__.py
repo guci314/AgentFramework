@@ -7,9 +7,10 @@
 """
 
 from .production_rule_workflow_engine import ProductionRuleWorkflowEngine
-from .cognitive_workflow_agent_wrapper import CognitiveAgent
+from .cognitive_workflow_agent_wrapper import IntelligentAgentWrapper, CognitiveAgent
 
 __all__ = [
     "ProductionRuleWorkflowEngine",
-    "CognitiveAgent"
+    "IntelligentAgentWrapper",
+    "CognitiveAgent"  # Backward compatibility alias
 ]

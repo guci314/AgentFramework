@@ -74,7 +74,7 @@ from .infrastructure.repository_impl import (
 
 # 导入应用层组件
 from .application.production_rule_workflow_engine import ProductionRuleWorkflowEngine
-from .application.cognitive_workflow_agent_wrapper import CognitiveAgent
+from .application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper, CognitiveAgent
 
 # 定义公开的API
 __all__ = [
@@ -117,7 +117,8 @@ __all__ = [
     
     # 应用层组件
     "ProductionRuleWorkflowEngine",
-    "CognitiveAgent"
+    "IntelligentAgentWrapper",
+    "CognitiveAgent"  # Backward compatibility alias
 ]
 
 def create_production_rule_system(llm, agents, enable_auto_recovery=True, enable_adaptive_replacement=True, enable_context_filtering=True):

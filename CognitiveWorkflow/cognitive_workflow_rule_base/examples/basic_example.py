@@ -21,7 +21,7 @@ sys.path.append(project_root)
 sys.path.append(cognitive_workflow_dir)
 
 from pythonTask import Agent, llm_deepseek
-from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import CognitiveAgent
+from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 # 尝试导入WorkflowExecutionResult，如果失败则定义一个虚拟类
 try:
@@ -50,23 +50,23 @@ def demonstrate_recursive_team_execution():
 
     manager_base_agent = Agent(llm=selected_llm) # 管理者也需要一个基础Agent来使用LLM
 
-    # 2. 创建叶节点CognitiveAgent (执行者)
+    # 2. 创建叶节点IntelligentAgentWrapper (执行者)
     print("\n2. 创建叶节点Agent (执行者)...")
-    coder = CognitiveAgent(
+    coder = IntelligentAgentWrapper(
         base_agent=base_coder_agent,
         agent_name="coder"
         # enable_adaptive_replacement=True  # 默认启用自适应规则替换
     )
-    tester = CognitiveAgent(
+    tester = IntelligentAgentWrapper(
         base_agent=base_tester_agent,
         agent_name="tester"
     )
     print(f"   - {coder}")
     print(f"   - {tester}")
 
-    # 3. 创建管理者CognitiveAgent
+    # 3. 创建管理者IntelligentAgentWrapper
     print("\n3. 创建管理者Agent...")
-    project_manager = CognitiveAgent(
+    project_manager = IntelligentAgentWrapper(
         base_agent=manager_base_agent,
         agent_name="project_manager",
         team_members={

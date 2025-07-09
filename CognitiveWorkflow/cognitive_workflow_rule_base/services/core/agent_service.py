@@ -179,10 +179,10 @@ class AgentService:
             # 执行指令
             logger.info(f"执行自然语言指令: {filtered_instruction[:100]}...")
             
-            # 优先调用CognitiveAgent的智能执行方法，fallback到传统execute_sync
+            # 优先调用IntelligentAgentWrapper的智能执行方法，fallback到传统execute_sync
             if hasattr(agent, 'execute_instruction_syn'):
-                # CognitiveAgent: 使用智能分类和路由执行
-                logger.debug(f"使用CognitiveAgent智能执行: {agent_name}")
+                # IntelligentAgentWrapper: 使用智能分类和路由执行
+                logger.debug(f"使用IntelligentAgentWrapper智能执行: {agent_name}")
                 raw_result = agent.execute_instruction_syn(filtered_instruction)
                 # 转换为标准WorkflowResult格式
                 result = self._convert_to_result(raw_result, filtered_instruction)
@@ -460,7 +460,7 @@ class AgentService:
                 logger.debug("检测到cognitive_workflow.WorkflowResult，直接返回")
                 return raw_result
             
-            # 检查是否是WorkflowExecutionResult对象 (CognitiveAgent多步执行返回)
+            # 检查是否是WorkflowExecutionResult对象 (IntelligentAgentWrapper多步执行返回)
             if (hasattr(raw_result, 'goal') and 
                 hasattr(raw_result, 'is_successful') and 
                 hasattr(raw_result, 'final_state') and 
