@@ -1,15 +1,21 @@
 
 class Calculator:
-    """一个简单的计算器类
+    """一个增强的计算器类
     
-    提供基本的加减乘除运算功能，支持整数和浮点数运算。
+    提供基本数学运算功能，包括：
+    - 加减乘除
+    - 幂运算
+    - 模运算
+    支持整数和浮点数运算，并记录最后一次计算结果。
     
     示例:
         >>> calc = Calculator()
         >>> calc.add(2, 3)
         5
-        >>> calc.divide(10, 2)
-        5.0
+        >>> calc.power(2, 3)
+        8
+        >>> calc.modulo(10, 3)
+        1
     """
     
     def __init__(self):
@@ -69,11 +75,44 @@ class Calculator:
             两数之商
             
         Raises:
-            ValueError: 当除数为零时抛出
+            ZeroDivisionError: 当除数为零时抛出
         """
         if b == 0:
-            raise ValueError("除数不能为零")
+            raise ZeroDivisionError("除数不能为零")
         result = a / b
+        self._last_result = result
+        return result
+        
+    def power(self, base: float, exponent: float) -> float:
+        """幂运算
+        
+        Args:
+            base: 底数
+            exponent: 指数
+            
+        Returns:
+            base的exponent次方
+        """
+        result = base ** exponent
+        self._last_result = result
+        return result
+        
+    def modulo(self, a: float, b: float) -> float:
+        """模运算
+        
+        Args:
+            a: 被除数
+            b: 除数
+            
+        Returns:
+            a除以b的余数
+            
+        Raises:
+            ZeroDivisionError: 当除数为零时抛出
+        """
+        if b == 0:
+            raise ZeroDivisionError("除数不能为零")
+        result = a % b
         self._last_result = result
         return result
         
