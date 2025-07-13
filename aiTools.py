@@ -6,9 +6,7 @@ import os
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
-from pythonTask import llm_deepseek
-
-load_dotenv()  # 加载 .env 文件中的环境变量
+from llm_lazy import get_modelnv()  # 加载 .env 文件中的环境变量
 
 # 设置代理服务器
 proxy_server = "http://127.0.0.1:7890"

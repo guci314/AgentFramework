@@ -18,16 +18,17 @@ from python_core import Agent
 try:
     from .ego_agent import EgoAgent
     from .id_agent import IdAgent
-    from .super_ego_agent import SuperEgoAgent
+    from .meta_cognitive_agent import MetaCognitiveAgent as MetaCognitionAgent
 except ImportError:
     # 当作为独立模块运行时，使用绝对导入
     from ego_agent import EgoAgent
     from id_agent import IdAgent
-    from super_ego_agent import SuperEgoAgent
+    from meta_cognitive_agent import MetaCognitiveAgent as MetaCognitionAgent
 from agent_base import AgentBase, Result
 from langchain_core.language_models import BaseChatModel
 from typing import List, Optional, Dict, Any, Iterator
 import logging
+import json
 from enum import Enum
 from dataclasses import dataclass
 
@@ -194,19 +195,23 @@ class WorkflowContext:
         return self.__str__()
 
 
+# MetaCognitionAgent 已经在 meta_cognitive_agent.py 中实现
+# 这里的占位类已不再需要，请直接使用导入的版本
+
+
 class CognitiveAgent(AgentBase):
     """
     认知智能体 - 具身认知工作流系统
     
     基于具身认知理论的智能体实现，现已升级为四层认知架构：
-    超我层(SuperEgo) - 元认知监督和道德约束
+    元认知层(SuperEgo) - 元认知监督和道德约束
     自我层(Ego) - 理性思考和决策
     本我层(Id) - 欲望驱动和目标导向  
     身体层(Body) - 执行和感知
     
     核心特性：
-    - 四层架构：超我智能体、自我智能体、本我智能体、身体智能体
-    - 元认知监督：超我层提供认知质量控制和策略优化
+    - 四层架构：元认知智能体、自我智能体、本我智能体、身体智能体
+    - 元认知监督：元认知层提供认知质量控制和策略优化
     - 自适应执行：根据任务复杂性选择直接处理或认知循环
     - 动态决策：实时状态分析和路径调整
     - 目标导向：以用户需求为中心的价值驱动系统
@@ -215,11 +220,12 @@ class CognitiveAgent(AgentBase):
     
     def __init__(self, 
                  llm: BaseChatModel,
+                 agents: Optional[List[Agent]] = None,
                  body_config: Optional[dict] = None,
                  ego_config: Optional[dict] = None,
                  id_config: Optional[dict] = None,
-                 super_ego_config: Optional[dict] = None,
-                 enable_super_ego: bool = True,
+                 meta_cognition_config: Optional[dict] = None,
+                 enable_meta_cognition: bool = True,
                  max_cycles: int = 50,
                  verbose: bool = True,
                  system_message: Optional[str] = None,
@@ -229,22 +235,23 @@ class CognitiveAgent(AgentBase):
         
         Args:
             llm: 语言模型
-            body_config: 身体(Agent)的配置参数
+            agents: Agent列表，如果为None则自动创建默认body Agent
+            body_config: 身体(Agent)的配置参数（仅在agents为None时使用）
             ego_config: 自我智能体的配置参数
             id_config: 本我智能体的配置参数
-            super_ego_config: 超我智能体的配置参数
-            enable_super_ego: 是否启用超我智能体
+            meta_cognition_config: 元认知智能体的配置参数
+            enable_meta_cognition: 是否启用元认知智能体
             max_cycles: 防止无限循环的最大次数限制
             verbose: 是否输出详细的过程日志
             system_message: 系统消息，如果未提供将使用默认消息
             evaluation_mode: 本我评估模式 ("internal", "external", "auto")
         """
         # 设置默认系统消息
-        default_system_message = """你是认知智能体，基于具身认知理论的四层架构智能体系统，负责协调超我、自我、本我和身体层的交互。
+        default_system_message = """你是认知智能体，基于具身认知理论的四层架构智能体系统，负责协调元认知、自我、本我和身体层的交互。
 
 你的核心能力：
-1. 四层架构协调：统筹超我（元认知监督）、自我、本我和身体智能体的协作
-2. 元认知监督：通过超我层进行认知质量控制和策略优化  
+1. 四层架构协调：统筹元认知、自我、本我和身体智能体的协作
+2. 元认知监督：通过元认知层进行认知质量控制和策略优化  
 3. 动态认知循环：根据任务复杂性选择直接处理或多轮认知循环
 4. 智能决策：判断任务是否可以一次性完成或需要分步思考
 5. UltraThink能力：先进的元认知分析、反思学习和策略优化
@@ -252,7 +259,7 @@ class CognitiveAgent(AgentBase):
 
 工作原则：
 - 简单任务直接处理，复杂任务启动认知循环
-- 超我层提供全程监督和质量控制
+- 元认知层提供全程监督和质量控制
 - 保持认知的连续性和一致性
 - 以用户目标为导向，确保任务完成
 - 提供详细的执行过程反馈和元认知洞察"""
@@ -262,21 +269,26 @@ class CognitiveAgent(AgentBase):
         self.max_cycles = max_cycles
         self.verbose = verbose
         self.evaluation_mode = evaluation_mode
-        self.enable_super_ego = enable_super_ego
+        self.enable_meta_cognition = enable_meta_cognition
         
-        # 初始化身体层（使用现有的Agent类）
-        body_config = body_config or {}
-        self.body = Agent(llm=llm, **body_config)
-        self.body.name = "身体"
-        self.body.loadKnowledge('unittest的测试输出在标准错误流而不是标准输出流')
-        self.body.loadKnowledge('在Jupyter notebook中模块重载方法：使用importlib.reload()重新加载已修改的模块。具体用法：import importlib; importlib.reload(your_module)。这样可以在不重启notebook的情况下获取模块的最新修改。')
-        # Flask非阻塞启动知识
-        self.body.loadKnowledge('Flask应用非阻塞启动方法：在Jupyter notebook或具身认知工作流中启动Flask应用时，必须使用非阻塞方式避免阻塞认知循环。正确方法：import threading; flask_thread = threading.Thread(target=lambda: app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False), daemon=True); flask_thread.start(); time.sleep(2)。避免直接调用app.run()，这会阻塞当前线程导致工作流卡死。验证Flask是否启动成功应使用HTTP请求测试，例如requests.get("http://127.0.0.1:5000")。')
+        # 初始化身体层（多Agent支持）
+        if agents:
+            # 使用提供的Agent列表
+            self.agents = agents[:]  # 复制列表避免外部修改
+        else:
+            # 向后兼容：创建默认body Agent
+            body_config = body_config or {}
+            default_body = Agent(llm=llm, **body_config)
+            default_body.name = "身体"
+            default_body.loadKnowledge('unittest的测试输出在标准错误流而不是标准输出流')
+            default_body.loadKnowledge('在Jupyter notebook中模块重载方法：使用importlib.reload()重新加载已修改的模块。具体用法：import importlib; importlib.reload(your_module)。这样可以在不重启notebook的情况下获取模块的最新修改。')
+            self.agents = [default_body]
+        
         
         # 初始化心灵层
         ego_config = ego_config or {}
         id_config = id_config or {}
-        super_ego_config = super_ego_config or {}
+        meta_cognition_config = meta_cognition_config or {}
         
         # 初始化日志系统（必须在使用logger之前）
         if self.verbose:
@@ -290,17 +302,16 @@ class CognitiveAgent(AgentBase):
         id_config_with_mode['evaluation_mode'] = evaluation_mode
         self.id_agent = IdAgent(llm=llm, **id_config_with_mode)
         
-        # 初始化超我层（元认知监督层）
-        self.super_ego = None
-        self.enable_super_ego = enable_super_ego
-        if enable_super_ego:
+        # 初始化元认知层（元认知监督层）
+        self.meta_cognition = None
+        if enable_meta_cognition:
             try:
-                self.super_ego = SuperEgoAgent(llm=llm, **super_ego_config)
-                self.super_ego.start_cognitive_monitoring()
-                self.logger.info("超我智能体已启用，开始元认知监督")
+                self.meta_cognition = MetaCognitionAgent(llm=llm, **meta_cognition_config)
+                self.meta_cognition.start_cognitive_monitoring()
+                self.logger.info("元认知智能体已启用，开始元认知监督")
             except Exception as e:
-                self.logger.warning(f"超我智能体初始化失败，将在无监督模式下运行: {e}")
-                self.enable_super_ego = False
+                self.logger.warning(f"元认知智能体初始化失败，将在无监督模式下运行: {e}")
+                self.enable_meta_cognition = False
         
         # 工作流状态
         self._status = WorkflowStatus.NOT_STARTED
@@ -326,9 +337,9 @@ class CognitiveAgent(AgentBase):
         print(f"[具身认知工作流] 开始执行认知循环，用户指令：{instruction}")
         
         try:
-            # 超我预监督
-            if self.enable_super_ego and self.super_ego:
-                self._super_ego_pre_supervision(instruction)
+            # 元认知预监督
+            if self.enable_meta_cognition and self.meta_cognition:
+                self._meta_cognition_pre_supervision(instruction)
             
             # 判断是否可以直接处理
             can_handle_directly = self._can_handle_directly(instruction)
@@ -342,9 +353,9 @@ class CognitiveAgent(AgentBase):
                 print("[具身认知工作流] 使用认知循环模式")
                 result = self._execute_cognitive_cycle_full(instruction)
             
-            # 超我后监督
-            if self.enable_super_ego and self.super_ego:
-                self._super_ego_post_supervision(instruction, result)
+            # 元认知后监督
+            if self.enable_meta_cognition and self.meta_cognition:
+                self._meta_cognition_post_supervision(instruction, result)
             
             return result
                 
@@ -371,12 +382,12 @@ class CognitiveAgent(AgentBase):
         yield f"[具身认知工作流] 开始执行认知循环，用户指令：{instruction}"
         
         try:
-            # 超我预监督（流式）
-            if self.enable_super_ego and self.super_ego:
-                yield "[具身认知工作流] 开始超我预监督..."
-                for chunk in self._super_ego_pre_supervision_stream(instruction):
+            # 元认知预监督（流式）
+            if self.enable_meta_cognition and self.meta_cognition:
+                yield "[具身认知工作流] 开始元认知预监督..."
+                for chunk in self._meta_cognition_pre_supervision_stream(instruction):
                     if isinstance(chunk, str):
-                        yield f"[超我预监督] {chunk}"
+                        yield f"[元认知预监督] {chunk}"
                     # 最后一个chunk是Result对象，不需要yield
             
             # 判断是否可以直接处理
@@ -402,12 +413,12 @@ class CognitiveAgent(AgentBase):
                     else:
                         yield chunk
             
-            # 超我后监督（流式）
-            if self.enable_super_ego and self.super_ego:
-                yield "[具身认知工作流] 开始超我后监督..."
-                for chunk in self._super_ego_post_supervision_stream(instruction, result):
+            # 元认知后监督（流式）
+            if self.enable_meta_cognition and self.meta_cognition:
+                yield "[具身认知工作流] 开始元认知后监督..."
+                for chunk in self._meta_cognition_post_supervision_stream(instruction, result):
                     if isinstance(chunk, str):
-                        yield f"[超我后监督] {chunk}"
+                        yield f"[元认知后监督] {chunk}"
                     # 最后一个chunk是Result对象，不需要yield
             
             # 返回最终结果
@@ -548,7 +559,7 @@ class CognitiveAgent(AgentBase):
 
 请提供清晰、准确的结果。"""
             
-            result = self.body.execute_sync(quick_prompt)
+            result = self._execute_body_operation(quick_prompt)
             
             if result.success:
                 self._log("直接处理任务成功")
@@ -587,7 +598,7 @@ class CognitiveAgent(AgentBase):
             
             yield "[直接处理] 调用身体执行..."
             # 使用身体的流式执行
-            for chunk in self.body.execute_stream(quick_prompt):
+            for chunk in self._execute_body_operation_stream(quick_prompt):
                 if isinstance(chunk, Result):
                     result = chunk
                     break
@@ -962,7 +973,7 @@ class CognitiveAgent(AgentBase):
             evaluation_json = self.id_agent.evaluate_with_context(
                 evaluation_request, 
                 context.current_state, 
-                body_executor=self.body
+                agents=self.agents
             )
         
         self._log(f"本我评估结果：{evaluation_json}")
@@ -985,7 +996,7 @@ class CognitiveAgent(AgentBase):
                 
                 # 获取最终状态作为结果
                 final_status_query = "请查看当前的工作成果和状态，提供一个完整的总结"
-                final_result = self.body.chat_sync(final_status_query)
+                final_result = self._execute_body_chat(final_status_query)
                 
                 final_result = Result(True, "", "", None, 
                                     f"工作流成功完成。目标达成确认：{reason}\n最终状态：{final_result.return_value}")
@@ -1027,7 +1038,7 @@ class CognitiveAgent(AgentBase):
     
     def _execute_cognitive_step(self, context: WorkflowContext) -> Optional[str]:
         """
-        执行一个认知步骤（观察或执行）
+        执行认知步骤，支持Ego智能Agent选择
         
         Args:
             context: 工作流上下文，包含当前状态、本我评估等完整信息
@@ -1036,72 +1047,43 @@ class CognitiveAgent(AgentBase):
             Optional[str]: 执行结果，失败时返回None
         """
         try:
-            # 自我决定是生成观察指令还是执行指令
-            # 这里可以让自我根据状态分析来决定
-            # 获取完整的上下文信息
-            current_context = context.get_current_context()
+            # 构建包含Agent信息的决策消息
+            decision_message = self._build_decision_message_with_agents(context)
             
-            decision_message = f"""基于完整的上下文信息，决定下一步需要观察还是执行：
-
-完整上下文：
-{current_context}
-
-请综合考虑以下信息后选择行动类型：
-- 当前状态分析结果
-- 本我的评估反馈（如果有）
-- 目标达成情况
-- 历史执行记录
-
-返回JSON格式：
-{{
-    "行动类型": "观察或执行",
-    "理由": "简要说明理由"
-}}
-
-可选择：
-- "观察" - 如果需要了解更多信息（避免重复本我已评估的内容）
-- "执行" - 如果需要执行具体操作或已有足够信息"""
-            
-            decision_result = self.ego.chat_sync(decision_message, response_format={"type": "json_object"})
+            # Ego做决策
+            decision_response = self.ego.chat_sync(decision_message, response_format={"type": "json_object"})
             
             try:
-                import json
-                response_data = json.loads(decision_result.return_value.strip())
-                action_type = response_data.get("行动类型", "执行").strip()
-            except (json.JSONDecodeError, KeyError):
-                # JSON解析失败，默认执行
-                action_type = "执行"
-            
-            if "观察" in action_type:
-                # 生成观察指令（传入完整上下文）
-                observation_instruction = self.ego.generate_observation_instruction(current_context)
-                self._log(f"生成观察指令：{observation_instruction}")
+                decision_data = json.loads(decision_response.return_value)
+                selected_agent_name = decision_data.get("指定Agent", "")
+                instruction = decision_data.get("具体指令", "")
+                reason = decision_data.get("理由", "")
                 
-                # 身体执行观察（使用execute_sync）
-                observation_result = self.body.execute_sync(observation_instruction)
-                if observation_result.success:
-                    self._log(f"观察成功：{observation_result.return_value}")
-                    return f"观察结果：{observation_result.return_value}"
-                else:
-                    self._log(f"观察失败：{observation_result.stderr}")
-                    return None
-            
-            else:  # 默认执行
-                # 生成执行指令（传入完整上下文）
-                execution_instruction = self.ego.generate_execution_instruction(current_context)
-                self._log(f"生成执行指令：{execution_instruction}")
+                self._log(f"Ego决策：选择Agent：{selected_agent_name}，理由：{reason}")
                 
-                # 身体执行指令
-                execution_result = self.body.execute_sync(execution_instruction)
-                if execution_result.success:
-                    self._log(f"执行成功：{execution_result.return_value}")
-                    return f"执行结果：{execution_result.return_value}"
-                else:
-                    # 执行失败，让自我处理错误
-                    error_handling = self.ego.handle_execution_error(
-                        execution_result.stderr or "执行失败", execution_instruction)
-                    self._log(f"执行失败，错误处理：{error_handling}")
-                    return f"执行失败，错误处理方案：{error_handling}"
+                # 根据Ego的选择执行
+                if selected_agent_name:
+                    selected_agent = self._find_agent_by_name(selected_agent_name)
+                    if selected_agent:
+                        result = selected_agent.execute_sync(instruction)
+                        if result.success:
+                            self._log(f"执行成功：{result.return_value}")
+                            return f"执行结果：{result.return_value}"
+                        else:
+                            self._log(f"执行失败：{result.stderr}")
+                            # 执行失败，让自我处理错误
+                            error_handling = self.ego.handle_execution_error(
+                                result.stderr or "执行失败", instruction)
+                            self._log(f"错误处理：{error_handling}")
+                            return f"执行失败，错误处理方案：{error_handling}"
+                
+                # 回退到默认Agent
+                return self._execute_with_default_agent(instruction)
+                
+            except (json.JSONDecodeError, KeyError) as e:
+                self._log(f"JSON解析失败: {e}")
+                # JSON解析失败，使用默认Agent执行
+                return self._fallback_execution(context)
                     
         except Exception as e:
             self._log(f"认知步骤执行异常：{str(e)}")
@@ -1137,37 +1119,122 @@ class CognitiveAgent(AgentBase):
         # 清理各组件的记忆（如果需要）
         self.ego.reset()
         self.id_agent.reset()
-        self.body.reset()
+        if self.agents:
+            self.agents[0].reset()
     
-    def load_knowledge(self, knowledge: str):
+    def loadKnowledge(self, knowledge: str):
         """
-        向所有组件加载知识
+        向所有组件加载知识（方法名与AgentBase一致）
         
         Args:
             knowledge: 要加载的知识内容
         """
         self.ego.loadKnowledge(knowledge)
         self.id_agent.loadKnowledge(knowledge)
-        self.body.loadKnowledge(knowledge)
+        # 向所有Agent加载知识
+        for agent in self.agents:
+            agent.loadKnowledge(knowledge)
         self._log(f"已向所有组件加载知识：{knowledge[:100]}...")
     
-    def load_python_modules(self, module_list: List[str]):
+    def loadPythonModules(self, module_list: List[str]):
         """
-        向身体加载Python模块
+        向所有Agent加载Python模块（方法名与python_core.py一致）
         
         Args:
             module_list: Python模块名称列表
         """
-        self.body.loadPythonModules(module_list)
-        self._log(f"已向身体加载Python模块：{module_list}")
+        for agent in self.agents:
+            if hasattr(agent, 'loadPythonModules'):
+                agent.loadPythonModules(module_list)
+        self._log(f"已向所有Agent加载模块：{module_list}")
     
-    def _super_ego_pre_supervision(self, instruction: str):
-        """超我执行前监督"""
+    def _execute_body_operation(self, instruction: str) -> Result:
+        """执行身体层操作，使用默认Agent"""
+        default_agent = self.agents[0] if self.agents else None
+        if default_agent:
+            return default_agent.execute_sync(instruction)
+        else:
+            return Result(success=False, code="", stderr="没有可用的Agent", return_value="")
+
+    def _execute_body_operation_stream(self, instruction: str) -> Iterator:
+        """流式执行身体层操作"""
+        default_agent = self.agents[0] if self.agents else None
+        if default_agent:
+            yield from default_agent.execute_stream(instruction)
+        else:
+            yield Result(success=False, code="", stderr="没有可用的Agent", return_value="")
+
+    def _execute_body_chat(self, message: str) -> Result:
+        """执行身体层聊天操作，使用默认Agent"""
+        default_agent = self.agents[0] if self.agents else None
+        if default_agent:
+            return default_agent.chat_sync(message)
+        else:
+            return Result(success=False, code="", stderr="没有可用的Agent", return_value="")
+
+    def _find_agent_by_name(self, name: str) -> Optional[Agent]:
+        """根据名称查找Agent"""
+        for agent in self.agents:
+            if agent.name == name:
+                return agent
+        return None
+
+    def _build_decision_message_with_agents(self, context: WorkflowContext) -> str:
+        """构建包含Agent信息的决策消息"""
+        agent_info = ""
+        for agent in self.agents:
+            api_spec = getattr(agent, 'api_specification', None) or "通用执行能力"
+            agent_info += f"- {agent.name}: {api_spec}\n"
+        
+        current_context = context.get_current_context()
+        
+        return f"""请模拟人类的思维模式，分析当前情况并决定下一步行动。
+
+完整上下文：
+{current_context}
+
+可用Agent：
+{agent_info}
+
+思考过程要求：
+1. 首先在脑海中构思达成目标的完整路径（可能需要多个步骤）
+2. 考虑当前状态和已完成的工作
+3. 从整体规划中识别出当前最需要执行的下一步
+4. 为这一步设计具体、可执行的指令
+
+请像人类一样思考：虽然脑海中有完整的规划，但专注于设计好当前这一步。
+
+返回JSON格式：
+{{
+    "理由": "基于整体规划，选择此步骤的原因", 
+    "指定Agent": "最适合执行这一步的Agent名称",
+    "具体指令": "给选定Agent的具体、详细的执行指令"
+}}
+"""
+
+    def _execute_with_default_agent(self, instruction: str) -> str:
+        """使用默认Agent执行"""
+        result = self._execute_body_operation(instruction)
+        if result.success:
+            return f"执行结果：{result.return_value}"
+        else:
+            return f"执行失败：{result.stderr}"
+
+    def _fallback_execution(self, context: WorkflowContext) -> str:
+        """回退执行机制"""
+        result = self._execute_body_operation("继续执行当前任务")
+        if result.success:
+            return f"默认执行结果：{result.return_value}"
+        else:
+            return f"默认执行失败：{result.stderr}"
+    
+    def _meta_cognition_pre_supervision(self, instruction: str):
+        """元认知执行前监督"""
         try:
-            if not self.super_ego:
+            if not self.meta_cognition:
                 return
             
-            self.logger.info("[超我监督] 开始执行前认知监督")
+            self.logger.info("[元认知监督] 开始执行前认知监督")
             
             # 分析指令复杂性和潜在风险
             cognitive_data = {
@@ -1177,7 +1244,7 @@ class CognitiveAgent(AgentBase):
             }
             
             # 执行综合认知监督
-            supervision_result = self.super_ego.comprehensive_cognitive_supervision(
+            supervision_result = self.meta_cognition.comprehensive_cognitive_supervision(
                 cognitive_data=cognitive_data,
                 context={'phase': 'pre_execution', 'instruction': instruction},
                 goals=[f"安全执行指令: {instruction}"]
@@ -1187,24 +1254,24 @@ class CognitiveAgent(AgentBase):
             if supervision_result.get('overall_assessment'):
                 assessment = supervision_result['overall_assessment']
                 if assessment.get('cognitive_health_level') == 'critical':
-                    self.logger.warning("[超我监督] 检测到认知健康严重问题，建议谨慎执行")
-                    print("[超我监督] ⚠️ 检测到认知健康严重问题")
+                    self.logger.warning("[元认知监督] 检测到认知健康严重问题，建议谨慎执行")
+                    print("[元认知监督] ⚠️ 检测到认知健康严重问题")
                 elif assessment.get('critical_issues'):
-                    self.logger.info(f"[超我监督] 检测到问题: {assessment['critical_issues']}")
+                    self.logger.info(f"[元认知监督] 检测到问题: {assessment['critical_issues']}")
             
             if self.verbose:
-                print(f"[超我监督] ✅ 执行前监督完成")
+                print(f"[元认知监督] ✅ 执行前监督完成")
             
         except Exception as e:
-            self.logger.error(f"超我执行前监督失败: {e}")
+            self.logger.error(f"元认知执行前监督失败: {e}")
     
-    def _super_ego_post_supervision(self, instruction: str, result: Result):
-        """超我执行后监督"""
+    def _meta_cognition_post_supervision(self, instruction: str, result: Result):
+        """元认知执行后监督"""
         try:
-            if not self.super_ego:
+            if not self.meta_cognition:
                 return
             
-            self.logger.info("[超我监督] 开始执行后认知监督")
+            self.logger.info("[元认知监督] 开始执行后认知监督")
             
             # 分析执行结果
             cognitive_data = {
@@ -1218,7 +1285,7 @@ class CognitiveAgent(AgentBase):
             }
             
             # 执行综合认知监督
-            supervision_result = self.super_ego.comprehensive_cognitive_supervision(
+            supervision_result = self.meta_cognition.comprehensive_cognitive_supervision(
                 cognitive_data=cognitive_data,
                 context={'phase': 'post_execution', 'instruction': instruction, 'result': result.to_dict()},
                 goals=[f"评估执行质量: {instruction}"]
@@ -1236,67 +1303,79 @@ class CognitiveAgent(AgentBase):
                 'supervision': supervision_result
             }
             
-            reflection_result = self.super_ego.reflect_and_learn(experience_data, outcome)
+            reflection_result = self.meta_cognition.reflect_and_learn(experience_data, outcome)
             
             # 处理监督结果
             if supervision_result.get('overall_assessment'):
                 assessment = supervision_result['overall_assessment']
                 if assessment.get('priority_recommendations'):
-                    self.logger.info(f"[超我监督] 优化建议: {assessment['priority_recommendations']}")
+                    self.logger.info(f"[元认知监督] 优化建议: {assessment['priority_recommendations']}")
             
             if self.verbose:
-                print(f"[超我监督] ✅ 执行后监督和反思完成")
+                print(f"[元认知监督] ✅ 执行后监督和反思完成")
                 if reflection_result and not reflection_result.get('error'):
                     insights = reflection_result.get('lessons_learned', [])
                     if insights:
-                        print(f"[超我洞察] 💡 学习要点: {insights[0] if insights else '无'}")
+                        print(f"[元认知洞察] 💡 学习要点: {insights[0] if insights else '无'}")
             
         except Exception as e:
-            self.logger.error(f"超我执行后监督失败: {e}")
+            self.logger.error(f"元认知执行后监督失败: {e}")
     
     def get_super_ego_state(self) -> Dict[str, Any]:
-        """获取超我状态信息"""
-        if not self.enable_super_ego or not self.super_ego:
-            return {'enabled': False, 'message': '超我智能体未启用'}
+        """获取元认知状态信息（向后兼容）"""
+        return self.get_meta_cognition_state()
+    
+    def get_meta_cognition_state(self) -> Dict[str, Any]:
+        """获取元认知状态信息"""
+        if not self.enable_meta_cognition or not self.meta_cognition:
+            return {'enabled': False, 'message': '元认知智能体未启用'}
         
         try:
-            state = self.super_ego.get_meta_cognitive_state()
-            health_assessment = self.super_ego.assess_cognitive_health()
-            learning_summary = self.super_ego.get_learning_summary()
+            state = self.meta_cognition.get_meta_cognitive_state()
+            health_assessment = self.meta_cognition.assess_cognitive_health()
+            learning_summary = self.meta_cognition.get_learning_summary()
             
             return {
                 'enabled': True,
                 'meta_cognitive_state': state,
                 'cognitive_health': health_assessment.__dict__,
                 'learning_summary': learning_summary,
-                'supervision_metrics': self.super_ego.supervision_metrics
+                'supervision_metrics': self.meta_cognition.supervision_metrics
             }
         except Exception as e:
             return {'enabled': True, 'error': str(e)}
     
     def enable_super_ego_monitoring(self):
-        """启用超我监控"""
-        if self.super_ego:
-            self.enable_super_ego = True
-            self.super_ego.start_cognitive_monitoring()
-            self.logger.info("超我监控已启用")
+        """启用元认知监控（向后兼容）"""
+        self.enable_meta_cognition_monitoring()
+    
+    def enable_meta_cognition_monitoring(self):
+        """启用元认知监控"""
+        if self.meta_cognition:
+            self.enable_meta_cognition = True
+            self.meta_cognition.start_cognitive_monitoring()
+            self.logger.info("元认知监控已启用")
         else:
-            self.logger.warning("超我智能体未初始化，无法启用监控")
+            self.logger.warning("元认知智能体未初始化，无法启用监控")
     
     def disable_super_ego_monitoring(self):
-        """禁用超我监控"""
-        if self.super_ego:
-            self.enable_super_ego = False
-            self.super_ego.stop_cognitive_monitoring()
-            self.logger.info("超我监控已禁用")
+        """禁用元认知监控（向后兼容）"""
+        self.disable_meta_cognition_monitoring()
+    
+    def disable_meta_cognition_monitoring(self):
+        """禁用元认知监控"""
+        if self.meta_cognition:
+            self.enable_meta_cognition = False
+            self.meta_cognition.stop_cognitive_monitoring()
+            self.logger.info("元认知监控已禁用")
 
     # ========== 流式执行的辅助方法 ==========
     
-    def _super_ego_pre_supervision_stream(self, instruction: str) -> Iterator[object]:
-        """超我执行前监督（流式）"""
+    def _meta_cognition_pre_supervision_stream(self, instruction: str) -> Iterator[object]:
+        """元认知执行前监督（流式）"""
         try:
-            if not self.super_ego:
-                yield "超我未启用，跳过预监督"
+            if not self.meta_cognition:
+                yield "元认知未启用，跳过预监督"
                 yield Result(True, "", "", None, "跳过预监督")
                 return
             
@@ -1309,12 +1388,12 @@ class CognitiveAgent(AgentBase):
                 'mode': 'pre_execution'
             }
             
-            # 使用超我的流式监督
+            # 使用元认知的流式监督
             supervision_prompt = f"""对以下指令进行预监督分析：
 指令：{instruction}
 请分析潜在风险和复杂性。"""
             
-            for chunk in self.super_ego.chat_stream(supervision_prompt):
+            for chunk in self.meta_cognition.chat_stream(supervision_prompt):
                 if isinstance(chunk, Result):
                     yield "执行前监督完成"
                     yield chunk
@@ -1323,27 +1402,27 @@ class CognitiveAgent(AgentBase):
                     yield chunk
                     
         except Exception as e:
-            yield f"超我执行前监督失败: {e}"
+            yield f"元认知执行前监督失败: {e}"
             yield Result(False, "", "", str(e), "监督失败")
     
-    def _super_ego_post_supervision_stream(self, instruction: str, result: Result) -> Iterator[object]:
-        """超我执行后监督（流式）"""
+    def _meta_cognition_post_supervision_stream(self, instruction: str, result: Result) -> Iterator[object]:
+        """元认知执行后监督（流式）"""
         try:
-            if not self.super_ego:
-                yield "超我未启用，跳过后监督"
+            if not self.meta_cognition:
+                yield "元认知未启用，跳过后监督"
                 yield Result(True, "", "", None, "跳过后监督")
                 return
             
             yield "开始执行后认知监督"
             
-            # 使用超我的流式监督
+            # 使用元认知的流式监督
             supervision_prompt = f"""对以下执行结果进行后监督分析：
 指令：{instruction}
 执行成功：{result.success}
 结果：{result.return_value}
 请分析执行质量和改进建议。"""
             
-            for chunk in self.super_ego.chat_stream(supervision_prompt):
+            for chunk in self.meta_cognition.chat_stream(supervision_prompt):
                 if isinstance(chunk, Result):
                     yield "执行后监督完成"
                     yield chunk
@@ -1352,7 +1431,7 @@ class CognitiveAgent(AgentBase):
                     yield chunk
                     
         except Exception as e:
-            yield f"超我执行后监督失败: {e}"
+            yield f"元认知执行后监督失败: {e}"
             yield Result(False, "", "", str(e), "监督失败")
     
     def _analyze_current_state_stream(self, context: WorkflowContext) -> Iterator[object]:
@@ -1429,7 +1508,7 @@ class CognitiveAgent(AgentBase):
                 yield f"评估指令：{evaluation_instruction[:100]}..."
                 
                 # 身体执行观察
-                for chunk in self.body.execute_stream(evaluation_instruction):
+                for chunk in self._execute_body_operation_stream(evaluation_instruction):
                     if isinstance(chunk, Result):
                         observation_result = chunk
                         break
@@ -1536,12 +1615,14 @@ class CognitiveAgent(AgentBase):
                 yield f"观察指令：{observation_instruction[:100]}..."
                 
                 # 身体执行观察
-                for chunk in self.body.chat_stream(observation_instruction):
-                    if isinstance(chunk, Result):
-                        observation_result = chunk
-                        break
-                    else:
-                        yield chunk  # 直接输出，不添加前缀
+                default_agent = self.agents[0] if self.agents else None
+                if default_agent:
+                    for chunk in default_agent.chat_stream(observation_instruction):
+                        if isinstance(chunk, Result):
+                            observation_result = chunk
+                            break
+                        else:
+                            yield chunk  # 直接输出，不添加前缀
                 
                 if observation_result.success:
                     yield f"观察成功：{observation_result.return_value[:100]}..."
@@ -1556,7 +1637,7 @@ class CognitiveAgent(AgentBase):
                 yield f"执行指令：{execution_instruction[:100]}..."
                 
                 # 身体执行操作
-                for chunk in self.body.execute_stream(execution_instruction):
+                for chunk in self._execute_body_operation_stream(execution_instruction):
                     if isinstance(chunk, Result):
                         execution_result = chunk
                         break
@@ -1609,13 +1690,4 @@ def execute_cognitive_task(llm: BaseChatModel, task_description: str, **kwargs) 
     return agent.execute_sync(task_description)
 
 
-# 向后兼容的别名和函数
-EmbodiedCognitiveWorkflow = CognitiveAgent
 
-def create_embodied_cognitive_workflow(llm: BaseChatModel, **kwargs) -> CognitiveAgent:
-    """向后兼容函数：创建具身认知工作流实例（现在返回CognitiveAgent）"""
-    return create_cognitive_agent(llm, **kwargs)
-
-def execute_embodied_cognitive_task(llm: BaseChatModel, task_description: str, **kwargs) -> Result:
-    """向后兼容函数：一次性执行具身认知任务"""
-    return execute_cognitive_task(llm, task_description, **kwargs)

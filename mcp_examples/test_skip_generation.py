@@ -5,13 +5,13 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 print("=== 测试 skip_generation=True 时的返回值 ===\n")
 
 # 测试1：skip_generation=True, skip_evaluation=True
 print("1. skip_generation=True, skip_evaluation=True:")
-agent1 = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_generation=True, skip_evaluation=True)
+agent1 = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=1, skip_generation=True, skip_evaluation=True)
 result1 = agent1.execute_sync("print('Hello World')")
 print(f"  - result.success: {result1.success}")
 print(f"  - result.code: {repr(result1.code)}")
@@ -21,7 +21,7 @@ print(f"  - type(result.return_value): {type(result1.return_value)}")
 
 # 测试2：skip_generation=True, skip_evaluation=False
 print("\n2. skip_generation=True, skip_evaluation=False:")
-agent2 = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_generation=True, skip_evaluation=False)
+agent2 = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=1, skip_generation=True, skip_evaluation=False)
 result2 = agent2.execute_sync("print('Hello World')")
 print(f"  - result.success: {result2.success}")
 print(f"  - result.code: {repr(result2.code)}")
@@ -31,7 +31,7 @@ print(f"  - type(result.return_value): {type(result2.return_value)}")
 
 # 测试3：skip_generation=False, skip_evaluation=True
 print("\n3. skip_generation=False, skip_evaluation=True:")
-agent3 = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_generation=False, skip_evaluation=True)
+agent3 = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=1, skip_generation=False, skip_evaluation=True)
 result3 = agent3.execute_sync("print('Hello World')")
 print(f"  - result.success: {result3.success}")
 print(f"  - result.code: {repr(result3.code)}")

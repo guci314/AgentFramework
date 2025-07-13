@@ -20,7 +20,7 @@ cognitive_workflow_dir = str(Path(__file__).parent.parent.parent)
 sys.path.append(project_root)
 sys.path.append(cognitive_workflow_dir)
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model
 from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 # 尝试导入WorkflowExecutionResult，如果失败则定义一个虚拟类
@@ -32,7 +32,7 @@ except ImportError:
         pass
 
 # 使用的LLM
-selected_llm = llm_deepseek
+selected_llm = get_model("deepseek_chat")
 
 def demonstrate_recursive_team_execution():
     """演示基于递归团队的执行过程"""

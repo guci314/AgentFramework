@@ -159,14 +159,64 @@ class IdAgent(AgentBase):
         result = self.chat_sync(message)
         return result.return_value
     
-    def evaluate_with_context(self, evaluation_request: str, current_state: str, body_executor=None) -> str:
+    def generate_evaluation_instruction_with_agent(self, evaluation_request: str, agents: list) -> str:
+        """
+        响应自我的评估请求，生成具体的观察指令，并指定执行的Agent
+        
+        Args:
+            evaluation_request: 自我发来的评估请求
+            agents: 可用的Agent列表
+            
+        Returns:
+            str: JSON格式，包含观察指令和指定的Agent
+        """
+        # 构建Agent信息
+        agent_info = ""
+        for agent in agents:
+            api_spec = getattr(agent, 'api_specification', None) or "通用执行能力"
+            agent_info += f"- {agent.name}: {api_spec}\n"
+        
+        message = f"""收到自我的评估请求，需要生成观察指令并选择合适的Agent执行：
+
+评估请求：
+{evaluation_request}
+
+我的目标：
+{self.goal_description}
+
+我的价值标准：
+{self.value_standard}
+
+可用Agent：
+{agent_info}
+
+请：
+1. 生成1个简单的观察指令，只检查最核心的功能是否满足
+2. 选择最适合执行这个观察任务的Agent
+
+观察指令要求：
+- 只要1个核心检查项即可
+- 避免复杂的断言或详细验证
+- 实用导向，能运行且基本功能正确即可
+- 用自然语言表达，便于Agent执行
+
+返回JSON格式：
+{{
+    "指令": "具体的观察指令",
+    "指定Agent": "选择的Agent名称"
+}}"""
+
+        result = self.chat_sync(message, response_format={"type": "json_object"})
+        return result.return_value
+    
+    def evaluate_with_context(self, evaluation_request: str, current_state: str, agents=None) -> str:
         """
         根据评估模式进行评估的统一入口
         
         Args:
             evaluation_request: 自我的评估请求
             current_state: 工作流当前状态
-            body_executor: 身体执行器（外观评估时需要）
+            agents: 可用的Agent列表（外观评估时需要）
             
         Returns:
             str: JSON格式的评估结果
@@ -176,14 +226,37 @@ class IdAgent(AgentBase):
             return self._internal_evaluation(current_state, evaluation_request)
         else:
             # 使用外观评估（原有流程）
-            if body_executor is None:
-                return '{"目标是否达成": false, "原因": "外观评估需要身体执行器但未提供"}'
+            if agents is None or len(agents) == 0:
+                return '{"目标是否达成": false, "原因": "外观评估需要Agent但未提供"}'
             
-            # 生成观察指令
-            evaluation_instruction = self.generate_evaluation_instruction(evaluation_request)
+            # 生成观察指令（包含Agent选择）
+            evaluation_result = self.generate_evaluation_instruction_with_agent(evaluation_request, agents)
             
-            # 身体执行观察
-            observation_result = body_executor.execute_sync(evaluation_instruction)
+            # 解析返回的JSON，获取指令和指定的Agent
+            import json
+            try:
+                eval_data = json.loads(evaluation_result)
+                instruction = eval_data.get("指令", "")
+                agent_name = eval_data.get("指定Agent", "")
+            except (json.JSONDecodeError, KeyError):
+                # 如果解析失败，将整个结果作为指令，使用第一个Agent
+                instruction = evaluation_result
+                agent_name = ""
+            
+            # 查找指定的Agent
+            selected_agent = None
+            if agent_name:
+                for agent in agents:
+                    if agent.name == agent_name:
+                        selected_agent = agent
+                        break
+            
+            # 如果没找到指定的Agent，使用第一个
+            if selected_agent is None:
+                selected_agent = agents[0]
+            
+            # 执行观察
+            observation_result = selected_agent.execute_sync(instruction)
             
             # 基于观察结果评估
             return self.evaluate_goal_achievement(observation_result.return_value)

@@ -1,0 +1,277 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Define Core Data Models and Project Structure",
+      "description": "Establish the foundational project structure, define core data models (Task, Agent, Message, CollaborationFlow) using Pydantic for validation, and set up the FastAPI framework.",
+      "details": "Initialize Git repository. Set up Python project environment (e.g., Poetry/venv). Define Pydantic models: Task (id, name, description, status, subtask_ids, assigned_agent_id(s), created_at, updated_at), Agent (id, name, type, capabilities, status, last_seen), Message (id, sender_agent_id, receiver_agent_id, message_type, content, timestamp), CollaborationFlow (id, root_task_id, steps: [{step_id, agent_id, action, status, timestamp}]). Select and configure FastAPI as the web framework.",
+      "testStrategy": "Unit tests for Pydantic model validation (field types, required fields, constraints). Code review of project structure for clarity and adherence to FastAPI best practices.",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 2,
+      "title": "Implement Task Manager Core Logic & Decomposition",
+      "description": "Implement the Task Manager component for creating, storing (in-memory for MVP), retrieving, updating task states, and handling task decomposition into subtasks.",
+      "details": "Develop a `TaskManager` class. Use an in-memory dictionary for storing tasks. Implement methods: `create_task(task_data: dict) -> Task`, `get_task(task_id: str) -> Task`, `update_task(task_id: str, updates: dict) -> Task`, `list_tasks(filters: dict = None) -> List[Task]`, `decompose_task(parent_task_id: str, sub_task_definitions: List[dict]) -> List[Task]`. Ensure subtasks are linked to their parent task and statuses can be tracked individually and rolled up.",
+      "testStrategy": "Unit tests for all `TaskManager` methods. Verify task creation (with and without subtasks), retrieval by ID, status updates, listing with filters, and ensure decomposition correctly creates, links, and allows management of subtasks.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 3,
+      "title": "Implement Agent Manager Core Logic",
+      "description": "Implement the Agent Manager component for registering, storing (in-memory for MVP), and retrieving agent information and their operational states.",
+      "details": "Develop an `AgentManager` class. Use an in-memory dictionary for storing agent profiles. Implement methods: `register_agent(agent_data: dict) -> Agent`, `get_agent(agent_id: str) -> Agent`, `update_agent_status(agent_id: str, status: str) -> Agent`, `list_agents() -> List[Agent]`. Agent status can include 'idle', 'busy', 'offline'.",
+      "testStrategy": "Unit tests for all `AgentManager` methods: agent registration with unique IDs, retrieval by ID, status updates, and listing of all registered agents.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 4,
+      "title": "Develop Single Agent Task Execution Engine",
+      "description": "Develop the engine for a single agent to fetch an assigned task from the Task Manager, simulate execution, and update its status.",
+      "details": "Define an abstract `BaseAgent` class with an `async execute_task(task: Task)` method. Implement a `SimpleAgent(BaseAgent)` that: 1. Is assigned a task by the `TaskManager`. 2. Fetches task details. 3. Simulates task execution (e.g., `await asyncio.sleep(duration)`, print statements). 4. Updates the task's status in the `TaskManager` (e.g., 'in_progress', 'completed', 'failed').",
+      "testStrategy": "Integration test: Create a task via `TaskManager`. Assign it to a `SimpleAgent` instance. Verify the agent correctly fetches the task, simulates execution, and the `TaskManager` reflects the updated task status.",
+      "priority": "high",
+      "dependencies": [
+        2,
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 5,
+      "title": "Define Agent Communication Protocol",
+      "description": "Define a standardized JSON-based communication protocol and message formats for inter-agent information exchange and coordination.",
+      "details": "Document a clear JSON-based message format. Example structure: `{ \"message_id\": \"uuid\", \"type\": \"task_offer | task_accept | task_reject | task_update | info_share | query\", \"sender_agent_id\": \"agent_uuid\", \"receiver_agent_id\": \"agent_uuid | broadcast\", \"timestamp\": \"iso_datetime\", \"payload\": { ... specific to message type ... } }`. Define specific payload structures for each essential message type required for MVP multi-agent collaboration.",
+      "testStrategy": "Peer review of the protocol documentation for clarity, completeness, consistency, and extensibility to support MVP multi-agent scenarios. Ensure all necessary fields are defined for robust communication.",
+      "priority": "medium",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 6,
+      "title": "Implement Communication Module (In-Memory Message Bus)",
+      "description": "Implement a communication module using an in-memory message bus (e.g., asyncio.Queue per agent) to enable message exchange between agents based on the defined protocol.",
+      "details": "Develop a `CommunicationModule` class. Internally, use a dictionary mapping `agent_id` to an `asyncio.Queue` instance. Implement methods: `async send_message(message: Message)`, which places the message into the recipient agent's queue (or a broadcast mechanism). Implement `async receive_message(agent_id: str, timeout: float = None) -> Message`, which allows an agent to retrieve messages from its queue.",
+      "testStrategy": "Unit tests: Test sending a message to a specific agent's queue and verifying retrieval. Test message sending to a broadcast queue (if implemented). Test the timeout functionality for `receive_message`. Ensure messages conform to the defined protocol.",
+      "priority": "medium",
+      "dependencies": [
+        5
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Develop Basic Multi-Agent Collaboration Framework",
+      "description": "Develop the basic framework for multi-agent collaboration, enabling agents to delegate tasks and share information using the Communication Module.",
+      "details": "Extend `BaseAgent` or create a `CollaborativeAgent` class. Agents should use the `CommunicationModule` to send and receive messages (task offers, acceptances, information) according to the protocol. Implement basic logic for an agent to: 1. Receive a complex task. 2. Potentially use `TaskManager.decompose_task()`. 3. Offer subtasks to other available agents via `task_offer` messages. 4. Process `task_accept` or `task_reject` responses. 5. Track subtask progress based on updates from other agents.",
+      "testStrategy": "Scenario-based integration test: Agent A receives a task, decomposes it, offers subtask T1 to Agent B. Agent B accepts, executes T1, and notifies Agent A. Agent A marks T1 complete and updates overall task status. Verify message flow and state changes in `TaskManager` and involved agents.",
+      "priority": "high",
+      "dependencies": [
+        2,
+        4,
+        6
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Implement Task Assignment Logic for Multi-Agent Systems",
+      "description": "Enhance the Task Manager to support assigning tasks/sub-tasks to specific agents or allowing agents to claim tasks based on capabilities in multi-agent scenarios.",
+      "details": "Modify `TaskManager.create_task` and `TaskManager.decompose_task` to optionally accept `assigned_agent_id` or `required_capabilities`. If unassigned, tasks go to a general pool. Agents can query `TaskManager` for tasks matching their ID or capabilities (e.g., `TaskManager.get_available_tasks(agent_profile)`). Implement logic for agents to 'claim' or be assigned tasks from this pool.",
+      "testStrategy": "Unit tests for new assignment logic in `TaskManager`. Integration test: Create a task with specific capability requirements; verify only an agent with matching capabilities can claim/be assigned it. Test decomposition and assignment of subtasks to different specified agents.",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        7
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Develop Core RESTful APIs (FastAPI)",
+      "description": "Expose core system functionalities (task management, agent management, collaboration monitoring) through RESTful APIs using FastAPI.",
+      "details": "Implement FastAPI endpoints: `POST /tasks` (create), `GET /tasks`, `GET /tasks/{task_id}`, `PUT /tasks/{task_id}` (update status/details), `POST /tasks/{task_id}/decompose`. For agents: `POST /agents` (register), `GET /agents`, `GET /agents/{agent_id}`. For collaboration: `GET /tasks/{task_id}/collaboration_flow`. Use Pydantic models for request/response validation. Ensure proper error handling and HTTP status codes.",
+      "testStrategy": "Use FastAPI's `TestClient`. For each endpoint, test: successful requests (200/201), validation errors for bad requests (400/422), resource not found (404), and correct data in responses. Verify request/response schemas.",
+      "priority": "high",
+      "dependencies": [
+        2,
+        3,
+        8
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Create Basic Command-Line Interface (CLI)",
+      "description": "Develop a basic Command-Line Interface (CLI) for users to create tasks, select agent modes, and view status, interacting with the backend via APIs.",
+      "details": "Use Python's `click` library. Implement commands: `agent-cli task create --name '...' --description '...' [--mode single|multi] [--assign-agent AGENT_ID]`, `agent-cli task list [--status pending]`, `agent-cli task view TASK_ID`, `agent-cli agent register --name 'Agent007' --type 'SimpleAgent'`, `agent-cli agent list`. CLI should make calls to the RESTful APIs.",
+      "testStrategy": "Manual execution of all CLI commands with various valid and invalid arguments. Verify correct output, error messages, and that the backend state (checked via API or logs) reflects CLI actions. Test help messages for commands.",
+      "priority": "medium",
+      "dependencies": [
+        9
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 11,
+      "title": "Develop Basic Web Interface (Frontend - MVP)",
+      "description": "Implement a minimal web interface (Vue/React) for task creation, mode selection, and viewing agent collaboration flow, task progress, and results.",
+      "details": "Choose Vue.js or React.js. Develop components: TaskCreationForm (inputs for name, description, mode; POSTs to `/tasks`), TaskList (GETs `/tasks`; displays ID, Name, Status, Agent(s); links to TaskDetailView), TaskDetailView (GETs `/tasks/{task_id}`; shows details, subtasks, basic logs/flow), AgentList (GETs `/agents`; shows ID, name, status). UI should be '简洁明了' (concise and clear) and support task/agent status tracking.",
+      "testStrategy": "Manual end-to-end testing in Chrome/Firefox: Create a task via UI, verify it appears in list. View details. Simulate backend updates and verify UI reflects changes (e.g., via polling `/tasks/{task_id}` or a basic status endpoint). Test responsiveness and usability.",
+      "priority": "medium",
+      "dependencies": [
+        9
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 12,
+      "title": "Implement Logging Module",
+      "description": "Implement a system-wide logging module to record agent behavior, collaboration processes, API calls, and system events for debugging and optimization.",
+      "details": "Integrate Python's `logging` module throughout backend components (Managers, Agents, CommunicationModule, API handlers). Configure a root logger for `stdout` and a rotating file log (e.g., `system.log`). Log format: `%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s`. Log key events: task lifecycle, agent state changes, messages (summary), API requests, errors.",
+      "testStrategy": "Inspect log outputs (console and file) during manual and automated tests of other features. Verify critical events are logged with appropriate detail, level, and correct formatting. Check log rotation if configured.",
+      "priority": "medium",
+      "dependencies": [
+        7
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 13,
+      "title": "Implement Basic System Status API Endpoints",
+      "description": "Expose API endpoints for basic monitoring of aggregated task and agent statuses, to be consumed by the Web UI or other monitoring tools.",
+      "details": "Create FastAPI endpoints for system status: `GET /status/summary` (returns counts of tasks by status, agents by status). `GET /status/task/{task_id}` (detailed current status of a specific task, including subtask progress). `GET /status/agent/{agent_id}` (detailed current status of a specific agent, including current task). These will provide data for the UI's '任务可视化和 agent 状态追踪'.",
+      "testStrategy": "Call these API endpoints directly (e.g., using Postman or curl) after performing various system actions (creating tasks, agents processing tasks). Verify the accuracy of the returned aggregated and detailed status data.",
+      "priority": "low",
+      "dependencies": [
+        9
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 14,
+      "title": "Prepare Local Deployment Scripts and Documentation",
+      "description": "Create comprehensive `README.md` and scripts (e.g., `run_dev.sh`, `docker-compose.yml`) for easy local setup and execution of all system components.",
+      "details": "`README.md` to include: project overview, prerequisites (Python, Node.js versions), installation steps (`pip install`, `npm install`), how to run backend (FastAPI server) and frontend (dev server), key API endpoints, CLI usage. Optionally, a `docker-compose.yml` for backend and frontend services.",
+      "testStrategy": "On a clean environment, a new user should be able to clone the repository, follow the `README.md` to install dependencies, and run all system components (backend, frontend, CLI). Verify all parts are operational and can interact.",
+      "priority": "medium",
+      "dependencies": [
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 15,
+      "title": "Design and Implement Basic 'Hello World' Execution Workflow",
+      "description": "Design and implement a simple 'Hello World' execution workflow. This task involves defining the steps for creating a Python script that prints 'Hello World', executing this script within the system, and verifying its output. This workflow will serve as a fundamental test and example of the system's code execution and task management capabilities.",
+      "details": "_**1. Workflow Definition:**_\n*   Clearly define the sequence of operations for the 'Hello World' workflow:\n    *   Receive a request to execute the workflow (e.g., via an API call).\n    *   Generate or otherwise obtain the target Python script. The script content is: `print('Hello World')`.\n    *   Execute the Python script in an isolated and secure environment, capturing its standard output and standard error.\n    *   Compare the captured standard output against the expected string: \"Hello World\".\n    *   Report the outcome (success or failure) of the workflow, including the actual output if it differs from the expected output.\n\n_**2. Implementation:**_\n*   Implement the logic required to carry out the defined 'Hello World' workflow. This may involve creating a dedicated task handler or extending the capabilities of an agent (as per Task 7).\n*   Ensure that this workflow can be invoked as a distinct task through the system's core API (developed in Task 9).\n*   Integrate with the system-wide logging module (from Task 12) to record key stages of the workflow, such as initiation, script execution, output capture, and verification results.\n\n_**3. Python Script Content:**_\n*   The specific Python script to be generated and executed by this workflow is:\n```python\nprint('Hello World')\n```",
+      "testStrategy": "_**1. Unit Testing:**_\n*   Develop unit tests for the core components of the workflow: \n    *   Python script generation/retrieval.\n    *   Script execution mechanism (mocking the actual execution if necessary).\n    *   Output comparison and verification logic.\n\n_**2. Integration Testing:**_\n*   Trigger the 'Hello World' workflow via an API endpoint (established by Task 9).\n*   Verify that the task progresses through expected statuses (e.g., pending, running, completed/failed) and that these are correctly reported by the API.\n\n_**3. Output Verification Test:**_\n*   Execute the workflow and confirm that the system correctly identifies the standard output as \"Hello World\" and reports the task as successful.\n*   Conduct a negative test case: Modify the script to print a different string (e.g., \"Hello Earth\") and verify that the workflow correctly identifies the mismatch and reports a failure, capturing the actual incorrect output.\n\n_**4. Logging Verification:**_\n*   After workflow execution, inspect the system logs (configured in Task 12).\n*   Confirm that all critical steps of the workflow (e.g., task received, script execution started, output captured, verification result) are logged with appropriate details and severity levels.\n\n_**5. Error Handling Tests:**_\n*   Test the system's response to potential errors during script execution, such as:\n    *   A Python script with a syntax error.\n    *   Script execution exceeding a predefined timeout (if applicable).\n    *   Permissions issues if the script tries to perform unauthorized actions (depending on the execution environment's sandboxing).",
+      "status": "pending",
+      "dependencies": [
+        7,
+        9,
+        12
+      ],
+      "priority": "medium",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Design and Stub 'Hello World' Workflow Handler and API Endpoint",
+          "description": "Define the structure for the 'Hello World' workflow handler. Create a stub API endpoint (as per Task 9, if available) that can receive a request to trigger this workflow. This subtask focuses on the entry point and overall flow definition without full implementation of execution steps.",
+          "dependencies": [],
+          "details": "Define a new class or module for the 'Hello World' workflow. Outline the main methods/steps (e.g., `prepare_script`, `execute_script`, `verify_output`). Create a new route in the API (e.g., `/workflows/hello_world/execute`) that accepts a POST request. Initially, this endpoint can log the request and return a placeholder response like 'Workflow initiated'. This sets up the framework for subsequent implementation.",
+          "status": "pending",
+          "testStrategy": "Manually trigger the API endpoint using a tool like cURL or Postman. Verify that the request is received by the stubbed handler (e.g., via logs) and a placeholder response is returned. Check basic API route registration."
+        },
+        {
+          "id": 2,
+          "title": "Implement Python Script Provisioning for 'Hello World' Workflow",
+          "description": "Implement the mechanism to provide the fixed Python script (`print('Hello World')`) to the execution environment. This involves ensuring the script content is correctly sourced or generated by the workflow handler defined in Subtask 1.",
+          "dependencies": [
+            1
+          ],
+          "details": "Within the workflow handler structure (from Subtask 1), add logic to make the Python script `print('Hello World')` available. This could involve embedding the script string directly in the code, or preparing it as a temporary file if the execution environment requires a file path. Ensure the script content is exactly `print('Hello World')`.",
+          "status": "pending",
+          "testStrategy": "Unit test the script provisioning logic. Verify that the correct script content is generated or made available. If a temporary file is used, check its content and ensure proper cleanup mechanisms are considered (though full cleanup might be part of execution task)."
+        },
+        {
+          "id": 3,
+          "title": "Implement Secure Python Script Execution and Output Capture",
+          "description": "Develop the core logic to execute the provisioned Python script (from Subtask 2) in an isolated and secure manner. Capture its standard output (stdout) and standard error (stderr) for later verification.",
+          "dependencies": [
+            2
+          ],
+          "details": "Use a standard library module like `subprocess` in Python to run the script. Ensure the execution environment is reasonably isolated (e.g., by not enabling shell=True unless absolutely necessary and sanitized, or by considering future containerization needs). Capture both stdout and stderr streams from the executed script. Handle potential execution errors, such as the Python interpreter not being found or the script itself raising an unhandled exception.",
+          "status": "pending",
+          "testStrategy": "Unit test the execution module. Test with the 'Hello World' script and verify that stdout contains 'Hello World\\n' (or similar, depending on OS) and stderr is empty. Test with a script that intentionally writes to stderr to ensure stderr is captured. Test with a script that fails (e.g., syntax error) to ensure error handling and stderr capture work correctly."
+        },
+        {
+          "id": 4,
+          "title": "Implement Output Verification and Workflow Outcome Reporting",
+          "description": "Implement the logic to compare the captured stdout from the script execution (from Subtask 3) against the expected 'Hello World' string. Formulate a structured success or failure outcome, including the actual output and expected output.",
+          "dependencies": [
+            3
+          ],
+          "details": "After script execution, retrieve the captured stdout. Normalize the output if necessary (e.g., strip trailing newlines or whitespace). Compare the normalized stdout with the exact string 'Hello World'. Prepare a structured response object (e.g., a dictionary or JSON serializable object) that includes: `status` (e.g., 'success' or 'failure'), `expected_output` ('Hello World'), `actual_output` (the captured stdout), and `error_output` (the captured stderr, if any).",
+          "status": "pending",
+          "testStrategy": "Unit test the verification logic. Test with various inputs: exact match for stdout, stdout mismatch, empty stdout, stdout with extra whitespace. Verify the structure and content of the outcome report for each case. Ensure stderr is correctly included in the report if present."
+        },
+        {
+          "id": 5,
+          "title": "Integrate Workflow, Finalize API, and Implement Logging",
+          "description": "Fully integrate the 'Hello World' workflow. Finalize the API endpoint (from Subtask 1) to execute the complete workflow (Subtasks 2-4) and return the structured outcome (from Subtask 4). Integrate system-wide logging (as per Task 12) at key stages of the workflow execution. Address integration with task management (as per Task 7) if applicable.",
+          "dependencies": [
+            1,
+            4
+          ],
+          "details": "Update the API endpoint (stubbed in Subtask 1) to orchestrate the calls to script provisioning, execution, and output verification. The endpoint should return the structured outcome object formulated in Subtask 4. Integrate with the system-wide logging module (Task 12) to record: workflow initiation, script preparation, execution start/end, output capture, verification result (success/failure), and the final outcome being reported. If the system has a generic task handler or agent (Task 7), ensure this workflow is correctly registered or callable through that mechanism.",
+          "status": "pending",
+          "testStrategy": "Perform end-to-end testing by calling the finalized API endpoint. Verify that a successful execution with the 'Hello World' script returns a success status and the correct output details. Test with a modified script (e.g., `print('Hello Universe')`) to ensure a failure status is reported correctly with differing actual output. Inspect system logs to confirm that all key stages are logged with appropriate details."
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Write Comprehensive Unit Tests for MultiStepAgent_v2 Class",
+      "description": "Develop a comprehensive suite of unit tests for the `MultiStepAgent_v2` class in `enhancedAgent_v2.py`. These tests, written using pytest, will cover key methods, normal and exceptional flows, boundary conditions, and utilize mocking for external dependencies.",
+      "details": "_**1. Environment Setup:**_\n*   Ensure `pytest` and `pytest-cov` (for coverage reporting) are installed in the development environment.\n*   All test code should be placed in the `tests/` directory, potentially under a sub-directory like `tests/agents/`.\n*   Create a new test file, for example, `tests/agents/test_multi_step_agent_v2.py`.\n\n_**2. Test Coverage - Key Methods:**_\n*   The primary focus should be on testing the public interface of `MultiStepAgent_v2`.\n*   Ensure comprehensive test coverage for major methods, including but not limited to:\n    *   `execute_multi_step`\n    *   `plan_execution`\n    *   `register_agent`\n    *   `select_next_executable_step`\n    *   Any other critical public methods responsible for agent logic, state management, or interaction.\n\n_**3. Test Case Design (for each targeted method):**_\n*   **Normal Flow (Happy Path):** Test with valid inputs and expected conditions, ensuring the method produces the correct output or state change.\n*   **Exceptional Flow (Error Handling):** Test how the method handles invalid inputs, failures from dependencies (e.g., LLM errors, sub-agent failures), or internal errors. Verify that appropriate exceptions are raised or errors are handled gracefully as per design.\n*   **Boundary Conditions:** Test with edge cases, such as:\n    *   Empty inputs (e.g., an empty plan for `execute_multi_step`, empty task description for `plan_execution`).\n    *   Single-element inputs (e.g., a plan with a single step).\n    *   Inputs at the limits of acceptable ranges.\n\n_**4. Mocking Strategy:**_\n*   Identify all external dependencies of `MultiStepAgent_v2`. These typically include:\n    *   Large Language Model (LLM) clients.\n    *   Other Agent classes or services it interacts with.\n    *   Utility classes or functions that are not part of the unit under test.\n*   Utilize `unittest.mock.patch` from Python's standard library or `pytest-mock`'s `mocker` fixture to effectively mock these dependencies.\n*   Mocks should be configured to simulate various responses: successful outcomes, error conditions, specific data returns, etc., to test different code paths within `MultiStepAgent_v2`.\n\n_**5. Specific Test Scenarios (Illustrative Examples):**_\n*   **`plan_execution`:**\n    *   Given a task description, does it correctly call the LLM and parse its response to form a structured plan?\n    *   How does it handle LLM unavailability or malformed responses from the LLM?\n*   **`execute_multi_step`:**\n    *   Test with a linear sequence of steps. Verify each step is executed in order.\n    *   Test with a plan involving steps with dependencies. Verify steps are executed only after their dependencies are met.\n    *   Simulate a step failure. How does the agent react (e.g., halt, retry, log error)?\n    *   If it delegates to sub-agents, mock these sub-agents and verify the interaction.\n*   **`register_agent`:**\n    *   Test successful registration of a compatible agent.\n    *   Test attempting to register an incompatible or duplicate agent.\n*   **`select_next_executable_step`:**\n    *   Given a plan and a set of completed steps, does it correctly identify the next step(s) that can be executed?\n    *   What happens if no steps are currently executable? Or if the plan is fully complete?\n\n_**6. Assertions and Verification:**_\n*   Use pytest's `assert` keyword for all verifications.\n*   Verify method return values against expected outcomes.\n*   Verify any changes to the agent's observable state (if applicable).\n*   Verify that mocked dependencies were called with the correct arguments, the expected number of times.\n*   Use `pytest.raises` to assert that specific exceptions are raised under error conditions.\n\n_**7. Test Organization and Readability:**_\n*   Use clear, descriptive names for test functions (e.g., `test_execute_multi_step_handles_empty_plan`).\n*   Group related tests using classes if it improves organization.\n*   Employ pytest fixtures to set up common test data, agent instances, or mock objects, reducing boilerplate and improving test readability.\n\n_**8. Test Execution and Reporting:**_\n*   Ensure all tests can be discovered and run using the `pytest` command from the project root.\n*   Configure `pytest-cov` to generate a code coverage report (e.g., in HTML format). The target is to achieve high coverage for the `MultiStepAgent_v2` class logic.",
+      "testStrategy": "1.  **Automated Test Execution:** All unit tests must pass when executed via the `pytest` command in the designated test environment. The test suite should run without errors and report all results clearly.\n2.  **Code Coverage Analysis:** Generate a code coverage report using `pytest-cov`. Review this report to ensure that a significant percentage (e.g., >85%) of the `MultiStepAgent_v2` class's codebase is exercised by the tests. Identify and address any critical untested code paths.\n3.  **Method Coverage Verification:** Confirm that dedicated tests exist for all specified key methods (`execute_multi_step`, `plan_execution`, `register_agent`, `select_next_executable_step`, etc.) and other public methods of `MultiStepAgent_v2`.\n4.  **Scenario Coverage Verification:** Ensure that test cases for each method cover:\n    *   **Normal Operation:** Successful execution with typical, valid inputs.\n    *   **Error Handling:** Correct behavior (e.g., raising specific exceptions, logging errors, graceful failure) when presented with invalid inputs, simulated dependency failures, or internal errors.\n    *   **Boundary Conditions:** Behavior at the edges of valid input ranges or with special case inputs (e.g., empty lists, null values where permissible, single-item collections).\n5.  **Mocking Integrity:** Review the use of mocks to ensure that they accurately simulate the behavior of external dependencies and that tests correctly assert interactions with these mocks (e.g., methods called, arguments passed).\n6.  **Test Report Generation:** Verify that test execution can produce a structured test report (e.g., JUnit XML for CI, or HTML for local review) and a coverage report.\n7.  **Code Review:** The implemented test code will be subject to a peer review, focusing on correctness, clarity, maintainability, and the thoroughness of test scenarios.",
+      "status": "pending",
+      "dependencies": [
+        7,
+        12
+      ],
+      "priority": "medium",
+      "subtasks": []
+    }
+  ]
+}

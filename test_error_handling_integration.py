@@ -18,20 +18,20 @@ from enhancedAgent_v2 import (
     WorkflowErrorType, WorkflowErrorContext, GenericErrorHandler,
     WorkflowErrorDispatcher
 )
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 def create_test_agent():
     """创建测试用的MultiStepAgent_v2实例"""
     # 创建一个简单的注册代理
     test_registered_agent = RegisteredAgent(
         name="test_agent",
-        instance=Agent(llm=llm_deepseek, stateful=True),
+        instance=Agent(llm=get_model("deepseek_chat"), stateful=True),
         description="测试代理"
     )
     
     # 创建MultiStepAgent_v2实例
     agent = MultiStepAgent_v2(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         registered_agents=[test_registered_agent],
         max_retries=3
     )

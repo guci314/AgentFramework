@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from langchain_core.language_models import BaseChatModel
 
 from agent_base import Result
-from pythonTask import Agent, StatefulExecutor
+from python_core import Agent, StatefulExecutor
 from .cognitive_workflow import (
     CognitiveWorkflowEngine, CognitiveTask, TaskPhase, TaskStatus, GlobalState
 )

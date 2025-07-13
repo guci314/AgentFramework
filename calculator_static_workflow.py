@@ -16,7 +16,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 
 def main():
@@ -33,7 +33,7 @@ def main():
     
     # 创建DeepSeek LLM实例
     print("🔧 初始化DeepSeek语言模型...")
-    llm_deepseek = ChatOpenAI(
+    get_model("deepseek_chat") = ChatOpenAI(
         temperature=0,
         model="deepseek-chat", 
         base_url="https://api.deepseek.com",
@@ -45,21 +45,21 @@ def main():
     print("🤖 创建专业智能体...")
     
     # 编程智能体
-    coder_agent = Agent(llm=llm_deepseek, stateful=True)
+    coder_agent = Agent(llm=get_model("deepseek_chat"), stateful=True)
     coder_agent.api_specification = "专业编程智能体，擅长Python编程，能够编写高质量的代码，包括类设计、函数实现、错误处理等"
     
     # 测试智能体
-    tester_agent = Agent(llm=llm_deepseek, stateful=True) 
+    tester_agent = Agent(llm=get_model("deepseek_chat"), stateful=True) 
     tester_agent.api_specification = "专业测试智能体，擅长编写单元测试、集成测试，验证代码功能正确性，使用pytest框架"
     
     # 分析师智能体
-    analyst_agent = Agent(llm=llm_deepseek, stateful=True)
+    analyst_agent = Agent(llm=get_model("deepseek_chat"), stateful=True)
     analyst_agent.api_specification = "需求分析师智能体，擅长分析需求、设计架构、制定实现方案"
     
     # 创建MultiStepAgent_v3实例
     print("🏗️  构建MultiStepAgent_v3...")
     agent_v3 = MultiStepAgent_v3(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         registered_agents=[
             RegisteredAgent("coder", coder_agent, "专业编程智能体，擅长Python编程，能够编写高质量的代码"),
             RegisteredAgent("tester", tester_agent, "专业测试智能体，擅长编写单元测试，验证代码功能正确性"),

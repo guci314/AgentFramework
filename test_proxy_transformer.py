@@ -6,7 +6,8 @@
 
 import os
 from enhancedAgent_v2 import MultiStepAgent_v2
-from pythonTask import llm_deepseek, Agent
+from python_core import Age
+from llm_lazy import get_modelnt
 
 def test_transformer_with_proxy():
     """测试带代理配置的Transformer解析器"""
@@ -20,7 +21,7 @@ def test_transformer_with_proxy():
     
     # 2. 创建智能体
     print("2. 创建MultiStepAgent_v2...")
-    multi_agent = MultiStepAgent_v2(llm=llm_deepseek)
+    multi_agent = MultiStepAgent_v2(llm=get_model("deepseek_chat"))
     
     # 3. 配置带代理的transformer解析器
     print("3. 配置带代理的transformer解析器...")
@@ -56,7 +57,7 @@ def test_transformer_with_proxy():
     
     # 4. 注册子智能体
     print("\n4. 注册子智能体...")
-    coder = Agent(llm=llm_deepseek, stateful=True)
+    coder = Agent(llm=get_model("deepseek_chat"), stateful=True)
     multi_agent.register_agent("coder", coder)
     
     # 5. 执行简单任务测试
@@ -98,7 +99,7 @@ def test_proxy_configuration_methods():
     
     # 方法2: 通过配置参数
     print("\n方法2: 通过配置参数设置代理")
-    agent = MultiStepAgent_v2(llm=llm_deepseek)
+    agent = MultiStepAgent_v2(llm=get_model("deepseek_chat"))
     try:
         agent.configure_response_parser(
             parser_method="transformer",

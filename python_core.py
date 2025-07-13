@@ -13,6 +13,7 @@ import tempfile
 import subprocess
 import time
 import inspect
+from importlib import import_module
 from typing import Callable, Dict, List, Optional, Tuple, Union, Literal, Iterator
 from functools import wraps
 from dotenv import load_dotenv
@@ -763,6 +764,20 @@ class Agent(AgentBase):
         self.thinker.loadKnowledge(knowledge)
         for evaluator in self.evaluators:
             evaluator.loadKnowledge(knowledge)
+
+    def loadPythonModules(self, pythonModules: List[str]):
+        '''
+        加载python模块
+        '''
+        knowledge = ""
+        for module_name in pythonModules:
+            module = import_module(module_name)
+            knowledge += f'以下python模块已经导入：{module_name}\n'
+            knowledge += f'模块源码如下：\n{inspect.getsource(module)}\n\n'
+        self.loadKnowledge(knowledge)
+        for module_name in pythonModules:
+            if isinstance(self.device, StatefulExecutor):
+                self.device.execute_code(f'import importlib\nimport {module_name}\nimportlib.reload({module_name})')
 
     def evaluate_all(self, result: Result, instruction: str = None) -> Tuple[bool, List[str]]:
         '''使用所有评估器进行评估'''

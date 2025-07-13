@@ -12,7 +12,8 @@ import time
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent
+from llm_lazy import get_model
 from agent_base import Result
 
 
@@ -29,7 +30,7 @@ class TestAgentBasic(unittest.TestCase):
             self.skipTest("需要DEEPSEEK_API_KEY环境变量")
         
         # 测试基本初始化
-        agent = Agent(llm=llm_deepseek, stateful=True)
+        agent = Agent(llm=get_model("deepseek_v3"), stateful=True)
         
         self.assertIsNotNone(agent.llm)
         self.assertIsNotNone(agent.device)
@@ -47,7 +48,7 @@ class TestAgentBasic(unittest.TestCase):
         
         # 测试带选项的初始化
         agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_v3"),
             stateful=False,
             max_retries=5,
             skip_evaluation=True,
@@ -65,7 +66,7 @@ class TestAgentExecution(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        self.agent = Agent(llm=llm_deepseek, stateful=True, max_retries=3)
+        self.agent = Agent(llm=get_model("deepseek_v3"), stateful=True, max_retries=3)
     
     def test_simple_task_execution_sync(self):
         """测试简单任务同步执行"""
@@ -118,7 +119,7 @@ class TestAgentStreamExecution(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        self.agent = Agent(llm=llm_deepseek, stateful=True, max_retries=2)
+        self.agent = Agent(llm=get_model("deepseek_v3"), stateful=True, max_retries=2)
     
     def test_stream_execution_basic(self):
         """测试基础流式执行"""
@@ -186,7 +187,7 @@ class TestAgentChatFunctionality(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        self.agent = Agent(llm=llm_deepseek, stateful=True)
+        self.agent = Agent(llm=get_model("deepseek_v3"), stateful=True)
     
     def test_chat_sync_basic(self):
         """测试同步聊天基础功能"""
@@ -251,7 +252,7 @@ class TestAgentEvaluationSystem(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        self.agent = Agent(llm=llm_deepseek, stateful=True, max_retries=2)
+        self.agent = Agent(llm=get_model("deepseek_v3"), stateful=True, max_retries=2)
     
     def test_single_evaluator(self):
         """测试单个评估器"""
@@ -324,7 +325,7 @@ class TestAgentKnowledgeManagement(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        self.agent = Agent(llm=llm_deepseek, stateful=True)
+        self.agent = Agent(llm=get_model("deepseek_v3"), stateful=True)
     
     def test_knowledge_loading(self):
         """测试知识加载"""
@@ -368,7 +369,7 @@ class TestAgentConfigurationOptions(unittest.TestCase):
     
     def test_skip_evaluation_option(self):
         """测试跳过评估选项"""
-        agent = Agent(llm=llm_deepseek, stateful=True, skip_evaluation=True)
+        agent = Agent(llm=get_model("deepseek_v3"), stateful=True, skip_evaluation=True)
         
         instruction = "计算5+5的结果"
         result = agent.execute_sync(instruction)
@@ -380,7 +381,7 @@ class TestAgentConfigurationOptions(unittest.TestCase):
     
     def test_skip_generation_option(self):
         """测试跳过生成选项"""
-        agent = Agent(llm=llm_deepseek, stateful=True, skip_generation=True)
+        agent = Agent(llm=get_model("deepseek_v3"), stateful=True, skip_generation=True)
         
         instruction = "计算6+4的结果"
         result = agent.execute_sync(instruction)
@@ -393,7 +394,7 @@ class TestAgentConfigurationOptions(unittest.TestCase):
     def test_both_skip_options(self):
         """测试同时跳过评估和生成"""
         agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_v3"),
             stateful=True,
             skip_evaluation=True,
             skip_generation=True
@@ -409,7 +410,7 @@ class TestAgentConfigurationOptions(unittest.TestCase):
     
     def test_max_retries_option(self):
         """测试最大重试次数选项"""
-        agent = Agent(llm=llm_deepseek, stateful=True, max_retries=1)
+        agent = Agent(llm=get_model("deepseek_v3"), stateful=True, max_retries=1)
         
         self.assertEqual(agent.max_retries, 1)
         self.assertEqual(agent.thinker.max_retries, 1)
@@ -422,7 +423,7 @@ class TestAgentComplexScenarios(unittest.TestCase):
     
     def setUp(self):
         """测试前准备"""
-        self.agent = Agent(llm=llm_deepseek, stateful=True, max_retries=3)
+        self.agent = Agent(llm=get_model("deepseek_v3"), stateful=True, max_retries=3)
     
     def test_stateful_multi_step_task(self):
         """测试有状态的多步骤任务"""

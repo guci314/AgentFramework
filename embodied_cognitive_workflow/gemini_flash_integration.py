@@ -6,7 +6,7 @@ Gemini Flash 2.5 集成模块
 
 升级说明：
 - 从 Google generativeai 库迁移到基于 ChatOpenAI 的实现
-- 使用 pythonTask 中预配置的 llm_gemini_2_5_flash_google 模型
+- 使用 pythonTask 中预配置的 get_model("gemini_2_5_flash") 模型
 - 保持原有 API 接口不变，确保向后兼容性
 - 支持中国大陆用户的网络环境配置
 
@@ -29,7 +29,8 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from pythonTask import llm_gemini_2_5_flash_google
+    from llm_lazy import get_model
+    llm_gemini_2_5_flash_google = get_model("gemini_2_5_flash")
 except ImportError:
     # 如果导入失败，设置为 None
     llm_gemini_2_5_flash_google = None
@@ -59,11 +60,11 @@ class GeminiFlashClient:
         self.logger = logging.getLogger(__name__)
         
         # 检查是否成功导入了 pythonTask 模型
-        if llm_gemini_2_5_flash_google is None:
+        if get_model("gemini_2_5_flash") is None:
             raise ImportError("无法导入 pythonTask 中的 Gemini Flash 2.5 模型")
         
         # 使用 pythonTask 中预配置的模型
-        self.model = llm_gemini_2_5_flash_google
+        self.model = get_model("gemini_2_5_flash")
         
         # 检查环境变量
         if not os.getenv('GEMINI_API_KEY'):
@@ -376,7 +377,7 @@ def create_gemini_client(api_key: Optional[str] = None,
     """
     try:
         # 检查是否有 pythonTask 模型
-        if llm_gemini_2_5_flash_google is None:
+        if get_model("gemini_2_5_flash") is None:
             logging.error("无法导入 pythonTask 中的 Gemini Flash 2.5 模型")
             return None
         

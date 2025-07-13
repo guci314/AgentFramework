@@ -22,7 +22,7 @@ sys.path.append(cognitive_workflow_dir)
 
 # 导入必要的模块
 try:
-    from pythonTask import Agent, llm_deepseek
+    from python_core import Agent, get_model("deepseek_chat")
     from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 except ImportError as e:
     print(f"❌ 导入错误: {e}")
@@ -38,7 +38,7 @@ def test_agent_wrapper():
     # 1. 创建基础Agent
     print("📝 步骤1: 创建基础Agent")
     try:
-        base_agent = Agent(llm=llm_deepseek)
+        base_agent = Agent(llm=get_model("deepseek_chat"))
         print(f"✅ 基础Agent创建成功: {type(base_agent).__name__}")
     except Exception as e:
         print(f"❌ 创建基础Agent失败: {e}")
@@ -155,7 +155,7 @@ def test_classification_accuracy():
     
     # 创建简化的测试环境
     try:
-        base_agent = Agent(llm=llm_deepseek)
+        base_agent = Agent(llm=get_model("deepseek_chat"))
         cognitive_agent = IntelligentAgentWrapper(base_agent)
     except Exception as e:
         print(f"❌ 初始化失败: {e}")
@@ -222,7 +222,7 @@ def demo_usage_scenarios():
     print("-" * 60)
     
     try:
-        base_agent = Agent(llm=llm_deepseek)
+        base_agent = Agent(llm=get_model("deepseek_chat"))
         cognitive_agent = IntelligentAgentWrapper(base_agent)
     except Exception as e:
         print(f"❌ 初始化失败: {e}")

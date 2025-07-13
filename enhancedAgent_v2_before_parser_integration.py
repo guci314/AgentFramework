@@ -1,6 +1,6 @@
 # %%
 from agent_base import Result, reduce_memory_decorator_compress
-from pythonTask import StatefulExecutor, Agent, llm_deepseek
+from python_core import StatefulExecutor, Agent, get_model("deepseek_chat")
 from langchain_core.language_models import BaseChatModel
 from typing import Dict, List, Any, Optional, Tuple, NamedTuple
 import json
@@ -3041,7 +3041,7 @@ class AIStateUpdaterService(AIStateUpdater):
         初始化AI状态更新器服务（支持配置系统）
         
         Args:
-            llm: DeepSeek LLM实例 (llm_deepseek)
+            llm: DeepSeek LLM实例 (get_model("deepseek_chat"))
             max_retries: 最大重试次数（None则使用配置文件）
             retry_delay: 重试延迟时间（秒）（None则使用配置文件）
             enable_sentiment_analysis: 是否启用情感分析（None则使用配置文件）
@@ -4053,7 +4053,7 @@ class WorkflowState:
         """初始化AI状态更新器（懒加载）"""
         if not hasattr(self, '_ai_updater') or self._ai_updater is None:
             try:
-                self._ai_updater = AIStateUpdaterService(llm_deepseek)
+                self._ai_updater = AIStateUpdaterService(get_model("deepseek_chat"))
                 self._logger.info("AI状态更新器初始化成功")
             except Exception as e:
                 self._logger.error(f"AI状态更新器初始化失败: {e}")

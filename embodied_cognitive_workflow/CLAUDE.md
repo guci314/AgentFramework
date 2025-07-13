@@ -4,7 +4,7 @@
 
 这是一个基于具身认知理论的四层架构智能体工作流系统，实现了完整的认知循环和动态任务执行能力。项目包含：
 
-1. **四层认知架构系统** - SuperEgo、Ego、Id、Body 的完整认知层级
+1. **四层认知架构系统** - MetaCognitive、Ego、Id、Body 的完整认知层级
 2. **动态认知循环** - 增量式规划的自适应执行模式
 3. **元认知能力** - UltraThink 高级认知监控和策略优化
 4. **认知调试系统** - CognitiveDebugger 单步调试和性能分析
@@ -15,7 +15,7 @@
 
 ```
 ┌─────────────────────────────────────────┐
-│         SuperEgo (超我)                  │
+│      MetaCognitive (元认知)              │
 │   - 元认知监督和道德约束                  │
 │   - UltraThink 高级认知能力              │
 │   - 认知质量控制                        │
@@ -47,13 +47,13 @@
 
 1. **任务接收** → CognitiveAgent 接收用户指令
 2. **复杂性评估** → Ego 评估任务是否需要认知循环
-3. **超我预监督** → SuperEgo 进行任务约束检查（可选）
+3. **元认知预监督** → MetaCognitive 进行任务约束检查（可选）
 4. **认知循环**：
    - **状态分析** (Ego) → 分析当前状态
    - **决策判断** (Ego) → 决定下一步行动
    - **目标评估** (Id) → 评估是否达成目标
    - **身体执行** (Body) → 执行具体操作
-5. **超我后监督** → SuperEgo 进行结果审查（可选）
+5. **元认知后监督** → MetaCognitive 进行结果审查（可选）
 6. **结果返回** → 返回执行结果
 
 ## 项目状态概览
@@ -61,7 +61,7 @@
 ### ✅ 已完成功能
 
 #### 1. 四层认知架构
-- **SuperEgoAgent** (`super_ego_agent.py`) - 完整的超我实现
+- **MetaCognitiveAgent** (`meta_cognitive_agent.py`) - 完整的元认知实现
   - UltraThinkEngine - 高级认知引擎
   - CognitiveMonitor - 认知监控器
   - StrategyOptimizer - 策略优化器
@@ -94,7 +94,7 @@
 ### 🧠 四层认知架构
 ```
 embodied_cognitive_workflow.py     # 主认知工作流协调器 (CognitiveAgent)
-super_ego_agent.py                # 超我智能体 (元认知监督)
+meta_cognitive_agent.py           # 元认知智能体 (元认知监督)
 ego_agent.py                      # 自我智能体 (理性决策)
 id_agent.py                       # 本我智能体 (价值评估)
 ```
@@ -136,7 +136,7 @@ agent = CognitiveAgent(
     llm=pythonTask.llm_gemini_2_5_flash_google,
     max_cycles=5,                    # 最大认知循环次数
     verbose=True,                    # 显示详细执行过程
-    enable_super_ego=True,           # 启用超我监督
+    enable_meta_cognition=True,           # 启用元认知监督
     evaluation_mode="internal",      # 使用本我内部评估
     decider_model="ego"             # 使用自我作为决策者
 )
@@ -159,12 +159,12 @@ print(chat_result.return_value)
 
 ### 四层架构详解
 
-#### 1. SuperEgo - 超我层（元认知监督）
+#### 1. MetaCognitive - 元认知层（元认知监督）
 
 ```python
-from embodied_cognitive_workflow import SuperEgoAgent
+from embodied_cognitive_workflow import MetaCognitiveAgent
 
-# SuperEgo 主要功能
+# MetaCognitive 主要功能
 - 预监督：在任务执行前进行约束检查
 - 后监督：在任务完成后进行结果审查
 - UltraThink：高级认知能力，包括认知监控、策略优化、反思学习
@@ -302,20 +302,20 @@ print(f"目标达成: {snapshot.goal_achieved}")
 ### 完整的11步认知循环
 1. **INIT** - 初始化
 2. **COMPLEXITY_EVAL** - 复杂性评估
-3. **SUPER_EGO_PRE** - 超我预监督
+3. **META_COGNITION_PRE** - 元认知预监督
 4. **CYCLE_START** - 循环开始
 5. **STATE_ANALYSIS** - 状态分析 (Ego)
 6. **DECISION_MAKING** - 决策判断 (Ego)
 7. **ID_EVALUATION** - 本我评估 (Id)
 8. **BODY_EXECUTION** - 身体执行 (Body)
 9. **CYCLE_END** - 循环结束
-10. **SUPER_EGO_POST** - 超我后监督
+10. **META_COGNITION_POST** - 元认知后监督
 11. **COMPLETED** - 执行完成
 
 ## 四层认知架构
 
 ### 层级说明
-- **SuperEgo** (👥) - 元认知监督和道德约束
+- **MetaCognitive** (👥) - 元认知监督和道德约束
 - **Ego** (🧠) - 理性思考和决策
 - **Id** (💫) - 价值驱动和目标监控
 - **Body** (🏃) - 执行和感知

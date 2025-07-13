@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@peakmojo/mcp-openmemory": "^0.1.4"
+  }
+}

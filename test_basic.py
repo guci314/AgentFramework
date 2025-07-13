@@ -9,7 +9,7 @@ def test_imports():
         # 测试主要组件导入
         from enhancedAgent_v2 import MultiStepAgent_v2, RegisteredAgent, WorkflowState
         from agent_base import AgentBase, Result
-        from pythonTask import Agent, StatefulExecutor
+        from python_core import Agent, StatefulExecutor
         from mda import prompts
         from mda import ddd_framework
         

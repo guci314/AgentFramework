@@ -17,7 +17,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 from task_master_agent import TaskMasterAgent, AgentSpecification
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 import logging
 

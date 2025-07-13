@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-超我智能体演示程序
+元认知智能体演示程序
 
-展示超我智能体的元认知监督、认知错误检测、UltraThink能力和四层认知架构集成的完整功能。
+展示元认知智能体的元认知监督、认知错误检测、UltraThink能力和四层认知架构集成的完整功能。
 
 功能演示：
-1. 超我智能体基础功能
+1. 元认知智能体基础功能
 2. 认知偏差检测和逻辑验证
 3. UltraThink元认知引擎
 4. 四层认知架构集成
@@ -25,7 +25,7 @@ sys.path.insert(0, parent_dir)
 
 try:
     from langchain_openai import ChatOpenAI
-    from embodied_cognitive_workflow import SuperEgoAgent, CognitiveAgent
+    from embodied_cognitive_workflow import MetaCognitiveAgent, CognitiveAgent
     print("✅ 成功导入具身认知工作流模块")
 except ImportError as e:
     print(f"❌ 导入失败: {e}")
@@ -33,12 +33,12 @@ except ImportError as e:
     sys.exit(1)
 
 
-class SuperEgoDemo:
-    """超我智能体演示类"""
+class MetaCognitiveDemo:
+    """元认知智能体演示类"""
     
     def __init__(self):
         """初始化演示环境"""
-        print("🚀 初始化超我智能体演示环境...")
+        print("🚀 初始化元认知智能体演示环境...")
         
         # 初始化语言模型（需要有效的API密钥）
         self.llm = ChatOpenAI(
@@ -47,8 +47,8 @@ class SuperEgoDemo:
             max_tokens=2000
         )
         
-        # 初始化超我智能体
-        self.super_ego = SuperEgoAgent(
+        # 初始化元认知智能体
+        self.meta_cognitive = MetaCognitiveAgent(
             llm=self.llm,
             enable_bias_detection=True,
             enable_logic_validation=True,
@@ -57,8 +57,8 @@ class SuperEgoDemo:
             enable_ultra_think=True
         )
         
-        print("✅ 超我智能体初始化完成")
-        self.super_ego.start_cognitive_monitoring()
+        print("✅ 元认知智能体初始化完成")
+        self.meta_cognitive.start_cognitive_monitoring()
         print("📊 认知监控已启动")
     
     def demo_basic_supervision(self):
@@ -87,7 +87,7 @@ class SuperEgoDemo:
         print(biased_reasoning)
         print("\n🔍 开始认知监督...")
         
-        result = self.super_ego.supervise_cognitive_process(
+        result = self.meta_cognitive.supervise_cognitive_process(
             reasoning_text=biased_reasoning,
             context=context,
             goals=goals,
@@ -102,7 +102,7 @@ class SuperEgoDemo:
         print("🤖 演示2: UltraThink元认知引擎")
         print("="*60)
         
-        if not self.super_ego.ultra_think:
+        if not self.meta_cognitive.ultra_think:
             print("❌ UltraThink引擎未启用")
             return
         
@@ -134,7 +134,7 @@ class SuperEgoDemo:
         
         print("📊 执行元认知分析...")
         
-        meta_analysis = self.super_ego.meta_cognitive_analysis(
+        meta_analysis = self.meta_cognitive.meta_cognitive_analysis(
             process_data=process_data,
             performance_metrics=performance_metrics,
             context=context,
@@ -168,7 +168,7 @@ class SuperEgoDemo:
         
         print("🧪 执行综合认知监督...")
         
-        supervision_result = self.super_ego.comprehensive_cognitive_supervision(
+        supervision_result = self.meta_cognitive.comprehensive_cognitive_supervision(
             cognitive_data=cognitive_data,
             context=context,
             goals=goals
@@ -182,13 +182,13 @@ class SuperEgoDemo:
         print("🏗️ 演示4: 四层认知架构集成")
         print("="*60)
         
-        print("🔧 创建具有超我监督的认知智能体...")
+        print("🔧 创建具有元认知监督的认知智能体...")
         
         # 创建四层认知架构的智能体
         cognitive_agent = CognitiveAgent(
             llm=self.llm,
-            enable_super_ego=True,
-            super_ego_config={
+            enable_meta_cognition=True,
+            meta_cognition_config={
                 "enable_bias_detection": True,
                 "enable_ultra_think": True
             },
@@ -210,11 +210,11 @@ class SuperEgoDemo:
         if result.return_value:
             print(f"结果: {result.return_value[:200]}...")
         
-        # 获取超我状态
-        super_ego_state = cognitive_agent.get_super_ego_state()
-        if super_ego_state.get('enabled'):
-            print("\n🧠 超我监督状态:")
-            cognitive_health = super_ego_state.get('cognitive_health', {})
+        # 获取元认知状态
+        meta_cognition_state = cognitive_agent.get_meta_cognition_state()
+        if meta_cognition_state.get('enabled'):
+            print("\n🧠 元认知监督状态:")
+            cognitive_health = meta_cognition_state.get('cognitive_health', {})
             print(f"认知健康评分: {cognitive_health.get('overall_score', 'N/A'):.2f}")
             print(f"健康状态: {cognitive_health.get('status', 'N/A')}")
             
@@ -269,7 +269,7 @@ class SuperEgoDemo:
                 "lessons": []
             }
             
-            reflection = self.super_ego.reflect_and_learn(experience_data, outcome)
+            reflection = self.meta_cognitive.reflect_and_learn(experience_data, outcome)
             
             if not reflection.get('error'):
                 lessons = reflection.get('lessons_learned', [])
@@ -282,7 +282,7 @@ class SuperEgoDemo:
         
         # 生成学习总结
         print("\n📊 生成学习总结...")
-        learning_summary = self.super_ego.get_learning_summary()
+        learning_summary = self.meta_cognitive.get_learning_summary()
         
         if not learning_summary.get('error') and learning_summary.get('learning_patterns'):
             print("🎯 主要学习模式:")
@@ -366,7 +366,7 @@ class SuperEgoDemo:
     
     def run_full_demo(self):
         """运行完整演示"""
-        print("🎬 开始超我智能体完整功能演示")
+        print("🎬 开始元认知智能体完整功能演示")
         print("="*80)
         
         try:
@@ -379,10 +379,10 @@ class SuperEgoDemo:
             
             # 显示最终状态
             print("\n" + "="*60)
-            print("📈 最终超我状态报告")
+            print("📈 最终元认知状态报告")
             print("="*60)
             
-            state = self.super_ego.get_supervision_summary()
+            state = self.meta_cognitive.get_supervision_summary()
             print(f"监督次数: {state['metrics']['total_supervisions']}")
             print(f"检测偏差: {state['metrics']['biases_detected']}")
             print(f"发现逻辑错误: {state['metrics']['logic_errors_found']}")
@@ -392,7 +392,7 @@ class SuperEgoDemo:
             if health:
                 print(f"整体认知健康: {health.status.value} (评分: {health.overall_score:.2f})")
             
-            print("\n🎉 超我智能体演示完成!")
+            print("\n🎉 元认知智能体演示完成!")
             print("✨ 四层认知架构已成功实现元认知监督能力")
             
         except Exception as e:
@@ -403,12 +403,12 @@ class SuperEgoDemo:
 
 def main():
     """主函数"""
-    print("🧠 超我智能体 (SuperEgoAgent) 演示程序")
+    print("🧠 元认知智能体 (MetaCognitiveAgent) 演示程序")
     print("基于具身认知理论的四层架构元认知监督系统")
     print("="*80)
     
     try:
-        demo = SuperEgoDemo()
+        demo = MetaCognitiveDemo()
         demo.run_full_demo()
     except KeyboardInterrupt:
         print("\n\n⏹️ 演示被用户中断")

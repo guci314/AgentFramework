@@ -14,7 +14,7 @@ sys.path.append(str(project_root))
 
 from agent_base import Result
 from task_master_agent import TaskMasterAgent, AgentSpecification
-from pythonTask import Agent
+from python_core import Agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, AIMessage
 import logging

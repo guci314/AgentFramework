@@ -22,7 +22,7 @@ def test_device():
         if not os.getenv('DEEPSEEK_API_KEY'):
             os.environ['DEEPSEEK_API_KEY'] = 'fake_key_for_testing'
         
-        from pythonTask import Device
+        from python_core import Device
         device = Device()
         
         # 测试简单执行
@@ -40,7 +40,7 @@ def test_stateful_executor():
     """测试StatefulExecutor组件"""
     print("📦 测试StatefulExecutor组件...")
     try:
-        from pythonTask import StatefulExecutor
+        from python_core import StatefulExecutor
         executor = StatefulExecutor()
         
         # 测试变量持久化
@@ -66,10 +66,11 @@ def test_thinker():
         return True
     
     try:
-        from pythonTask import Thinker, StatefulExecutor, llm_deepseek
+        from python_core import Thinker, StatefulExecutor
+        from llm_lazy import get_model
         
         device = StatefulExecutor()
-        thinker = Thinker(llm=llm_deepseek, device=device, max_retries=1)
+        thinker = Thinker(llm=get_model("deepseek_v3"), device=device, max_retries=1)
         
         # 测试简单代码生成
         result = thinker.execute_sync("计算2+3的结果并打印")
@@ -91,11 +92,12 @@ def test_evaluator():
         return True
     
     try:
-        from pythonTask import Evaluator, llm_deepseek
+        from python_core import Evaluator
+        from llm_lazy import get_model
         from agent_base import Result
         from mda.prompts import default_evaluate_message
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message)
         
         # 测试成功案例评估
         success_result = Result(
@@ -125,9 +127,10 @@ def test_agent():
         return True
     
     try:
-        from pythonTask import Agent, llm_deepseek
+        from python_core import Agent
+        from llm_lazy import get_model
         
-        agent = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_evaluation=True)
+        agent = Agent(llm=get_model("deepseek_v3"), stateful=True, max_retries=1, skip_evaluation=True)
         
         # 测试简单任务执行
         result = agent.execute_sync("计算1+1的结果")
@@ -142,7 +145,7 @@ def test_agent():
 
 def main():
     """主函数"""
-    print("🚀 快速验证pythonTask.py组件功能")
+    print("🚀 快速验证Agent Framework组件功能")
     print("="*50)
     
     # 检查API密钥

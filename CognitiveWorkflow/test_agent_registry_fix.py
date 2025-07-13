@@ -11,7 +11,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base import create_production_rule_system
 
 
@@ -23,7 +23,7 @@ def test_agent_registry_association():
     
     # 1. 创建测试智能体
     print("1. 创建测试智能体...")
-    test_agent = Agent(llm=llm_deepseek)
+    test_agent = Agent(llm=get_model("deepseek_chat"))
     test_agent.api_specification = "测试智能体，用于验证agent_registry关联"
     
     agents = {"test_agent": test_agent}
@@ -33,7 +33,7 @@ def test_agent_registry_association():
     print("\n2. 创建工作流系统...")
     try:
         workflow_engine = create_production_rule_system(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             agents=agents,
             enable_auto_recovery=True
         )
@@ -90,14 +90,14 @@ def test_explicit_agent_registry():
     print("="*40)
     
     # 创建智能体
-    test_agent = Agent(llm=llm_deepseek)
+    test_agent = Agent(llm=get_model("deepseek_chat"))
     test_agent.api_specification = "显式测试智能体"
     
     agents = {"explicit_agent": test_agent}
     
     # 创建工作流系统
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True
     )

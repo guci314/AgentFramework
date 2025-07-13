@@ -1,7 +1,7 @@
 import os
 import unittest
 from dotenv import load_dotenv
-from pythonTask import llm_deepseek
+from llm_lazy import get_model
 
 # 加载环境变量
 load_dotenv()
@@ -22,7 +22,7 @@ def check_deepseek_api_health():
         api_key = load_api_key()
         
         # 进行简单的测试调用
-        response = llm_deepseek.invoke("测试")
+        response = get_model("deepseek_v3").invoke("测试")
         
         # 检查响应是否有效
         if hasattr(response, 'content') and response.content:

@@ -1,0 +1,208 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 7,
+        "title": "Implement Unified Configuration System",
+        "description": "Establish a unified configuration system for managing LLM API keys, token limits, and other settings across the framework. This system should support loading from environment variables to ensure secure and flexible configuration.",
+        "details": "Implement a configuration module using Pydantic's `BaseSettings`. Create a `Settings` class that loads variables from a `.env` file and the environment. This will provide typed, validated configuration for components like `LLM_PROVIDER`, `API_KEY`, `DEFAULT_TOKEN_LIMIT`, etc. This is a foundational step for all other components that require external configuration.",
+        "testStrategy": "Unit test the `Settings` class to verify that it correctly loads variables from environment variables and a sample `.env` file. Test default values and validation errors for missing required settings.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Build LLM Integration Abstraction Layer",
+        "description": "Create an abstraction layer for interacting with various Large Language Models (LLMs) like OpenAI, Anthropic, Gemini, and Cohere. This will insulate the core logic from specific SDK implementations.",
+        "details": "Design a generic `LLMClient` interface with methods like `generate(prompt, stream=False)` and `count_tokens(text)`. Implement concrete classes for each supported provider (e.g., `OpenAIClient`, `GeminiClient`) that adapt their respective SDKs (e.g., `openai` > 1.0, `google-generativeai`, `anthropic`) to this interface. Use a factory pattern to instantiate the correct client based on the global configuration.",
+        "testStrategy": "For each client implementation, write unit tests that mock the underlying SDK. Verify that the input is formatted correctly for the target LLM and that the output is parsed back into a standardized format. Test both streaming and non-streaming modes.",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Create Foundational AgentBase Class",
+        "description": "Develop the `AgentBase` class, which will serve as the foundation for all agents. It should include basic initialization and execution capabilities but will be extended by other tasks with memory and state management.",
+        "details": "Create a Python class `AgentBase` with an `__init__` method that accepts an LLM client instance. Implement a placeholder `execute(instruction)` method. This class will serve as the parent class for all specialized agents in the framework.",
+        "testStrategy": "Unit test the `AgentBase` class to ensure it can be initialized correctly with a mock LLM client. Verify that the basic methods exist and have the correct signatures.",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Implement IPython-based StatefulExecutor",
+        "description": "Implement the `StatefulExecutor` for executing Python code within a persistent environment. This component is critical for agents that need to write and test code, maintaining variable state across execution steps.",
+        "details": "Use the `ipykernel` library to manage a background IPython kernel process. The `StatefulExecutor` class will have methods to `start_kernel()`, `execute_code(code_string)`, and `shutdown_kernel()`. It will manage communication with the kernel to send code and receive results, including stdout, stderr, and rich outputs, preserving the kernel's state between calls.",
+        "testStrategy": "Write integration tests that start a kernel, execute a sequence of code snippets (e.g., `a = 10`, `b = a + 5`, `print(b)`), and assert that the state is maintained correctly and the final output is as expected (15).",
+        "priority": "high",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Develop SQLite-based LLM Caching System",
+        "description": "Develop an SQLite-based caching mechanism to store and retrieve LLM query results. This will reduce API costs and improve performance for repeated queries.",
+        "details": "Use Python's built-in `sqlite3` module. Create a `LLMCache` class with `get(key)` and `set(key, value)` methods. The key should be a hash (e.g., SHA256) of the LLM prompt, model name, and key parameters (like temperature). The value will be the LLM's response. The cache should be integrated into the LLM abstraction layer.",
+        "testStrategy": "Unit test the `LLMCache` class to verify database creation, insertion, and retrieval. Write an integration test with the LLM Abstraction Layer to ensure that a repeated query hits the cache instead of making a new API call.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Integrate Advanced Memory Management",
+        "description": "Integrate advanced memory management into `AgentBase`. This includes token-based message history truncation, context compression, and a 'Protected Messages' system to prevent critical information from being lost.",
+        "details": "Extend `AgentBase` to manage a list of messages. Use `tiktoken` to count tokens for OpenAI models. Implement a truncation strategy that removes the oldest non-protected messages when the context exceeds the configured token limit. For compression, use `zlib` to compress older messages, replacing them with a summary and a 'decompress' instruction.",
+        "testStrategy": "Unit test the memory management logic. Create scenarios that exceed the token limit and verify that the correct messages are truncated. Test the protected message feature by marking a message as protected and ensuring it is never removed. Test compression and decompression.",
+        "priority": "high",
+        "dependencies": [
+          8,
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Define Core State Management Data Models",
+        "description": "Define the core data models for managing state within the framework, including `WorkflowContext`, `GlobalState`, `AgentSpecification`, and `WorkflowState`. These will be used for natural language state representation.",
+        "details": "Using Pydantic `BaseModel`, define the data structures. `WorkflowContext` will contain the natural language goal and a `goal_achieved` boolean. `GlobalState` will be a dictionary for sharing information. `AgentSpecification` will hold agent metadata. `WorkflowState` will track execution status, loop counters, and context.",
+        "testStrategy": "Unit test the Pydantic models to ensure they correctly parse and validate data. Test serialization and deserialization to and from JSON.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement EmbodiedCognitiveWorkflow System",
+        "description": "Implement the primary `EmbodiedCognitiveWorkflow` system, featuring the four-layer cognitive architecture: SuperEgo, Ego, Id, and Body. This system will manage the main cognitive cycle using natural language states.",
+        "details": "Create a `CognitiveAgent` class inheriting from `AgentBase`. Implement the four layers as distinct methods or classes. `SuperEgo` performs meta-cognitive checks. `Ego` handles rational planning and instruction generation. `Id` evaluates progress against the core goal. `Body` uses the `StatefulExecutor` to act. The main loop will cycle through these layers based on the `WorkflowContext`.",
+        "testStrategy": "Write integration tests for a simple task like 'write a file named test.txt with hello world'. Mock the LLM responses for each layer's reasoning process. Verify that the agent cycles through the cognitive layers and that the `StatefulExecutor` is called with the correct code.",
+        "priority": "high",
+        "dependencies": [
+          10,
+          12,
+          13
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Implement Streaming for Cognitive Processes",
+        "description": "Add real-time streaming support to the `EmbodiedCognitiveWorkflow`. This allows developers to observe the cognitive process of an agent as it happens, chunk by chunk.",
+        "details": "Implement an `execute_stream` method on the `CognitiveAgent`. This method will call the LLM's streaming API within each cognitive layer (Ego, Id, etc.) and yield the formatted natural language output from each layer as it's generated. The output should be a structured object indicating the current cognitive layer and the content.",
+        "testStrategy": "Create a test that calls `execute_stream` and collects the yielded chunks. Verify that the chunks arrive in the expected order (e.g., Ego -> Id -> Body) and that their content corresponds to the expected cognitive process for a simple task. Use a mock streaming LLM response.",
+        "priority": "medium",
+        "dependencies": [
+          14
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Develop Cognitive Debugging Tool",
+        "description": "Develop the `CognitiveDebugger`, a tool for step-by-step analysis of an agent's execution. It should provide insights into the state and reasoning at each stage of the cognitive cycle.",
+        "details": "Create a `CognitiveDebugger` class that can be attached to a `CognitiveAgent`. It will use a callback or hook system to capture the input and output of each cognitive layer (SuperEgo, Ego, Id, Body) during an execution. The debugger can then log this information verbosely or store it for later inspection.",
+        "testStrategy": "Write a test where the `CognitiveDebugger` is attached to an agent. Run a simple task and assert that the debugger captures and logs the state transitions and reasoning text from each of the four cognitive layers.",
+        "priority": "medium",
+        "dependencies": [
+          14
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Implement Advanced CognitiveWorkflow System",
+        "description": "Implement the advanced `CognitiveWorkflow` system, which features dynamic task navigation using a three-phase planning process: CognitivePlanner, CognitiveDecider, and CognitiveExecutor.",
+        "details": "Create three distinct classes: `CognitivePlanner` (uses an LLM for divergent thinking to generate possible steps), `CognitiveDecider` (uses an LLM to analyze the current state and select the best next step from the plan), and `CognitiveExecutor` (executes the chosen step). This workflow is more dynamic than the four-layer model and relies on natural language preconditions.",
+        "testStrategy": "Test each component separately with mock LLM responses. For an integration test, provide a multi-step goal and verify that the Planner generates a reasonable plan, the Decider selects the correct first step, and the Executor attempts to execute it.",
+        "priority": "medium",
+        "dependencies": [
+          12,
+          13
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Implement Production Rule Engine",
+        "description": "Build the Production Rule Engine for the `CognitiveWorkflow`. This engine will execute IF-THEN rules expressed in natural language to guide the agent's behavior and allow for adaptive optimization.",
+        "details": "Implement a `RuleEngine` class that maintains a list of natural language rules (e.g., 'IF the user asks for code, THEN activate the `StatefulExecutor`'). During the `CognitiveDecider` phase, the engine will use an LLM to match the current `WorkflowContext` against these rules to influence the final decision.",
+        "testStrategy": "Unit test the rule matching logic. Provide a sample context and a set of rules, and use a mock LLM to verify that the correct rule is triggered based on the context.",
+        "priority": "low",
+        "dependencies": [
+          17
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "Integrate with TaskMaster AI Service",
+        "description": "Create the `TaskMasterAgent` and integrate it with the external TaskMaster AI service. This agent will handle intelligent task decomposition, dependency management, and project analytics by calling the external API.",
+        "details": "Develop an API client for the TaskMaster AI service. Create a `TaskMasterAgent` class that uses this client to perform actions like `decompose_prd(prd_text)`. This agent will be a specialized implementation of `AgentBase` but will primarily orchestrate calls to an external service rather than performing complex internal cognitive loops.",
+        "testStrategy": "Write integration tests that mock the TaskMaster AI API. For a given input (e.g., a PRD text), verify that the `TaskMasterAgent` calls the correct API endpoint with the correct payload and correctly parses the response.",
+        "priority": "medium",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Develop TaskMaster CLI Tool",
+        "description": "Develop the `task-master` command-line interface (CLI) to provide a user-friendly way to interact with the framework's task management features.",
+        "details": "Use a modern CLI library like `Typer` or `Click` to build the command-line tool. Implement the specified commands: `task-master init`, `task-master parse-prd <file>`, `task-master next`, and `task-master show <id>`. These commands will interact with the `TaskMasterAgent` and local project files.",
+        "testStrategy": "Use the CLI testing tools provided by `Typer` or `Click` to write tests for each command. For example, run `runner.invoke(app, ['parse-prd', 'test_prd.txt'])` and assert that the output is correct and the expected files are created.",
+        "priority": "medium",
+        "dependencies": [
+          19
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Create Comprehensive Testing Infrastructure",
+        "description": "Establish a comprehensive testing infrastructure, including a suite of deterministic tests and mock LLM responses to ensure the stability and reliability of all framework components.",
+        "details": "Organize tests using `pytest`. Create a fixtures module to provide mock LLM clients, mock `StatefulExecutor` kernels, and sample configuration. Develop a library of mock LLM responses for various scenarios to ensure that tests are deterministic and do not rely on live API calls. Configure a CI pipeline (e.g., GitHub Actions) to run the full test suite on every commit.",
+        "testStrategy": "The test strategy is to build the testing framework itself. Success is measured by the ability of the framework to run all other component tests reliably and deterministically without external dependencies. The CI pipeline should pass successfully.",
+        "priority": "high",
+        "dependencies": [
+          14,
+          17,
+          19
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-15T21:07:36.325Z",
+      "updated": "2025-07-11T17:54:20.950Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

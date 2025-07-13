@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-使用Gemini的销售数据分析演示 - 启用超我
+使用Gemini的销售数据分析演示 - 启用元认知
 测试Gemini的性能表现
 """
 
@@ -19,11 +19,12 @@ if parent_dir not in sys.path:
 
 # 导入必要的模块
 try:
-    import pythonTask
+    from python_core import *
+    from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     
     # 导入Gemini LLM实例
-    llm_gemini = pythonTask.llm_gemini_2_5_flash_google
+    llm_gemini = get_model("gemini_2_5_flash")
     
     print("✅ 所有模块导入成功！")
     print("🚀 使用Gemini 2.5 Flash模型")
@@ -34,7 +35,7 @@ except Exception as e:
 
 def main():
     """主函数"""
-    print("=== 销售数据分析演示（Gemini + 启用超我） ===")
+    print("=== 销售数据分析演示（Gemini + 启用元认知） ===")
     
     # 确保报告文件不存在
     report_file = '/home/guci/aiProjects/AgentFrameWork/sales_analysis_report_gemini.md'
@@ -42,19 +43,19 @@ def main():
         os.remove(report_file)
         print("🗑️ 已删除旧报告文件")
     
-    # 创建认知代理实例 - 使用Gemini，启用超我
+    # 创建认知代理实例 - 使用Gemini，启用元认知
     cognitive_agent = CognitiveAgent(
         llm=llm_gemini,
         max_cycles=5,
         verbose=True,
-        enable_super_ego=True  # 启用超我
+        enable_meta_cognition=True  # 启用元认知
     )
     
     print(f"📋 配置信息:")
     print(f"   🤖 LLM: Gemini 2.5 Flash")
     print(f"   🔄 最大循环: 5")
     print(f"   📢 详细模式: 启用")
-    print(f"   🧠 超我监督: 启用")
+    print(f"   🧠 元认知监督: 启用")
     
     # 销售数据分析任务
     sales_task = """
@@ -69,7 +70,7 @@ def main():
     """
     
     # 执行任务
-    print(f"\n⚡ 开始执行销售数据分析任务（Gemini + 启用超我）...")
+    print(f"\n⚡ 开始执行销售数据分析任务（Gemini + 启用元认知）...")
     start_time = time.time()
     
     try:
@@ -100,7 +101,7 @@ def main():
         # 获取工作流状态
         status = cognitive_agent.get_workflow_status()
         
-        print(f"\n📊 执行结果（Gemini + 启用超我）:")
+        print(f"\n📊 执行结果（Gemini + 启用元认知）:")
         if result:
             print(f"   ✅ 成功: {result.success}")
             print(f"   ⏱️ 时间: {duration:.2f}秒")
@@ -145,13 +146,13 @@ def main():
         print(f"\n🚀 Gemini性能分析:")
         print(f"   🤖 模型: Gemini 2.5 Flash")
         print(f"   ⚡ 速度优势: 更快的响应时间")
-        print(f"   🧠 超我监督: 启用")
+        print(f"   🧠 元认知监督: 启用")
         print(f"   ⏱️ 总执行时间: {duration:.2f}秒")
         print(f"   🔄 认知循环: {status['当前循环次数']}轮")
         
-        # 验证超我状态
-        super_ego_state = cognitive_agent.get_super_ego_state()
-        print(f"\n🧠 超我状态:")
+        # 验证元认知状态
+        super_ego_state = cognitive_agent.get_meta_cognition_state()
+        print(f"\n🧠 元认知状态:")
         print(f"   启用: {super_ego_state.get('enabled', 'Unknown')}")
         print(f"   监控: {super_ego_state.get('monitoring', 'Unknown')}")
         
@@ -160,7 +161,7 @@ def main():
             print(f"\n🎉 任务完成成功！")
             print(f"   ✅ 认知循环正常结束")
             print(f"   ✅ 报告文件生成完成")
-            print(f"   ✅ 超我监督有效工作")
+            print(f"   ✅ 元认知监督有效工作")
             print(f"   ✅ Gemini性能表现优秀")
         else:
             print(f"\n⚠️ 任务可能未完全完成")
@@ -171,7 +172,7 @@ def main():
         traceback.print_exc()
     
     print(f"\n🎊 Gemini销售数据分析演示完成！")
-    print(f"🔧 优化要点: 使用Gemini提升速度，启用超我保证质量")
+    print(f"🔧 优化要点: 使用Gemini提升速度，启用元认知保证质量")
 
 if __name__ == "__main__":
     main()

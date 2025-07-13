@@ -16,7 +16,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 
 def main():
@@ -31,7 +31,7 @@ def main():
         return
     
     # 创建DeepSeek LLM实例
-    llm_deepseek = ChatOpenAI(
+    get_model("deepseek_chat") = ChatOpenAI(
         temperature=0,
         model="deepseek-chat", 
         base_url="https://api.deepseek.com",
@@ -40,12 +40,12 @@ def main():
     )
     
     # 创建简单智能体
-    coder_agent = Agent(llm=llm_deepseek, stateful=True)
+    coder_agent = Agent(llm=get_model("deepseek_chat"), stateful=True)
     coder_agent.api_specification = "编程智能体，能快速实现简单代码"
     
     # 创建MultiStepAgent_v3实例，只注册一个智能体
     agent_v3 = MultiStepAgent_v3(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         registered_agents=[
             RegisteredAgent("coder", coder_agent, "编程智能体，能快速实现简单代码")
         ],

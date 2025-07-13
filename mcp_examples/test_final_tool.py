@@ -15,10 +15,10 @@ load_dotenv()
 os.environ['HTTP_PROXY'] = 'http://127.0.0.1:7890'
 os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:7890'
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 # 创建 Agent
-agent = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_evaluation=True)
+agent = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=1, skip_evaluation=True)
 
 @tool
 def calculate(expression: str) -> str:

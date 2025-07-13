@@ -1,0 +1,60 @@
+{
+  "tasks": [],
+  "metadata": {
+    "version": "1.0"
+  },
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "调用coder智能体，用python写一个hello world函数，要包含单元测试。保存到hello_world.py文件中。然后调用tester智能体运行这个文件验证单元测试通过",
+        "description": "调用coder智能体，用python写一个hello world函数，要包含单元测试。保存到hello_world.py文件中。然后调用tester智能体运行这个文件验证单元测试通过",
+        "status": "done",
+        "priority": "medium",
+        "dependencies": [],
+        "phase": "execution",
+        "created": "2025-06-18T00:23:45.875284",
+        "updated": "2025-06-18T00:27:01.193090",
+        "details": "协调执行多智能体任务：调用coder智能体，用python写一个hello world函数，要包含单元测试。保存到hello_world.py文件中。然后调用tester智能体运行这个文件验证单元测试通过\n\n包含 2 个子任务，按顺序执行。",
+        "testStrategy": "手动测试基本功能",
+        "subtasks": [
+          {
+            "id": "1.1",
+            "title": "编写hello world函数并包含单元测试，保存到hello_world.py文件中",
+            "description": "编写hello world函数并包含单元测试，保存到hello_world.py文件中",
+            "status": "done",
+            "priority": "medium",
+            "dependencies": [],
+            "phase": "execution",
+            "created": "2025-06-18T00:23:45.880662",
+            "updated": "2025-06-18T00:26:59.484541",
+            "details": "编写hello world函数并包含单元测试，保存到hello_world.py文件中",
+            "testStrategy": "验证子任务完成",
+            "agent_name": "coder"
+          },
+          {
+            "id": "1.2",
+            "title": "运行hello_world.py文件并验证单元测试通过",
+            "description": "运行hello_world.py文件并验证单元测试通过",
+            "status": "done",
+            "priority": "medium",
+            "dependencies": [
+              "1.1"
+            ],
+            "phase": "execution",
+            "created": "2025-06-18T00:23:45.880826",
+            "updated": "2025-06-18T00:27:01.187692",
+            "details": "运行hello_world.py文件并验证单元测试通过",
+            "testStrategy": "验证子任务完成",
+            "agent_name": "tester"
+          }
+        ],
+        "agent_name": "coordinator"
+      }
+    ],
+    "metadata": {
+      "updated": "2025-06-18T00:27:01.193322",
+      "cleared": "2025-06-18T00:23:45.862961"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # %%
 from agent_base import Result
-from pythonTask import StatefulExecutor, Agent
+from python_core import StatefulExecutor, Agent
 from langchain_core.language_models import BaseChatModel
 from typing import Dict, List, Any, Optional, Tuple
 import json
@@ -1536,13 +1536,13 @@ if __name__ == "__main__":
     # os.environ['https_proxy'] = 'http://127.0.0.1:7890'
     
     # os.environ["AGENT_MAX_TOKENS"] = "1000000"
-    from pythonTask import *
+    from python_core import *
     from knowledge_agent import promgraming_knowledge
      
     
-    # llm=llm_claude_sonnet_4
+    # llm=get_model("claude_sonnet_4")
     # llm=llm_gemini_2_5_pro_preview_06_05_google
-    llm=llm_deepseek
+    llm=get_model("deepseek_chat")
     
     # 实例化 MultiStepAgent_v2 时不传入 agent_specs
     multi_agent = MultiStepAgent_v2(llm=llm)
@@ -1635,11 +1635,11 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     import os
     # os.environ["AGENT_MAX_TOKENS"] = "1000000"
-    from pythonTask import *
+    from python_core import *
     from knowledge_agent import promgraming_knowledge
      
     # llm=llm_gemini_2_5_pro_preview_05_06_google
-    llm=llm_deepseek
+    llm=get_model("deepseek_chat")
     
 
     # 实例化 MultiStepAgent_v2 时不传入 agent_specs
@@ -1701,7 +1701,7 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     import os
     os.environ["AGENT_MAX_TOKENS"] = "1000000"
-    from pythonTask import *
+    from python_core import *
     from knowledge_agent import promgraming_knowledge
      
     llm_qwen3_235b_openrouter = ChatOpenAI(
@@ -1921,7 +1921,7 @@ print(x)
     # from dotenv import load_dotenv
     # load_dotenv()
     # from langchain_openai import ChatOpenAI
-    # llm_deepseek = ChatOpenAI(
+    # get_model("deepseek_chat") = ChatOpenAI(
     #     temperature=0,
     #     model="deepseek/deepseek-chat",  
     #     base_url="https://api.deepseek.com",
@@ -2022,9 +2022,9 @@ print(x)
     #任务
     实现上面的函数,可以使用langchain的库
     '''
-    from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_deepseek,llm_deepseek_r1
+    from llm_lazy import get_modelni_2_5_pro_preview_05_06_google,get_model("deepseek_chat"),get_model("deepseek_chat")_r1
     from prompts import information_task_evaluate_message
-    llm=llm_deepseek_r1
+    llm=get_model("deepseek_chat")_r1
     agent=Agent(llm=llm,evaluation_system_messages=[information_task_evaluate_message])
     agent.loadKnowledge('''
     # 代码规范
@@ -2067,7 +2067,7 @@ if __name__ == "__main__":
 
 #%%
 if __name__ == "__main__":
-    llm=llm_deepseek
+    llm=get_model("deepseek_chat")
     code_file_editor = Agent(llm=llm)
     code_file_editor.loadKnowledge('''
     ## 编程任务示例代码
@@ -2148,12 +2148,11 @@ if __name__ == "__main__":
     x=llm_prover_openrouter.invoke("请用transformer架构实现一个通用图灵机，它能够模拟任意图灵机。代码注释请用中文。")
     print(x.content)
 
-    from pythonTask import llm_deepseek_r1
-    x=llm_deepseek_r1.invoke("请用transformer架构实现一个通用图灵机，它能够模拟任意图灵机。单元测试中模拟一个简单的图灵机。代码注释请用中文。")
+    from llm_lazy import get_modelnvoke("请用transformer架构实现一个通用图灵机，它能够模拟任意图灵机。单元测试中模拟一个简单的图灵机。代码注释请用中文。")
     print(x.content)
 
 if __name__ == "__main__":
-    llm=llm_deepseek
+    llm=get_model("deepseek_chat")
     coder = Agent(llm=llm)
     code_file_editor = Agent(llm=llm)
     code_file_editor.loadKnowledge('''
@@ -2228,8 +2227,8 @@ if __name__ == "__main__":
     # os.environ['all_proxy'] = 'socks5://127.0.0.1:7890'
 
     # 示例1：自主规划模式（默认）
-    from pythonTask import llm_llama_4_maverick_openrouter, llm_deepseek
-    llm = llm_deepseek
+    from llm_lazy import get_modelnrouter, get_model("deepseek_chat")
+    llm = get_model("deepseek_chat")
 
     # 创建自主规划模式的多步骤智能体
     multi_agent_autonomous = MultiStepAgent_v2(llm=llm, use_autonomous_planning=True)
@@ -2248,12 +2247,12 @@ if __name__ == "__main__":
 
 #%%
 if __name__ == "__main__":
-    from pythonTask import llm_gemini_2_5_pro_preview_05_06_google,llm_gemini_2_5_pro_preview_06_05_google,llm_deepseek,llm_claude_37_sonnet,llm_deepseek_r1
+    from llm_lazy import get_modelni_2_5_pro_preview_05_06_google,llm_gemini_2_5_pro_preview_06_05_google,get_model("deepseek_chat"),get_model("claude_37_sonnet"),get_model("deepseek_chat")_r1
     
     # llm=llm_gemini_2_5_pro_preview_05_06_google
 
     # llm=llm_gemini_2_5_pro_preview_06_05_google
-    llm=llm_deepseek
+    llm=get_model("deepseek_chat")
     # 创建 MultiStepAgent_v2 实例，使用工作流风格的提示词模板
     workflow_agent = MultiStepAgent_v2(
         llm=llm,

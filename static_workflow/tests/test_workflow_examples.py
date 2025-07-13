@@ -15,12 +15,12 @@ from langchain_openai import ChatOpenAI
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from pythonTask import Agent
+from python_core import Agent
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3
 
 
 # 使用指定的DeepSeek模型配置
-llm_deepseek = ChatOpenAI(
+get_model("deepseek_chat") = ChatOpenAI(
     temperature=0,
     model="deepseek-chat",  
     base_url="https://api.deepseek.com",
@@ -40,7 +40,7 @@ class TestWorkflowExamples:
             pytest.skip("需要设置DEEPSEEK_API_KEY环境变量")
         
         # 初始化主智能体
-        self.agent_v3 = MultiStepAgent_v3(llm=llm_deepseek)
+        self.agent_v3 = MultiStepAgent_v3(llm=get_model("deepseek_chat"))
         
         # 创建完整的智能体团队
         self._setup_agent_team()
@@ -56,7 +56,7 @@ class TestWorkflowExamples:
         
         # 代码开发者
         coder_agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个专业的Python开发者。
 职责：
@@ -70,7 +70,7 @@ class TestWorkflowExamples:
         
         # 测试工程师
         tester_agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个专业的软件测试工程师。
 职责：
@@ -84,7 +84,7 @@ class TestWorkflowExamples:
         
         # 数据科学家
         data_agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个专业的数据科学家。
 职责：
@@ -98,7 +98,7 @@ class TestWorkflowExamples:
         
         # 机器学习工程师
         ml_agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个专业的机器学习工程师。
 职责：
@@ -111,7 +111,7 @@ class TestWorkflowExamples:
         
         # 分析师
         analyst = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个专业的数据分析师。
 职责：
@@ -124,7 +124,7 @@ class TestWorkflowExamples:
         
         # 代码审查员
         reviewer = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个专业的代码审查员。
 职责：
@@ -138,7 +138,7 @@ class TestWorkflowExamples:
         
         # 协调员
         coordinator = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="""你是一个项目协调员。
 职责：

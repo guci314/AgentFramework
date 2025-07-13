@@ -9,10 +9,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from embodied_cognitive_workflow import EmbodiedCognitiveWorkflow
+from embodied_cognitive_workflow import CognitiveAgent
 from langchain_openai import ChatOpenAI
 import os
-from pythonTask import llm_gemini_2_5_flash_google,llm_deepseek
+from llm_lazy import get_model
 
 def 运行Calculator演示():
     """
@@ -23,7 +23,7 @@ def 运行Calculator演示():
     # 初始化语言模型
     # 注意：需要设置环境变量 DEEPSEEK_API_KEY
     try:
-        llm = llm_gemini_2_5_flash_google
+        llm = get_model("gemini_2_5_flash")
         print("✓ DeepSeek语言模型初始化成功")
     except Exception as e:
         print(f"❌ 语言模型初始化失败：{e}")
@@ -32,11 +32,12 @@ def 运行Calculator演示():
     
     # 创建具身认知工作流
     try:
-        工作流 = EmbodiedCognitiveWorkflow(
+        工作流 = CognitiveAgent(
             llm=llm,
             max_cycles=30,
             verbose=True
         )
+        工作流.loadKnowledge('unittest的测试结果在标准错误流中而不是标准输出流中')
         print("✓ 具身认知工作流初始化成功")
     except Exception as e:
         print(f"❌ 工作流初始化失败：{e}")

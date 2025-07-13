@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if not os.getenv('DEEPSEEK_API_KEY'):
     os.environ['DEEPSEEK_API_KEY'] = 'fake_key_for_testing'
 
-from pythonTask import Device, StatefulExecutor
+from python_core import Device, StatefulExecutor
 from agent_base import Result
 
 

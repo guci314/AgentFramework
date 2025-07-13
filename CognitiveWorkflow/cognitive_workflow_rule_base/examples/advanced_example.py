@@ -18,7 +18,7 @@ from typing import Dict, List, Any
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base import (
     create_production_rule_system,
     ProductionRule, AgentCapability, AgentRegistry,
@@ -30,7 +30,7 @@ def create_specialized_agents():
     """创建专业化的智能体"""
     
     # Python专家
-    python_expert = Agent(llm=llm_deepseek)
+    python_expert = Agent(llm=get_model("deepseek_chat"))
     python_expert.api_specification = '''
     Python编程专家，精通：
     - Python语法和最佳实践
@@ -40,7 +40,7 @@ def create_specialized_agents():
     '''
     
     # 测试工程师
-    test_engineer = Agent(llm=llm_deepseek)
+    test_engineer = Agent(llm=get_model("deepseek_chat"))
     test_engineer.api_specification = '''
     测试工程师，专长：
     - 单元测试和集成测试设计
@@ -50,7 +50,7 @@ def create_specialized_agents():
     '''
     
     # 架构师
-    architect = Agent(llm=llm_deepseek)
+    architect = Agent(llm=get_model("deepseek_chat"))
     architect.api_specification = '''
     软件架构师，擅长：
     - 系统架构设计
@@ -60,7 +60,7 @@ def create_specialized_agents():
     '''
     
     # DevOps工程师
-    devops_engineer = Agent(llm=llm_deepseek)
+    devops_engineer = Agent(llm=get_model("deepseek_chat"))
     devops_engineer.api_specification = '''
     DevOps工程师，专业：
     - CI/CD流水线设计
@@ -70,7 +70,7 @@ def create_specialized_agents():
     '''
     
     # 产品经理
-    product_manager = Agent(llm=llm_deepseek)
+    product_manager = Agent(llm=get_model("deepseek_chat"))
     product_manager.api_specification = '''
     产品经理，负责：
     - 需求分析和产品规划
@@ -198,7 +198,7 @@ def advanced_workflow_control_demo():
     
     # 创建工作流系统
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True
     )
@@ -286,7 +286,7 @@ def demonstrate_error_recovery():
     
     # 创建有意引发错误的工作流
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True
     )
@@ -335,7 +335,7 @@ def analyze_workflow_performance():
     
     agents = create_specialized_agents()
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents
     )
     

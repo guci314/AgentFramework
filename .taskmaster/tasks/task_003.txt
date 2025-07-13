@@ -1,0 +1,45 @@
+# Task ID: 3
+# Title: Integrate Global State into Execution Flow and Instruction Generation
+# Status: pending
+# Dependencies: 1, 2
+# Priority: high
+# Description: Enhance the instruction generation mechanism to incorporate global state information before step execution. This will optimize decision-making and enable state-driven error recovery and retry strategies.
+# Details:
+1.  **Modify Instruction Generation Mechanism**:
+    *   Identify the current instruction generation module/process.
+    *   Update it to fetch the current global state from the `WorkflowState` (developed in Task 1 and updated by Task 2).
+    *   Develop logic to intelligently embed relevant parts of the global state into the prompts or inputs used for generating execution instructions for each workflow step. This might involve selecting specific state variables or summarizing the state.
+2.  **Optimize Decision-Making Process**:
+    *   Ensure that decision points within the workflow (e.g., conditional branches, choice of next step) can access and utilize the global state information.
+    *   This might involve passing the state to decision-making functions or making it available in the execution context.
+3.  **Implement State-Driven Error Recovery**:
+    *   Design and implement strategies for error handling that leverage the global state.
+    *   For example, if a step fails, the system should analyze the current state to decide on the best recovery action (e.g., retry, skip, use a fallback, notify user).
+    *   This could involve defining error types and corresponding state-aware recovery handlers.
+4.  **Implement State-Driven Retry Strategies**:
+    *   Develop retry mechanisms that are sensitive to the global state.
+    *   For instance, the number of retries or the delay between retries could be adjusted based on information in the state (e.g., if a resource was temporarily unavailable).
+    *   Ensure that the state is updated appropriately after failed attempts and successful retries.
+5.  **Integration with Workflow Executor**:
+    *   Ensure seamless integration of these state-aware mechanisms into the main workflow execution loop.
+    *   The executor should pass the state to the instruction generator and error handlers as needed.
+
+# Test Strategy:
+1.  **Instruction Generation Tests**:
+    *   Verify that the instruction generation mechanism correctly fetches and embeds the global state.
+    *   Test with various global states to ensure instructions are appropriately modified.
+    *   Unit test the logic for selecting and formatting state information for instruction embedding.
+2.  **Decision-Making Tests**:
+    *   Create test scenarios with different global states that should lead to different execution paths or decisions.
+    *   Verify that decision points correctly use the state information.
+3.  **Error Recovery Tests**:
+    *   Simulate various error conditions during step execution.
+    *   Verify that the state-driven error recovery mechanisms are triggered.
+    *   Test different recovery strategies based on predefined states (e.g., verify a retry occurs when state indicates a transient error, or a fallback is used when state indicates a persistent issue).
+4.  **Retry Strategy Tests**:
+    *   Simulate step failures that should trigger retries.
+    *   Verify that retry attempts are made according to the state-driven strategy (e.g., number of retries, backoff delays).
+    *   Check that the state is correctly updated during and after retry attempts.
+5.  **End-to-End Workflow Tests**:
+    *   Run complete workflows with scenarios designed to exercise the state integration, state-aware decision-making, error recovery, and retry logic.
+    *   Monitor the global state throughout the workflow execution to ensure it's being used and updated correctly.

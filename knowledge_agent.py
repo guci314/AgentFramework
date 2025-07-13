@@ -16,7 +16,7 @@ Agent 支持同步和流式两种执行模式 以及纯对话模式。
 
 ### Result 类
 ```python
-from pythonTask import Result
+from python_core import Result
 
 class Result:
     success: bool       # 执行是否成功
@@ -30,7 +30,7 @@ Result 对象包含代码执行的完整结果 包括是否成功 代码内容 �
 
 ### Agent 类初始化
 ```python
-from pythonTask import Agent
+from python_core import Agent
 from langchain_core.language_models import BaseChatModel
 from typing import List
 
@@ -54,7 +54,7 @@ Agent(
 - execute_stream(instruction: str) -> Iterator[object]
 execute_stream方法执行时，会返回一个迭代器，迭代器前面返回一个字符串，字符串是代码执行的中间结果。迭代器最后一个元素是一个Result对象，Result对象是代码执行的最终结果。
 #### 示例代码
-agent=pythonTask.Agent(llm=llm_gemini_2_flash_openrouter,stateful=True)
+agent=\1(llm=llm_gemini_2_flash_openrouter,stateful=True)
 prompt='''
 写个函数计算斐波那契数列的第n个数,返回斐波那契数列的第10个数
 '''
@@ -73,8 +73,8 @@ print(f'stdout:{result.stdout}')
 - chat_stream(message: str) -> Iterator[str]
 chat_stream方法执行时，会返回一个迭代器，迭代器每次返回一个字符串，字符串是代码执行的中间结果。chat_stream只调用语言模型生成回复，不执行代码。
 #### 示例代码
-from pythonTask import Agent,llm_deepseek,llm_gemini_2_flash_openrouter
-agent=Agent(llm=llm_deepseek,evaluate_llm=llm_gemini_2_flash_openrouter,stateful=True,max_retries=10)
+from python_core import Agent,get_model("deepseek_chat"),llm_gemini_2_flash_openrouter
+agent=Agent(llm=get_model("deepseek_chat"),evaluate_llm=llm_gemini_2_flash_openrouter,stateful=True,max_retries=10)
 response=agent.chat_stream('写个python教程')
 content=''
 for chunk in response:
@@ -106,7 +106,7 @@ print(content)
 ## 示例
 
 ```python
-from pythonTask import Agent,llm_gemini_2_flash_openrouter
+from python_core import Agent,llm_gemini_2_flash_openrouter
 agent=Agent(llm=llm_gemini_2_flash_openrouter,stateful=True)
 prompt='''
 打印斐波那契数列的第五个数
@@ -135,7 +135,7 @@ llm_gemini_2_flash_openrouter = ChatOpenAI(
 
 # 从语言模型的输出中提取代码或者patch
 
-from pythonTask import extract_code
+from python_core import extract_code
 
 Extract code from a text.
 
@@ -203,7 +203,7 @@ unittest单元测试的测试结果在stderr中。stdout中是测试过程中打
 把[x]打印出来，系统会把[x]的内容反馈到你的记忆
     
 ## 从文本中提取python代码的方法
-from pythonTask import extract_code
+from python_core import extract_code
 python_code = extract_code(python_code)[0][1]
 
 ## 调用语言模型示例
@@ -221,8 +221,8 @@ print(x)
 
 ## 调用语言模型从文本中提取数据以json格式返回
 import json
-from pythonTask import llm_gemini_2_flash_openrouter
-from pythonTask import extract_code
+from llm_lazy import get_modelni_2_flash_openrouter
+from python_core import extract_code
 
 # 构建提示 要求输出JSON格式
 prompt = "请分析以下文本 判断其情感是积极还是消极 并以JSON格式返回结果。json有两个个字段，分别是sentiment,confidence。文本 '我今天非常开心'"

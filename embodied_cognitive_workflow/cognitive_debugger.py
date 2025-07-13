@@ -37,7 +37,7 @@ class StepType(Enum):
     # 初始化阶段
     INIT = "初始化"
     COMPLEXITY_EVAL = "复杂性评估"
-    SUPER_EGO_PRE = "超我预监督"
+    META_COGNITION_PRE = "元认知预监督"
     
     # 认知循环阶段
     CYCLE_START = "循环开始"
@@ -48,7 +48,7 @@ class StepType(Enum):
     CYCLE_END = "循环结束"
     
     # 结束阶段
-    SUPER_EGO_POST = "超我后监督"
+    META_COGNITION_POST = "元认知后监督"
     FINALIZE = "最终化"
     COMPLETED = "执行完成"
 
@@ -88,7 +88,7 @@ class StepResult:
     execution_time: float
     
     # 状态信息
-    agent_layer: str  # 执行层 (SuperEgo/Ego/Id/Body)
+    agent_layer: str  # 执行层 (MetaCognitive/Ego/Id/Body)
     next_step: Optional[StepType]
     
     # 调试信息
@@ -270,14 +270,14 @@ class StepExecutor:
         return {
             StepType.INIT: self._execute_init,
             StepType.COMPLEXITY_EVAL: self._execute_complexity_eval,
-            StepType.SUPER_EGO_PRE: self._execute_super_ego_pre,
+            StepType.META_COGNITION_PRE: self._execute_meta_cognition_pre,
             StepType.CYCLE_START: self._execute_cycle_start,
             StepType.STATE_ANALYSIS: self._execute_state_analysis,
             StepType.DECISION_MAKING: self._execute_decision_making,
             StepType.ID_EVALUATION: self._execute_id_evaluation,
             StepType.BODY_EXECUTION: self._execute_body_execution,
             StepType.CYCLE_END: self._execute_cycle_end,
-            StepType.SUPER_EGO_POST: self._execute_super_ego_post,
+            StepType.META_COGNITION_POST: self._execute_meta_cognition_post,
             StepType.FINALIZE: self._execute_finalize,
             StepType.COMPLETED: self._execute_completed,
         }
@@ -337,14 +337,14 @@ class StepExecutor:
         step_transitions = {
             StepType.INIT: StepType.COMPLEXITY_EVAL,
             StepType.COMPLEXITY_EVAL: self._decide_after_complexity_eval(step_result, debug_state),
-            StepType.SUPER_EGO_PRE: StepType.CYCLE_START,
+            StepType.META_COGNITION_PRE: StepType.CYCLE_START,
             StepType.CYCLE_START: StepType.STATE_ANALYSIS,
             StepType.STATE_ANALYSIS: StepType.DECISION_MAKING,
             StepType.DECISION_MAKING: self._decide_after_decision_making(step_result, debug_state),
             StepType.ID_EVALUATION: self._decide_after_id_evaluation(step_result, debug_state),
             StepType.BODY_EXECUTION: StepType.CYCLE_END,
             StepType.CYCLE_END: self._decide_after_cycle_end(step_result, debug_state),
-            StepType.SUPER_EGO_POST: StepType.FINALIZE,
+            StepType.META_COGNITION_POST: StepType.FINALIZE,
             StepType.FINALIZE: StepType.COMPLETED,
             StepType.COMPLETED: None
         }
@@ -387,28 +387,28 @@ class StepExecutor:
             "agent_method": "_can_handle_directly"
         }
         
-        next_step = StepType.BODY_EXECUTION if can_handle_directly else StepType.SUPER_EGO_PRE
+        next_step = StepType.BODY_EXECUTION if can_handle_directly else StepType.META_COGNITION_PRE
         
         return can_handle_directly, next_step, "Ego", debug_info
     
-    def _execute_super_ego_pre(self, input_data: Any, debug_state: DebugState) -> tuple:
-        """超我预监督步骤"""
-        if not self.agent.enable_super_ego or not self.agent.super_ego:
-            return "跳过超我预监督", StepType.CYCLE_START, "SuperEgo", {"skipped": True}
+    def _execute_meta_cognition_pre(self, input_data: Any, debug_state: DebugState) -> tuple:
+        """元认知预监督步骤"""
+        if not self.agent.enable_meta_cognition or not self.agent.meta_cognition:
+            return "跳过元认知预监督", StepType.CYCLE_START, "MetaCognitive", {"skipped": True}
         
         instruction = debug_state.workflow_context.instruction
         
-        # 调用超我预监督（这里需要从原始方法中提取逻辑）
+        # 调用元认知预监督（这里需要从原始方法中提取逻辑）
         # 暂时返回占位符结果
-        supervision_result = "超我预监督完成"
+        supervision_result = "元认知预监督完成"
         
         debug_info = {
             "supervision_type": "pre",
-            "super_ego_enabled": True,
+            "meta_cognition_enabled": True,
             "result": supervision_result
         }
         
-        return supervision_result, StepType.CYCLE_START, "SuperEgo", debug_info
+        return supervision_result, StepType.CYCLE_START, "MetaCognitive", debug_info
     
     def _execute_cycle_start(self, input_data: Any, debug_state: DebugState) -> tuple:
         """循环开始步骤"""
@@ -555,26 +555,26 @@ class StepExecutor:
             "max_cycles_reached": debug_state.cycle_count >= self.agent.max_cycles
         }
         
-        next_step = StepType.STATE_ANALYSIS if should_continue else StepType.SUPER_EGO_POST
+        next_step = StepType.STATE_ANALYSIS if should_continue else StepType.META_COGNITION_POST
         
         return should_continue, next_step, "System", debug_info
     
-    def _execute_super_ego_post(self, input_data: Any, debug_state: DebugState) -> tuple:
-        """超我后监督步骤"""
-        if not self.agent.enable_super_ego or not self.agent.super_ego:
-            return "跳过超我后监督", StepType.FINALIZE, "SuperEgo", {"skipped": True}
+    def _execute_meta_cognition_post(self, input_data: Any, debug_state: DebugState) -> tuple:
+        """元认知后监督步骤"""
+        if not self.agent.enable_meta_cognition or not self.agent.meta_cognition:
+            return "跳过元认知后监督", StepType.FINALIZE, "MetaCognitive", {"skipped": True}
         
-        # 调用超我后监督（需要从原始方法中提取）
+        # 调用元认知后监督（需要从原始方法中提取）
         # 暂时返回占位符结果
-        supervision_result = "超我后监督完成"
+        supervision_result = "元认知后监督完成"
         
         debug_info = {
             "supervision_type": "post",
-            "super_ego_enabled": True,
+            "meta_cognition_enabled": True,
             "result": supervision_result
         }
         
-        return supervision_result, StepType.FINALIZE, "SuperEgo", debug_info
+        return supervision_result, StepType.FINALIZE, "MetaCognitive", debug_info
     
     def _execute_finalize(self, input_data: Any, debug_state: DebugState) -> tuple:
         """最终化步骤"""
@@ -610,7 +610,7 @@ class StepExecutor:
     def _decide_after_complexity_eval(self, step_result: StepResult, debug_state: DebugState) -> StepType:
         """复杂性评估后的决策"""
         can_handle_directly = step_result.output_data
-        return StepType.BODY_EXECUTION if can_handle_directly else StepType.SUPER_EGO_PRE
+        return StepType.BODY_EXECUTION if can_handle_directly else StepType.META_COGNITION_PRE
     
     def _decide_after_decision_making(self, step_result: StepResult, debug_state: DebugState) -> StepType:
         """决策判断后的步骤选择"""
@@ -625,7 +625,7 @@ class StepExecutor:
     def _decide_after_cycle_end(self, step_result: StepResult, debug_state: DebugState) -> StepType:
         """循环结束后的步骤选择"""
         should_continue = step_result.output_data
-        return StepType.STATE_ANALYSIS if should_continue else StepType.SUPER_EGO_POST
+        return StepType.STATE_ANALYSIS if should_continue else StepType.META_COGNITION_POST
     
     def _get_next_step_for_decision(self, decision_type: DecisionType) -> StepType:
         """根据决策类型确定下一步"""
@@ -747,7 +747,7 @@ class DebugUtils:
             
             # 添加层级信息
             layer_icon = {
-                "SuperEgo": "👥",
+                "MetaCognitive": "👥",
                 "Ego": "🧠", 
                 "Id": "💫",
                 "Body": "🏃",
@@ -889,7 +889,7 @@ class CognitiveDebugger:
         print(f"📝 指令: {instruction}")
         print(f"⚙️  智能体配置:")
         print(f"   - 最大循环数: {self.wrapped_agent.max_cycles}")
-        print(f"   - 超我启用: {self.wrapped_agent.enable_super_ego}")
+        print(f"   - 元认知启用: {self.wrapped_agent.enable_meta_cognition}")
         print(f"   - 评估模式: {self.wrapped_agent.evaluation_mode}")
         print(f"🔧 调试器就绪，使用 run_one_step() 开始单步执行\n")
     
@@ -1040,9 +1040,9 @@ class CognitiveDebugger:
             "ego": {"available": bool(self.wrapped_agent.ego)},
             "id": {"available": bool(self.wrapped_agent.id_agent)},
             "body": {"available": bool(self.wrapped_agent.body)},
-            "super_ego": {
-                "available": bool(self.wrapped_agent.super_ego),
-                "enabled": self.wrapped_agent.enable_super_ego
+            "meta_cognition": {
+                "available": bool(self.wrapped_agent.meta_cognition),
+                "enabled": self.wrapped_agent.enable_meta_cognition
             }
         }
         
@@ -1310,7 +1310,7 @@ class CognitiveDebugger:
         for layer, status in snapshot.agent_layers_status.items():
             available = "✅" if status.get("available") else "❌"
             enabled = ""
-            if layer == "super_ego":
+            if layer == "meta_cognition":
                 enabled = f" ({'启用' if status.get('enabled') else '禁用'})"
             print(f"     {layer}: {available}{enabled}")
         print()

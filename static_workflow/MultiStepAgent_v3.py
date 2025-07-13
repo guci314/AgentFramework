@@ -17,7 +17,7 @@ from datetime import datetime as dt
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent_base import Result, reduce_memory_decorator_compress
-from pythonTask import Agent
+from python_core import Agent
 from langchain_core.language_models import BaseChatModel
 try:
     # 尝试相对导入（当作为包使用时）

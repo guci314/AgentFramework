@@ -148,13 +148,11 @@ def test_ai_updater_latency():
     print("\n=== AI更新器延迟测试 ===")
     
     from enhancedAgent_v2 import WorkflowState, AIStateUpdaterService
-    from pythonTask import llm_deepseek
-    
-    profiler = PerformanceProfiler()
+    from llm_lazy import get_modelnceProfiler()
     
     # 创建实例
     workflow_state = WorkflowState()
-    ai_updater = AIStateUpdaterService(llm_deepseek, enable_caching=True)
+    ai_updater = AIStateUpdaterService(get_model("deepseek_chat"), enable_caching=True)
     
     # 测试AI状态更新（有缓存）
     print("\n1. AI状态更新延迟测试（缓存启用）...")

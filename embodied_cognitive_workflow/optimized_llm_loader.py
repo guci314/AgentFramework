@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-优化的语言模型加载器 - 解决pythonTask.py加载缓慢问题
+优化的语言模型加载器 - 解决\1加载缓慢问题
 
 使用懒加载模式，只在实际使用时才初始化语言模型，
 大幅提升模块导入速度。
@@ -148,12 +148,12 @@ def get_llm(model_name: str) -> Optional[ChatOpenAI]:
 
 # 为了向后兼容，提供最常用的模型作为属性
 @property
-def llm_gemini_2_5_flash_google():
+def get_model("gemini_2_5_flash")():
     """最常用的Gemini Flash模型"""
     return get_llm('gemini_2_5_flash')
 
 @property  
-def llm_deepseek_v3():
+def get_model("deepseek_chat")_v3():
     """DeepSeek V3模型"""
     return get_llm('deepseek_v3')
 

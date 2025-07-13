@@ -19,11 +19,11 @@ os.environ['HTTP_PROXY'] = 'http://127.0.0.1:7890'
 os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:7890'
 
 # 导入 Agent
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 # 创建全局 Agent 实例
 print("初始化 Agent...")
-python_agent = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_generation=True, skip_evaluation=True)
+python_agent = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=1, skip_generation=True, skip_evaluation=True)
 
 @tool
 def calculate(expression: str) -> Dict[str, Any]:

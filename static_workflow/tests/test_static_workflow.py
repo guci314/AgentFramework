@@ -16,7 +16,7 @@ from langchain_openai import ChatOpenAI
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from pythonTask import Agent
+from python_core import Agent
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
 from static_workflow.workflow_definitions import WorkflowDefinition, WorkflowLoader
 from static_workflow.static_workflow_engine import StaticWorkflowEngine
@@ -24,7 +24,7 @@ from static_workflow.control_flow_evaluator import ControlFlowEvaluator
 
 
 # 使用指定的DeepSeek模型配置
-llm_deepseek = ChatOpenAI(
+get_model("deepseek_chat") = ChatOpenAI(
     temperature=0,
     model="deepseek-chat",  
     base_url="https://api.deepseek.com",
@@ -44,23 +44,23 @@ class TestStaticWorkflow:
             pytest.skip("需要设置DEEPSEEK_API_KEY环境变量")
         
         # 初始化主智能体
-        self.agent_v3 = MultiStepAgent_v3(llm=llm_deepseek)
+        self.agent_v3 = MultiStepAgent_v3(llm=get_model("deepseek_chat"))
         
         # 创建测试智能体（使用真实DeepSeek模型）
         self.coder_agent = Agent(
-            llm=llm_deepseek, 
+            llm=get_model("deepseek_chat"), 
             stateful=True,
             thinker_system_message="你是一个专业的Python开发者，擅长编写高质量的代码。"
         )
         
         self.tester_agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True, 
             thinker_system_message="你是一个专业的软件测试工程师，擅长编写和执行测试用例。"
         )
         
         self.data_agent = Agent(
-            llm=llm_deepseek,
+            llm=get_model("deepseek_chat"),
             stateful=True,
             thinker_system_message="你是一个数据科学家，擅长数据处理和分析。"
         )
@@ -259,7 +259,7 @@ class TestStaticWorkflow:
         """测试智能体注册功能"""
         
         # 创建新的测试智能体
-        test_agent = Agent(llm=llm_deepseek, stateful=True)
+        test_agent = Agent(llm=get_model("deepseek_chat"), stateful=True)
         
         # 注册智能体
         initial_count = len(self.agent_v3.registered_agents)

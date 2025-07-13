@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base.services.agent_service import AgentService
 from cognitive_workflow_rule_base.domain.entities import AgentRegistry, AgentCapability, WorkflowResult as CognitiveResult
 
@@ -41,7 +41,7 @@ def test_agent_base_result_conversion():
     agent_registry.register_capability(test_capability)
     
     # 创建agent实例
-    test_agent = Agent(llm=llm_deepseek)
+    test_agent = Agent(llm=get_model("deepseek_chat"))
     test_agent.api_specification = "测试智能体"
     
     agents = {"test_agent": test_agent}
@@ -213,7 +213,7 @@ def test_real_agent_execution():
         )
         agent_registry.register_capability(test_capability)
         
-        real_agent = Agent(llm=llm_deepseek)
+        real_agent = Agent(llm=get_model("deepseek_chat"))
         real_agent.api_specification = "真实测试智能体"
         
         agents = {"real_test_agent": real_agent}

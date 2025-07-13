@@ -19,7 +19,7 @@ from task_master_agent import TaskMasterAgent, AgentSpecification, TaskMasterWor
 from task_master.client import TaskMasterClient, TaskMasterClientError
 from task_master.data_mapper import TaskMasterDataMapper
 from task_master.config import TaskMasterConfig
-from pythonTask import Agent
+from python_core import Agent
 from agent_base import Result
 
 

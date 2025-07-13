@@ -6,17 +6,16 @@
 """
 
 from enhancedAgent_v2 import MultiStepAgent_v2
-from pythonTask import llm_deepseek
-from agent_base import Agent
+from llm_lazy import get_modelnt_base import Agent
 
 def test_jump_functionality():
     """测试跳转功能"""
     
     # 创建多步骤Agent
-    multi_agent = MultiStepAgent_v2(llm=llm_deepseek)
+    multi_agent = MultiStepAgent_v2(llm=get_model("deepseek_chat"))
     
     # 注册一个简单的Agent
-    test_agent = Agent(llm=llm_deepseek)
+    test_agent = Agent(llm=get_model("deepseek_chat"))
     multi_agent.register_agent(
         name="test_agent",
         instance=test_agent

@@ -6,7 +6,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from enhancedAgent_v2 import MultiStepAgent_v2, RegisteredAgent, WorkflowState
-from pythonTask import Agent, llm_deepseek, Result
+from python_core import Agent, Result
+from llm_lazy import get_model
 from tests.config.test_config import skip_if_api_unavailable, check_deepseek_api_health
 
 
@@ -14,7 +15,7 @@ class EchoAgent(Agent):
     """测试用的回显Agent，返回输入的内容"""
     
     def __init__(self, llm=None):
-        super().__init__(llm or llm_deepseek)
+        super().__init__(llm or get_model("deepseek_v3"))
         self.api_specification = "回显智能体，返回输入的内容"
     
     def execute_stream(self, prompt):
@@ -50,7 +51,7 @@ class TextLengthAgent(Agent):
     """测试用的文本长度计算Agent"""
     
     def __init__(self, llm=None):
-        super().__init__(llm or llm_deepseek)
+        super().__init__(llm or get_model("deepseek_v3"))
         self.api_specification = "文本长度计算智能体，计算文本的长度"
     
     def execute_stream(self, prompt):
@@ -101,7 +102,7 @@ class TestMultiStepAgentV2(unittest.TestCase):
     
     def setUp(self):
         """测试前的设置"""
-        self.llm = llm_deepseek
+        self.llm = get_model("deepseek_v3")
         self.agent = MultiStepAgent_v2(llm=self.llm)
         
     def tearDown(self):

@@ -11,7 +11,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base import create_production_rule_system
 
 def test_system_capability_error():
@@ -22,7 +22,7 @@ def test_system_capability_error():
     
     # 1. 创建一个智能体（不包含system能力）
     print("1. 创建测试智能体...")
-    test_agent = Agent(llm=llm_deepseek)
+    test_agent = Agent(llm=get_model("deepseek_chat"))
     test_agent.api_specification = "测试智能体，用于重现错误"
     
     agents = {"test_agent": test_agent}
@@ -31,7 +31,7 @@ def test_system_capability_error():
     # 2. 创建工作流系统
     print("\n2. 创建工作流系统...")
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True  # 启用自动恢复，这会触发错误恢复规则
     )
@@ -79,7 +79,7 @@ def test_direct_rule_generation():
     from cognitive_workflow_rule_base import AgentRegistry, AgentCapability
     
     # 创建服务
-    llm_service = LanguageModelService(llm_deepseek)
+    llm_service = LanguageModelService(get_model("deepseek_chat"))
     rule_gen_service = RuleGenerationService(llm_service)
     
     # 创建包含test_agent的注册表（不包含system）

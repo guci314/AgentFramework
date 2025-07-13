@@ -21,7 +21,8 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 try:
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent, WorkflowContext, DecisionType
     from cognitive_debugger import (
         CognitiveDebugger, StepType, StepResult, DebugState, 
@@ -31,7 +32,7 @@ try:
     from agent_base import Result
     
     # 使用Gemini模型
-    llm_gemini = pythonTask.llm_gemini_2_5_flash_google
+    llm_gemini = \1("gemini_2_5_flash")
     
     print("✅ 所有模块导入成功！")
     
@@ -231,14 +232,14 @@ class TestStepExecutor(unittest.TestCase):
         # 创建模拟的认知智能体
         self.mock_agent = Mock(spec=CognitiveAgent)
         self.mock_agent.max_cycles = 3
-        self.mock_agent.enable_super_ego = False
+        self.mock_agent.enable_meta_cognition= False
         self.mock_agent.evaluation_mode = "internal"
         
         # 模拟各层智能体
         self.mock_agent.ego = Mock()
         self.mock_agent.id = Mock()
         self.mock_agent.body = Mock()
-        self.mock_agent.super_ego = None
+        self.mock_agent.meta_cognition = None
         
         self.step_executor = StepExecutor(self.mock_agent)
         self.debug_state = DebugState()
@@ -331,14 +332,14 @@ class TestCognitiveDebugger(unittest.TestCase):
         # 创建模拟的认知智能体
         self.mock_agent = Mock(spec=CognitiveAgent)
         self.mock_agent.max_cycles = 3
-        self.mock_agent.enable_super_ego = False
+        self.mock_agent.enable_meta_cognition= False
         self.mock_agent.evaluation_mode = "internal"
         
         # 模拟各层智能体
         self.mock_agent.ego = Mock()
         self.mock_agent.id = Mock()
         self.mock_agent.body = Mock()
-        self.mock_agent.super_ego = None
+        self.mock_agent.meta_cognition = None
         
         self.debugger = CognitiveDebugger(self.mock_agent)
     
@@ -545,7 +546,7 @@ class TestIntegration(unittest.TestCase):
         # 使用真实的但简化的智能体进行集成测试
         self.agent = Mock(spec=CognitiveAgent)
         self.agent.max_cycles = 2
-        self.agent.enable_super_ego = False
+        self.agent.enable_meta_cognition= False
         self.agent.evaluation_mode = "internal"
         
         # 模拟各层的返回值

@@ -20,7 +20,8 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from enhancedAgent_v2 import MultiStepAgent_v2, WorkflowState
-from pythonTask import Agent, llm_deepseek, Result
+from python_core import Agent, Result
+from llm_lazy import get_model
 from tests.config.test_config import skip_if_api_unavailable, check_deepseek_api_health
 
 
@@ -29,7 +30,7 @@ class StressBoundaryTest(unittest.TestCase):
     
     def setUp(self):
         """测试前的设置"""
-        self.llm = llm_deepseek
+        self.llm = get_model("deepseek_v3")
         self.agent = MultiStepAgent_v2(llm=self.llm)
         self.test_results = []
         

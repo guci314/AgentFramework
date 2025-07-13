@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cognitive_workflow import CognitivePlanner, TaskPhase
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 import json
 
 def test_three_phase_planning():
@@ -21,7 +21,7 @@ def test_three_phase_planning():
     print("=" * 50)
     
     # 使用与演示文件相同的LLM配置
-    llm = llm_deepseek
+    llm = get_model("deepseek_chat")
     
     # 创建测试用的智能体
     test_agents = {

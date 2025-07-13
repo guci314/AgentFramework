@@ -9,7 +9,7 @@
 import os
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
 from static_workflow.result_evaluator import TestResultEvaluator, MockTestResultEvaluator
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 
 def test_evaluator_selection():

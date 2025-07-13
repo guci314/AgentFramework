@@ -20,9 +20,9 @@ os.environ["http_proxy"] = "http://127.0.0.1:7890"
 os.environ["https_proxy"] = "http://127.0.0.1:7890"
 
 # 导入必要模块
-from embodied_cognitive_workflow import EmbodiedCognitiveWorkflow
+from embodied_cognitive_workflow import CognitiveAgent
 sys.path.append('/home/guci/aiProjects/AgentFrameWork')
-from pythonTask import llm_gemini_2_5_flash_google
+from llm_lazy import get_modelni_2_5_flash_google
 
 
 def test_refactored_workflow():
@@ -33,8 +33,8 @@ def test_refactored_workflow():
     
     # 创建工作流实例
     print("1. 初始化重构后的工作流...")
-    workflow = EmbodiedCognitiveWorkflow(
-        llm=llm_gemini_2_5_flash_google,
+    workflow = CognitiveAgent(
+        llm=get_model("gemini_2_5_flash"),
         max_cycles=10,
         verbose=True
     )

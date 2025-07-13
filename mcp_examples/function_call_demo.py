@@ -16,7 +16,7 @@ from langchain_core.globals import set_llm_cache
 set_llm_cache(SQLiteCache(database_path=".langchain.db"))
 
 # 导入 pythonTask 中的 Agent 类
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 # 设置HTTP代理
 os.environ['HTTP_PROXY'] = 'http://127.0.0.1:7890'
@@ -130,7 +130,7 @@ def get_weather_forecast(city: str, days: int = 3) -> Dict[str, Any]:
 # 3. 创建一个全局的 Agent 实例
 # 使用 DeepSeek 模型创建 Agent
 # 使用 skip_generation 和 skip_evaluation 以加快执行速度
-python_agent = Agent(llm=llm_deepseek, stateful=True, max_retries=1, skip_generation=True, skip_evaluation=False)
+python_agent = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=1, skip_generation=True, skip_evaluation=False)
 
 
 @tool
@@ -178,7 +178,7 @@ def demonstrate_deepseek_function_calling():
     print("=== DeepSeek Function Calling 演示 ===\n")
     
     # 初始化DeepSeek模型
-    llm_deepseek = ChatOpenAI(
+    get_model("deepseek_chat") = ChatOpenAI(
         temperature=0,
         model="deepseek-chat",  # 使用支持function calling的DeepSeek模型
         base_url="https://api.deepseek.com",
@@ -198,7 +198,7 @@ def demonstrate_deepseek_function_calling():
     ])
     
     # 创建agent
-    agent = create_tool_calling_agent(llm_deepseek, tools, prompt)
+    agent = create_tool_calling_agent(get_model("deepseek_chat"), tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
     
     # 测试用例
@@ -230,7 +230,7 @@ def demonstrate_simple_function_calling():
     print("\n=== 简单DeepSeek Function Calling演示 ===\n")
     
     # 初始化DeepSeek模型并绑定工具
-    llm_deepseek = ChatOpenAI(
+    get_model("deepseek_chat") = ChatOpenAI(
         temperature=0,
         model="deepseek-chat",
         base_url="https://api.deepseek.com",
@@ -252,7 +252,7 @@ def demonstrate_simple_function_calling():
         messages = [HumanMessage(content=query)]
         
         # 调用模型
-        response = llm_deepseek.invoke(messages)
+        response = get_model("deepseek_chat").invoke(messages)
         print(f"初始模型响应: {response.content}")
         
         # 如果模型返回了tool_calls，执行工具并让模型生成最终回答
@@ -292,7 +292,7 @@ def demonstrate_simple_function_calling():
             
             # 让模型根据工具调用结果生成最终回答
             print("\n=== 模型根据工具调用结果生成回答 ===")
-            final_response = llm_deepseek.invoke(messages)
+            final_response = get_model("deepseek_chat").invoke(messages)
             print(f"最终回答: {final_response.content}")
         else:
             print("模型没有进行工具调用")

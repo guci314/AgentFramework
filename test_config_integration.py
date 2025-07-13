@@ -34,11 +34,7 @@ def test_config_integration():
         # 3. 测试AIStateUpdaterService配置集成
         print("\n3. 测试AIStateUpdaterService配置集成...")
         from enhancedAgent_v2 import AIStateUpdaterService
-        from pythonTask import llm_deepseek
-        
-        # 使用配置系统的默认参数
-        ai_updater = AIStateUpdaterService(llm_deepseek)
-        print(f"✓ AIStateUpdaterService创建成功")
+        from llm_lazy import get_modelnt(f"✓ AIStateUpdaterService创建成功")
         print(f"  最大重试次数: {ai_updater.max_retries}")
         print(f"  重试延迟: {ai_updater.retry_delay}")
         print(f"  缓存启用: {ai_updater.enable_caching}")
@@ -47,7 +43,7 @@ def test_config_integration():
         # 4. 测试配置参数覆盖
         print("\n4. 测试配置参数覆盖...")
         ai_updater_custom = AIStateUpdaterService(
-            llm_deepseek, 
+            get_model("deepseek_chat"), 
             max_retries=5,  # 覆盖配置文件的参数
             enable_caching=False  # 覆盖配置文件的参数
         )

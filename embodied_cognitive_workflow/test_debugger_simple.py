@@ -22,7 +22,8 @@ try:
     from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent, WorkflowContext, DecisionType
     from embodied_cognitive_workflow.cognitive_debugger import CognitiveDebugger, StepType, DebugUtils
     from agent_base import Result
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     
     print("✅ 所有模块导入成功！")
     
@@ -41,7 +42,7 @@ try:
     from unittest.mock import Mock
     mock_agent = Mock()
     mock_agent.max_cycles = 3
-    mock_agent.enable_super_ego = False
+    mock_agent.enable_meta_cognition= False
     mock_agent.evaluation_mode = "internal"
     
     # 创建调试器

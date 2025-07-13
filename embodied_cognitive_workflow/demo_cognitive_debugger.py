@@ -20,7 +20,8 @@ if parent_dir not in sys.path:
 try:
     from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent
     from embodied_cognitive_workflow.cognitive_debugger import CognitiveDebugger, StepType
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     
     print("✅ 模块导入成功！")
     
@@ -36,10 +37,10 @@ def demo_basic_debugging():
     
     # 创建认知智能体
     agent = CognitiveAgent(
-        llm=pythonTask.llm_gemini_2_5_flash_google,
+        llm=\1("gemini_2_5_flash"),
         max_cycles=3,
         verbose=False,
-        enable_super_ego=False,
+        enable_meta_cognition=False,
         evaluation_mode="internal"
     )
     
@@ -89,7 +90,7 @@ def demo_breakpoint_debugging():
     
     # 创建智能体和调试器
     agent = CognitiveAgent(
-        llm=pythonTask.llm_gemini_2_5_flash_google,
+        llm=\1("gemini_2_5_flash"),
         max_cycles=5,
         verbose=False
     )
@@ -148,7 +149,7 @@ def demo_performance_analysis():
     
     # 创建智能体和调试器
     agent = CognitiveAgent(
-        llm=pythonTask.llm_gemini_2_5_flash_google,
+        llm=\1("gemini_2_5_flash"),
         max_cycles=4,
         verbose=False
     )
@@ -193,7 +194,7 @@ def demo_state_inspection():
     
     # 创建智能体和调试器
     agent = CognitiveAgent(
-        llm=pythonTask.llm_gemini_2_5_flash_google,
+        llm=\1("gemini_2_5_flash"),
         max_cycles=3,
         verbose=False
     )
@@ -248,7 +249,7 @@ def demo_session_export_import():
     
     # 创建智能体和调试器
     agent = CognitiveAgent(
-        llm=pythonTask.llm_gemini_2_5_flash_google,
+        llm=\1("gemini_2_5_flash"),
         max_cycles=3,
         verbose=False
     )

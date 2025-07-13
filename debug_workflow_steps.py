@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 
 

@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Agent
+from python_core import Agent
 from ego_agent import EgoAgent
 from id_agent import IdAgent
 from agent_base import Result

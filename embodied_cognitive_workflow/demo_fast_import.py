@@ -23,7 +23,8 @@ print("=" * 60)
 
 # 方式1：传统导入（慢）
 print("\n1️⃣ 传统导入方式（包含49个模型）:")
-print("   import pythonTask")
+print("   from python_core import *")
+print("   from llm_lazy import get_model")
 print("   预期耗时：~26秒")
 
 # 方式2：分离导入（快）

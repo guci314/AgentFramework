@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-运行所有pythonTask.py相关的单元测试
+运行所有Agent Framework组件的单元测试
+
+测试覆盖范围：
+- python_core.py: Agent, Device, StatefulExecutor, Thinker, Evaluator
+- agent_base.py: AgentBase, Result, 内存管理装饰器
+- llm_lazy.py: 懒加载模型获取功能
 """
 
 import unittest
@@ -72,7 +77,7 @@ def main():
     """主函数"""
     start_time = time.time()
     
-    print_banner("AgentFrameWork pythonTask.py 组件单元测试")
+    print_banner("AgentFrameWork 组件单元测试")
     
     # 检查API密钥
     has_deepseek = bool(os.getenv('DEEPSEEK_API_KEY'))

@@ -19,7 +19,7 @@ cognitive_workflow_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path
 sys.path.append(project_root)
 sys.path.append(cognitive_workflow_dir)
 
-from pythonTask import Agent, llm_deepseek, llm_gemini_2_5_pro_google
+from python_core import Agent, get_model("deepseek_chat"), get_model("gemini_2_5_pro")
 from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def main():
@@ -29,7 +29,7 @@ def main():
     
     # 1. 创建基础Agent
     print("📝 步骤1: 创建基础Agent")
-    base_agent = Agent(llm=llm_gemini_2_5_pro_google)
+    base_agent = Agent(llm=get_model("gemini_2_5_pro"))
     print(f"✅ 基础Agent: {type(base_agent).__name__}")
     
     # 2. 创建IntelligentAgentWrapper

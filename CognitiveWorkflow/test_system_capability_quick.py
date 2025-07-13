@@ -11,9 +11,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent))
 
-from pythonTask import llm_deepseek
-
-def test_direct_rule_generation():
+from llm_lazy import get_modelneration():
     """直接测试规则生成服务以触发错误"""
     
     print("🧪 直接测试规则生成服务")
@@ -24,7 +22,7 @@ def test_direct_rule_generation():
     from cognitive_workflow_rule_base import AgentRegistry, AgentCapability
     
     # 创建服务
-    llm_service = LanguageModelService(llm_deepseek)
+    llm_service = LanguageModelService(get_model("deepseek_chat"))
     rule_gen_service = RuleGenerationService(llm_service)
     
     # 创建包含test_agent的注册表（不包含system）

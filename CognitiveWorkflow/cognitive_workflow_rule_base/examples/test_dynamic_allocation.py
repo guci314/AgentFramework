@@ -26,10 +26,7 @@ from CognitiveWorkflow.cognitive_workflow_rule_base import (
     RulePhase
 )
 from agent_base import AgentBase
-from pythonTask import llm_deepseek
-
-
-class CalculatorAgent(AgentBase):
+from llm_lazy import get_modelnt(AgentBase):
     """计算器智能体"""
     
     def __init__(self, llm):
@@ -75,9 +72,9 @@ def test_dynamic_allocation():
     
     # 1. 创建智能体
     agents = {
-        'CalculatorAgent': CalculatorAgent(llm_deepseek),
-        'DataAnalyzer': DataAnalyzer(llm_deepseek),
-        'ReportGenerator': ReportGenerator(llm_deepseek)
+        'CalculatorAgent': CalculatorAgent(get_model("deepseek_chat")),
+        'DataAnalyzer': DataAnalyzer(get_model("deepseek_chat")),
+        'ReportGenerator': ReportGenerator(get_model("deepseek_chat"))
     }
     
     print("已注册的智能体:")
@@ -88,7 +85,7 @@ def test_dynamic_allocation():
     # 2. 创建工作流引擎（启用动态分配）
     print("创建启用了ResourceManager的工作流引擎...")
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True,
         enable_adaptive_replacement=True,
@@ -143,9 +140,9 @@ def test_manual_rule_execution():
     
     # 1. 创建智能体
     agents = {
-        'CalculatorAgent': CalculatorAgent(llm_deepseek),
-        'DataAnalyzer': DataAnalyzer(llm_deepseek),
-        'ReportGenerator': ReportGenerator(llm_deepseek)
+        'CalculatorAgent': CalculatorAgent(get_model("deepseek_chat")),
+        'DataAnalyzer': DataAnalyzer(get_model("deepseek_chat")),
+        'ReportGenerator': ReportGenerator(get_model("deepseek_chat"))
     }
     
     # 2. 手动创建规则（不指定agent_name）
@@ -197,7 +194,7 @@ def test_manual_rule_execution():
     
     # 4. 使用工作流引擎执行
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True,
         enable_adaptive_replacement=True
@@ -220,7 +217,7 @@ def test_fallback_allocation():
     
     # 1. 创建有限的智能体集合
     agents = {
-        'GeneralAgent': AgentBase(name="GeneralAgent", llm=llm_deepseek)
+        'GeneralAgent': AgentBase(name="GeneralAgent", llm=get_model("deepseek_chat"))
     }
     agents['GeneralAgent'].api_specification = "通用智能体，可以处理各种基础任务"
     
@@ -244,7 +241,7 @@ def test_fallback_allocation():
     
     # 3. 创建工作流引擎
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents
     )
     

@@ -12,7 +12,8 @@ if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
 
 from embodied_cognitive_workflow import CognitiveAgent, WorkflowContext
-import pythonTask
+from python_core import *
+from llm_lazy import get_model
 
 print("🌟 具身认知工作流架构 - 自然语言优先原则演示")
 print("=" * 70)
@@ -29,10 +30,10 @@ print("🧠 四层认知架构的自然语言交互演示")
 
 # 创建认知智能体
 agent = CognitiveAgent(
-    llm=pythonTask.llm_gemini_2_5_flash_google,
+    llm=\1("gemini_2_5_flash"),
     max_cycles=3,
     verbose=False,
-    enable_super_ego=False,
+    enable_meta_cognition=False,
     evaluation_mode="external"
 )
 

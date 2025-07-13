@@ -1,0 +1,60 @@
+{
+  "tasks": [],
+  "metadata": {
+    "version": "1.0"
+  },
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "调用coder智能体写一个简单的加法函数，然后调用tester智能体验证这个函数",
+        "description": "调用coder智能体写一个简单的加法函数，然后调用tester智能体验证这个函数",
+        "status": "done",
+        "priority": "medium",
+        "dependencies": [],
+        "phase": "execution",
+        "created": "2025-06-17T14:24:19.034404",
+        "updated": "2025-06-17T14:24:19.048203",
+        "details": "协调执行多智能体任务：调用coder智能体写一个简单的加法函数，然后调用tester智能体验证这个函数\n\n包含 2 个子任务，按顺序执行。",
+        "testStrategy": "手动测试基本功能",
+        "subtasks": [
+          {
+            "id": "1.1",
+            "title": "实现编程部分：调用coder智能体写一个简单的加法函数，然后调用tester智能体验证这个函数...",
+            "description": "实现编程部分：调用coder智能体写一个简单的加法函数，然后调用tester智能体验证这个函数...",
+            "status": "done",
+            "priority": "medium",
+            "dependencies": [],
+            "phase": "execution",
+            "created": "2025-06-17T14:24:19.034676",
+            "updated": "2025-06-17T14:24:19.040034",
+            "details": "实现编程部分：调用coder智能体写一个简单的加法函数，然后调用tester智能体验证这个函数...",
+            "testStrategy": "验证子任务完成",
+            "agent_name": "coder"
+          },
+          {
+            "id": "1.2",
+            "title": "对实现的代码进行测试和验证",
+            "description": "对实现的代码进行测试和验证",
+            "status": "done",
+            "priority": "medium",
+            "dependencies": [
+              "1.1"
+            ],
+            "phase": "execution",
+            "created": "2025-06-17T14:24:19.034698",
+            "updated": "2025-06-17T14:24:19.045351",
+            "details": "对实现的代码进行测试和验证",
+            "testStrategy": "验证子任务完成",
+            "agent_name": "tester"
+          }
+        ],
+        "agent_name": "coordinator"
+      }
+    ],
+    "metadata": {
+      "updated": "2025-06-17T14:24:19.048502",
+      "cleared": "2025-06-17T14:24:19.027834"
+    }
+  }
+}

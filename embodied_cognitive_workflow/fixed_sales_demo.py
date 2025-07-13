@@ -19,11 +19,12 @@ if parent_dir not in sys.path:
 
 # 导入必要的模块
 try:
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     
     # 导入LLM实例
-    llm_deepseek = pythonTask.llm_deepseek
+    get_model("deepseek_chat") = \1("deepseek_chat")
     
     print("✅ 所有模块导入成功！")
     
@@ -37,10 +38,10 @@ def main():
     
     # 创建认知代理实例
     cognitive_agent = CognitiveAgent(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         max_cycles=5,
         verbose=False,  # 减少日志输出
-        enable_super_ego=True
+        enable_meta_cognition=True
     )
     
     # 销售数据分析任务

@@ -152,11 +152,11 @@ def test_cognitive_agent_integration():
     print("-" * 70)
     
     try:
-        from pythonTask import Agent, llm_deepseek
+        from python_core import Agent, get_model("deepseek_chat")
         from cognitive_workflow_rule_base.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
         
         # 创建IntelligentAgentWrapper
-        base_agent = Agent(llm=llm_deepseek)
+        base_agent = Agent(llm=get_model("deepseek_chat"))
         cognitive_agent = IntelligentAgentWrapper(base_agent)
         
         print("✅ IntelligentAgentWrapper创建成功")

@@ -19,11 +19,12 @@ if parent_dir not in sys.path:
 
 # 导入必要的模块
 try:
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     
     # 使用Gemini模型
-    llm_gemini = pythonTask.llm_gemini_2_5_flash_google
+    llm_gemini = \1("gemini_2_5_flash")
     
     print("✅ 所有模块导入成功！")
     print("🧮 使用内观评估模式实现计算器")
@@ -42,7 +43,7 @@ def main():
         llm=llm_gemini,
         max_cycles=10,
         verbose=True,
-        enable_super_ego=True,
+        enable_meta_cognition=True,
         evaluation_mode="internal"  # 关键：设置为内观评估模式
     )
     

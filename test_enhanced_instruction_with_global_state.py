@@ -21,7 +21,7 @@ from static_workflow.workflow_definitions import (
 )
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
 from static_workflow.static_workflow_engine import StaticWorkflowEngine
-from pythonTask import Agent
+from python_core import Agent
 
 
 def create_test_workflow():

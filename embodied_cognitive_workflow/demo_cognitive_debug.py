@@ -13,7 +13,7 @@ import logging
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 # 导入本地模块
 try:
@@ -32,10 +32,7 @@ except ImportError:
     # 直接从当前目录导入
     from embodied_cognitive_workflow import (
         CognitiveAgent, 
-        create_cognitive_agent,
-        EmbodiedCognitiveWorkflow,
-        create_embodied_cognitive_workflow, 
-        execute_embodied_cognitive_task
+        create_cognitive_agent
     )
     from cognitive_debug_agent import CognitiveDebugAgent, CognitiveDebugger, DebugLevel
     from gemini_flash_integration import GeminiFlashClient, create_gemini_client
@@ -58,12 +55,12 @@ def demo_basic_cognitive_debug():
     
     # 创建基础智能体
     print("1. 创建基础智能体...")
-    base_agent = Agent(llm=llm_deepseek)
+    base_agent = Agent(llm=get_model("deepseek_chat"))
     
     # 创建认知智能体
     print("2. 创建认知智能体...")
     cognitive_agent = create_cognitive_agent(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         ego_config={},
         id_config={},
         body_config={}
@@ -73,7 +70,7 @@ def demo_basic_cognitive_debug():
     print("3. 创建认知调试智能体...")
     debug_agent = CognitiveDebugAgent(
         cognitive_agent=cognitive_agent,
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         enable_debugging=True,
         enable_step_tracking=True
     )
@@ -248,9 +245,9 @@ def demo_cognitive_debug_without_gemini():
     
     # 创建基础组件
     print("1. 创建认知调试智能体...")
-    base_agent = Agent(llm=llm_deepseek)
+    base_agent = Agent(llm=get_model("deepseek_chat"))
     cognitive_agent = create_cognitive_agent(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         ego_config={},
         id_config={},
         body_config={}
@@ -259,7 +256,7 @@ def demo_cognitive_debug_without_gemini():
     # 创建不依赖Gemini的认知调试智能体
     debug_agent = CognitiveDebugAgent(
         cognitive_agent=cognitive_agent,
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         gemini_flash_client=None,  # 不使用Gemini
         enable_debugging=True,
         enable_step_tracking=True
@@ -346,9 +343,9 @@ def demo_cognitive_debug_with_gemini():
         return demo_cognitive_debug_without_gemini()
     
     # 创建基础组件
-    base_agent = Agent(llm=llm_deepseek)
+    base_agent = Agent(llm=get_model("deepseek_chat"))
     cognitive_agent = create_cognitive_agent(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         ego_config={},
         id_config={},
         body_config={}
@@ -357,7 +354,7 @@ def demo_cognitive_debug_with_gemini():
     # 创建带Gemini的认知调试智能体
     debug_agent = CognitiveDebugAgent(
         cognitive_agent=cognitive_agent,
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         gemini_flash_client=gemini_client,
         enable_debugging=True,
         enable_step_tracking=True

@@ -1,10 +1,10 @@
 """
-超我智能体 - 元认知监督层
+元认知智能体 - 元认知监督层
 
-基于具身认知理论的超我智能体实现，作为四层认知架构的最高层，
+基于具身认知理论的元认知智能体实现，作为四层认知架构的最高层，
 负责认知错误识别、逻辑验证、道德引导和元认知监督。
 
-超我的核心功能：
+元认知的核心功能：
 - 认知偏差检测（确认偏差、锚定效应等）
 - 逻辑错误识别（推理谬误、前提缺陷等）
 - 一致性验证（目标对齐、价值一致性等）
@@ -966,7 +966,7 @@ JSON数据类型要求：
 
 
 class UltraThinkEngine:
-    """UltraThink元认知引擎 - 超我的核心认知能力"""
+    """UltraThink元认知引擎 - 元认知层的核心认知能力"""
     
     def __init__(self, llm: BaseChatModel, use_structured_output: bool = True):
         self.llm = llm
@@ -1298,11 +1298,11 @@ JSON数据类型要求：
             return False
 
 
-class SuperEgoAgent(AgentBase):
+class MetaCognitiveAgent(AgentBase):
     """
-    超我智能体 - 元认知监督层
+    元认知智能体 - 元认知监督层
     
-    作为四层认知架构的最高层，超我负责：
+    作为四层认知架构的最高层，元认知层负责：
     1. 认知错误识别和诊断
     2. 逻辑验证和偏差检测
     3. 道德引导和价值约束
@@ -1319,7 +1319,7 @@ class SuperEgoAgent(AgentBase):
                  use_structured_output: bool = True,
                  system_message: Optional[str] = None):
         """
-        初始化超我智能体
+        初始化元认知智能体
         
         Args:
             llm: 语言模型
@@ -1331,7 +1331,7 @@ class SuperEgoAgent(AgentBase):
             use_structured_output: 是否使用结构化JSON输出
             system_message: 自定义系统消息
         """
-        default_system = """你是具身认知工作流系统中的超我智能体，负责元认知监督和认知质量控制。
+        default_system = """你是具身认知工作流系统中的元认知智能体，负责元认知监督和认知质量控制。
 
 你的核心使命：
 1. 识别和纠正认知偏差（确认偏差、锚定效应等）
@@ -1350,7 +1350,7 @@ class SuperEgoAgent(AgentBase):
 你的角色是认知系统的"内在监督者"，帮助其他认知层保持理性、客观和道德。"""
         
         super().__init__(llm, system_message or default_system)
-        self.name = "超我智能体"
+        self.name = "元认知智能体"
         self.use_structured_output = use_structured_output
         
         # 初始化组件
@@ -1726,12 +1726,12 @@ class SuperEgoAgent(AgentBase):
     def start_cognitive_monitoring(self):
         """启动认知监控"""
         self.cognitive_monitor.start_monitoring()
-        self.logger.info("超我认知监控已启动")
+        self.logger.info("元认知监控已启动")
     
     def stop_cognitive_monitoring(self):
         """停止认知监控"""
         self.cognitive_monitor.stop_monitoring()
-        self.logger.info("超我认知监控已停止")
+        self.logger.info("元认知监控已停止")
     
     def comprehensive_cognitive_supervision(self, 
                                           cognitive_data: Dict[str, Any],

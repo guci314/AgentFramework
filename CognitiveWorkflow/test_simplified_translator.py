@@ -9,8 +9,7 @@ from pathlib import Path
 project_root = str(Path.cwd().parent)
 sys.path.append(project_root)
 
-from pythonTask import llm_deepseek
-from cognitive_workflow_rule_base.services.task_translator import TaskTranslator
+from llm_lazy import get_modelnitive_workflow_rule_base.services.task_translator import TaskTranslator
 import logging
 
 # 设置日志级别
@@ -18,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 
 print('🧪 测试简化后的TaskTranslator（移除granularity_level）...')
 
-task_translator = TaskTranslator(llm_deepseek)
+task_translator = TaskTranslator(get_model("deepseek_chat"))
 
 # 测试简单指令
 simple_instruction = '计算1+2+3的结果'

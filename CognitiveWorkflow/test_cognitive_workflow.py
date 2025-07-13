@@ -24,7 +24,7 @@ from datetime import datetime as dt
 import json
 
 from agent_base import Result
-from pythonTask import Agent
+from python_core import Agent
 from CognitiveWorkflow.cognitive_workflow import (
     CognitiveWorkflowEngine, CognitivePlanner, CognitiveDecider, 
     CognitiveExecutor, StateConditionChecker, CognitiveTask, 

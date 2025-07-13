@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).parent / "CognitiveWorkflow"))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from CognitiveWorkflow.cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def test_agent_naming_consistency():
@@ -20,10 +20,10 @@ def test_agent_naming_consistency():
     print("=== 验证Agent命名一致性修复 ===")
     
     # 1. 创建基础Agent
-    base_coder = Agent(llm=llm_deepseek)
+    base_coder = Agent(llm=get_model("deepseek_chat"))
     base_coder.api_specification = '代码专家，擅长编写和调试代码'
     
-    base_tester = Agent(llm=llm_deepseek)
+    base_tester = Agent(llm=get_model("deepseek_chat"))
     base_tester.api_specification = '测试专家，擅长编写测试用例'
     
     # 2. 创建基础Agent映射

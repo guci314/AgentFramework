@@ -17,7 +17,7 @@ sys.path.append(str(project_root))
 
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
 from static_workflow.workflow_definitions import WorkflowDefinition, WorkflowStep, StepExecutionStatus
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 from agent_base import Result
 

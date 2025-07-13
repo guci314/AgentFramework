@@ -13,7 +13,7 @@ import time
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Device
+from python_core import Device
 from agent_base import Result
 
 

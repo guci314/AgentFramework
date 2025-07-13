@@ -16,7 +16,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
-from pythonTask import Agent
+from python_core import Agent
 from langchain_openai import ChatOpenAI
 
 def test_control_flow_fix():
@@ -26,7 +26,7 @@ def test_control_flow_fix():
     print("=" * 50)
     
     # 创建简单的测试LLM
-    llm_deepseek = ChatOpenAI(
+    get_model("deepseek_chat") = ChatOpenAI(
         temperature=0,
         model="deepseek-chat", 
         base_url="https://api.deepseek.com",
@@ -35,11 +35,11 @@ def test_control_flow_fix():
     )
     
     # 创建测试智能体
-    test_agent = Agent(llm=llm_deepseek, stateful=True)
+    test_agent = Agent(llm=get_model("deepseek_chat"), stateful=True)
     
     # 创建MultiStepAgent_v3实例
     agent_v3 = MultiStepAgent_v3(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         registered_agents=[
             RegisteredAgent("coder", test_agent, "测试智能体")
         ]

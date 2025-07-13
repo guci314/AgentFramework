@@ -12,7 +12,8 @@ import time
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Thinker, StatefulExecutor, llm_deepseek
+from python_core import Thinker, StatefulExecutor
+from llm_lazy import get_model
 from agent_base import Result
 
 
@@ -29,7 +30,7 @@ class TestThinkerBasic(unittest.TestCase):
         if not os.getenv('DEEPSEEK_API_KEY'):
             self.skipTest("需要DEEPSEEK_API_KEY环境变量")
         
-        thinker = Thinker(llm=llm_deepseek, device=self.device)
+        thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
         
         # 验证初始化属性
         self.assertIsNotNone(thinker.llm)
@@ -62,7 +63,7 @@ class TestThinkerWithDeepSeek(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device, max_retries=3)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device, max_retries=3)
     
     def test_simple_code_generation(self):
         """测试简单代码生成"""
@@ -136,7 +137,7 @@ class TestThinkerStreamExecution(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device, max_retries=2)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device, max_retries=2)
     
     def test_stream_execution(self):
         """测试流式执行"""
@@ -185,7 +186,7 @@ class TestThinkerChatFunctionality(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
     
     def test_chat_sync(self):
         """测试同步聊天"""
@@ -252,7 +253,7 @@ class TestThinkerResultGeneration(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
     
     def test_generate_result_sync(self):
         """测试同步结果生成"""
@@ -302,7 +303,7 @@ class TestThinkerComplexTasks(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device, max_retries=5)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device, max_retries=5)
     
     def test_file_operation_task(self):
         """测试文件操作任务"""

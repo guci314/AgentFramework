@@ -15,7 +15,7 @@
 import logging
 import sys
 from typing import Dict, Any
-from pythonTask import Agent, llm_deepseek, StatefulExecutor
+from python_core import Agent, get_model("deepseek_chat"), StatefulExecutor
 from cognitive_workflow import (
     CognitiveWorkflowEngine, CognitiveTask, TaskPhase, TaskStatus, GlobalState
 )
@@ -34,7 +34,7 @@ def create_mock_agents() -> Dict[str, Agent]:
     
     # 创建代码专家
     coder = Agent(
-        llm=llm_deepseek
+        llm=get_model("deepseek_chat")
     )
     coder.api_specification='''
     代码专家，擅长编写、调试和优化代码。
@@ -42,7 +42,7 @@ def create_mock_agents() -> Dict[str, Agent]:
     
     # 创建测试专家
     tester = Agent(
-        llm=llm_deepseek
+        llm=get_model("deepseek_chat")
     )
     tester.api_specification='''
     测试专家，擅长编写测试用例和验证代码质量。
@@ -50,7 +50,7 @@ def create_mock_agents() -> Dict[str, Agent]:
     
     # 创建分析师
     analyst = Agent(
-        llm=llm_deepseek
+        llm=get_model("deepseek_chat")
     )
     analyst.api_specification='''
     分析师，擅长需求分析和文档整理。
@@ -72,7 +72,7 @@ def demo():
     
     # 初始化认知工作流引擎
     workflow_engine = CognitiveWorkflowEngine(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         max_iterations=20,
         enable_auto_recovery=True

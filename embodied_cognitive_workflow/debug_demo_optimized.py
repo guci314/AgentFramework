@@ -40,7 +40,7 @@ agent = CognitiveAgent(
     llm=llm,                       # 使用懒加载的Gemini模型
     max_cycles=5,                  # 最大循环次数
     verbose=False,                 # 关闭详细输出
-    enable_super_ego=False         # 简化示例
+    enable_meta_cognition=False         # 简化示例
 )
 
 # 创建调试器

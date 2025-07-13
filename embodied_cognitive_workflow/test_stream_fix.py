@@ -16,12 +16,13 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 try:
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     from agent_base import Result
     
     # 使用Gemini模型
-    llm_gemini = pythonTask.llm_gemini_2_5_flash_google
+    llm_gemini = \1("gemini_2_5_flash")
     
     print("✅ 模块导入成功！")
     
@@ -38,7 +39,7 @@ def test_stream_output_clean():
         llm=llm_gemini,
         max_cycles=3,
         verbose=False,  # 关闭详细输出以便观察流式输出
-        enable_super_ego=False,
+        enable_meta_cognition=False,
         evaluation_mode="external"  # 使用外观评估来触发身体观察
     )
     

@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent.parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base import create_production_rule_system
 from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
@@ -20,10 +20,10 @@ def test_agent_registration():
     print("=== Agent注册测试 ===")
     
     # 1. 创建基础Agent
-    base_coder = Agent(llm=llm_deepseek)
+    base_coder = Agent(llm=get_model("deepseek_chat"))
     base_coder.api_specification = "代码专家"
     
-    base_tester = Agent(llm=llm_deepseek)
+    base_tester = Agent(llm=get_model("deepseek_chat"))
     base_tester.api_specification = "测试专家"
     
     # 2. 创建IntelligentAgentWrapper包装器
@@ -39,7 +39,7 @@ def test_agent_registration():
     
     # 3. 创建工作流系统
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents
     )
     

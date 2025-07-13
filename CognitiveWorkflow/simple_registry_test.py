@@ -11,7 +11,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base import create_production_rule_system
 
 
@@ -23,10 +23,10 @@ def simple_registry_test():
     
     # 1. 创建智能体
     print("1. 创建智能体...")
-    coder = Agent(llm=llm_deepseek)
+    coder = Agent(llm=get_model("deepseek_chat"))
     coder.api_specification = "代码专家智能体"
     
-    tester = Agent(llm=llm_deepseek)
+    tester = Agent(llm=get_model("deepseek_chat"))
     tester.api_specification = "测试专家智能体"
     
     agents = {
@@ -38,7 +38,7 @@ def simple_registry_test():
     # 2. 创建工作流系统
     print("\n2. 创建工作流系统...")
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True
     )
@@ -101,13 +101,13 @@ def test_without_explicit_registry():
     print("="*30)
     
     # 创建简单的工作流引擎
-    simple_agent = Agent(llm=llm_deepseek)
+    simple_agent = Agent(llm=get_model("deepseek_chat"))
     simple_agent.api_specification = "简单测试智能体"
     
     agents = {"simple_agent": simple_agent}
     
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True
     )

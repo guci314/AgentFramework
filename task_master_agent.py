@@ -13,7 +13,7 @@ from datetime import datetime as dt
 from pathlib import Path
 
 from agent_base import Result, reduce_memory_decorator_compress
-from pythonTask import Agent, StatefulExecutor
+from python_core import Agent, StatefulExecutor
 from langchain_core.language_models import BaseChatModel
 
 from task_master.client import TaskMasterClient, TaskMasterClientError

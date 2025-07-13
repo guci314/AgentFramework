@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-禁用超我的销售数据分析演示
-测试禁用超我后的性能表现
+使用Gemini 2.5 Flash的销售数据分析演示 - 禁用元认知
+测试禁用元认知在快速模型上的表现
 """
 
 import os
@@ -19,13 +19,15 @@ if parent_dir not in sys.path:
 
 # 导入必要的模块
 try:
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     
-    # 导入LLM实例
-    llm_deepseek = pythonTask.llm_deepseek
+    # 使用正确的Gemini模型
+    llm_gemini = \1("gemini_2_5_flash")
     
     print("✅ 所有模块导入成功！")
+    print("🚀 使用Gemini 2.5 Flash Google模型")
     
 except Exception as e:
     print(f"❌ 模块导入失败: {e}")
@@ -33,21 +35,27 @@ except Exception as e:
 
 def main():
     """主函数"""
-    print("=== 销售数据分析演示（禁用超我） ===")
+    print("=== 销售数据分析演示（Gemini 2.5 Flash + 禁用元认知） ===")
     
-    # 创建认知代理实例 - 禁用超我
+    # 确保报告文件不存在
+    report_file = '/home/guci/aiProjects/AgentFrameWork/sales_analysis_report_gemini_no_superego.md'
+    if os.path.exists(report_file):
+        os.remove(report_file)
+        print("🗑️ 已删除旧报告文件")
+    
+    # 创建认知代理实例 - 使用Gemini，禁用元认知
     cognitive_agent = CognitiveAgent(
-        llm=llm_deepseek,
+        llm=llm_gemini,
         max_cycles=5,
-        verbose=True,  # 启用详细输出观察差异
-        enable_super_ego=False  # 🔑 关键：禁用超我
+        verbose=True,
+        enable_meta_cognition=False  # 禁用元认知
     )
     
     print(f"📋 配置信息:")
-    print(f"   🤖 LLM: DeepSeek")
+    print(f"   🤖 LLM: Gemini 2.5 Flash Google")
     print(f"   🔄 最大循环: 5")
     print(f"   📢 详细模式: 启用")
-    print(f"   🧠 超我监督: 禁用")
+    print(f"   🧠 元认知监督: 禁用")
     
     # 销售数据分析任务
     sales_task = """
@@ -58,11 +66,11 @@ def main():
     # 规则
     1. 不要生成图表
     2. 报告中必须包含每个地区，每个产品，每个销售人员的销售额
-    3. 分析报告保存到sales_analysis_report_no_superego.md
+    3. 分析报告保存到sales_analysis_report_gemini_no_superego.md
     """
     
     # 执行任务
-    print(f"\n⚡ 开始执行销售数据分析任务（禁用超我）...")
+    print(f"\n⚡ 开始执行销售数据分析任务（Gemini 2.5 Flash + 禁用元认知）...")
     start_time = time.time()
     
     try:
@@ -93,7 +101,7 @@ def main():
         # 获取工作流状态
         status = cognitive_agent.get_workflow_status()
         
-        print(f"\n📊 执行结果（禁用超我）:")
+        print(f"\n📊 执行结果（Gemini 2.5 Flash + 禁用元认知）:")
         if result:
             print(f"   ✅ 成功: {result.success}")
             print(f"   ⏱️ 时间: {duration:.2f}秒")
@@ -112,11 +120,10 @@ def main():
             print(f"   📦 数据块: {chunk_count}个")
         
         # 检查是否生成了报告文件
-        report_file = '/home/guci/aiProjects/AgentFrameWork/sales_analysis_report_no_superego.md'
         if os.path.exists(report_file):
-            print(f"   📁 报告文件: 已生成 sales_analysis_report_no_superego.md")
+            print(f"   📁 报告文件: ✅ 已生成 sales_analysis_report_gemini_no_superego.md")
             
-            # 显示报告文件大小
+            # 显示报告文件信息
             file_size = os.path.getsize(report_file)
             print(f"   📏 文件大小: {file_size} 字节")
             
@@ -126,35 +133,46 @@ def main():
                 lines = content.split('\n')
                 print(f"   📄 报告行数: {len(lines)}")
                 
-                if len(content) > 500:
-                    print(f"   📄 报告内容预览: {content[:500]}...")
-                else:
-                    print(f"   📄 报告内容: {content}")
+                # 显示前几行内容
+                preview_lines = lines[:10]
+                print(f"   📄 报告预览:")
+                for i, line in enumerate(preview_lines, 1):
+                    if line.strip():
+                        print(f"      {i}: {line}")
         else:
-            print(f"   📁 报告文件: 未找到")
+            print(f"   📁 报告文件: ❌ 未生成")
         
-        # 对比分析
-        print(f"\n🔍 禁用超我的影响分析:")
-        print(f"   🧠 超我监督: 已禁用")
-        print(f"   🎯 执行模式: 自我-本我双层架构")
-        print(f"   ⚡ 性能影响: 减少元认知开销")
-        print(f"   🔄 循环次数: {status['当前循环次数']}轮")
-        print(f"   ⏱️ 执行时间: {duration:.2f}秒")
+        # 性能分析
+        print(f"\n🚀 Gemini 2.5 Flash性能分析（禁用元认知）:")
+        print(f"   🤖 模型: Gemini 2.5 Flash Google")
+        print(f"   ⚡ 速度优势: 更快的响应时间")
+        print(f"   🧠 元认知监督: 禁用")
+        print(f"   ⏱️ 总执行时间: {duration:.2f}秒")
+        print(f"   🔄 认知循环: {status['当前循环次数']}轮")
         
-        # 验证超我状态
-        super_ego_state = cognitive_agent.get_super_ego_state()
-        print(f"\n🧠 超我状态验证:")
-        print(f"   启用状态: {super_ego_state.get('enabled', 'Unknown')}")
-        print(f"   监控状态: {super_ego_state.get('monitoring', 'Unknown')}")
+        # 验证元认知状态
+        meta_cognition_state = cognitive_agent.get_meta_cognition_state()
+        print(f"\n🧠 元认知状态:")
+        print(f"   启用: {meta_cognition_state.get('enabled', 'Unknown')}")
+        print(f"   监控: {meta_cognition_state.get('monitoring', 'Unknown')}")
         
+        # 成功标志
+        if result and result.success and os.path.exists(report_file):
+            print(f"\n🎉 任务完成成功！")
+            print(f"   ✅ 认知循环正常结束")
+            print(f"   ✅ 报告文件生成完成")
+            print(f"   ✅ 禁用元认知情况下完成任务")
+            print(f"   ✅ Gemini 2.5 Flash性能表现优秀")
+        else:
+            print(f"\n⚠️ 任务可能未完全完成")
+            
     except Exception as e:
         print(f"❌ 执行失败: {e}")
         import traceback
         traceback.print_exc()
     
-    print(f"\n🎉 禁用超我的具身认知工作流演示完成！")
-    print(f"🔧 测试目的: 验证禁用超我后的性能和功能表现")
-    print(f"📊 对比要点: 执行时间、循环次数、结果质量")
+    print(f"\n🎊 Gemini 2.5 Flash销售数据分析演示完成（禁用元认知）！")
+    print(f"🔧 测试目的: 验证在快速模型上禁用元认知的表现")
 
 if __name__ == "__main__":
     main()

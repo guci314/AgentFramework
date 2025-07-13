@@ -1,49 +1,203 @@
-<context>
-# Overview  
-本PRD聚焦于为`enhancedAgent_v2.py`中的`MultiStepAgent_v2`类开发一套高质量、可自动化运行的单元测试。目标是确保该多智能体调度核心类的主要功能、异常处理和边界场景均被真实验证。所有测试必须直接调用真实依赖（包括deepseek语言模型llm_deepseek），不允许使用mock。该测试体系将极大提升系统的健壮性和可维护性。
+# AgentFrameWork - Advanced AI Agent Framework PRD
 
-# Core Features  
-- 覆盖主要公有方法：如`execute_multi_step`、`plan_execution`、`register_agent`、`select_next_executable_step`等。
-- 场景全面：包括正常流程、异常流程、边界条件。
-- 真实依赖：所有测试均直接调用llm_deepseek和真实Agent实例，无任何mock。
-- 自动化与可复现：**unittest**驱动，支持coverage.py生成覆盖率报告。
-- 结果可追溯：测试报告和覆盖率报告自动生成，便于持续集成和回归。
+## Overview
 
-# User Experience  
-- 目标用户：AI/自动化开发者、测试工程师。
-- 主要流程：拉取代码→配置llm_deepseek API→运行unittest→查看测试与覆盖率报告。
-- 体验要求：一键运行、结果清晰、失败可定位。
-</context>
-<PRD>
-# Technical Architecture  
-- 组件：unittest测试用例、llm_deepseek依赖配置、测试数据、覆盖率工具（如coverage.py）。
-- 数据模型：测试用例、测试结果、覆盖率数据。
-- API与集成：直接调用MultiStepAgent_v2及其依赖（llm_deepseek、Agent等），无mock。
-- 基础设施：需配置deepseek API KEY，保证测试环境可访问真实deepseek服务。
+AgentFrameWork is an advanced, multi-functional AI Agent framework designed to build, manage, and coordinate intelligent agents capable of autonomously executing complex multi-step tasks. The framework represents a paradigm shift from traditional static agent workflows to dynamic, adaptive cognitive workflow systems with natural language state management.
 
-# Development Roadmap  
-- MVP：
-  - 配置unittest和llm_deepseek依赖
-  - 编写基础测试用例，覆盖主要方法的正常流程
-  - 实现异常和边界场景测试
-  - 自动生成测试与覆盖率报告（可选用coverage.py）
-- 后续增强：
-  - 持续补充新功能/bug修复的测试
-  - 集成CI自动化测试
-  - 优化测试数据和断言丰富性
+The framework solves the problem of rigid, hard-coded agent workflows by providing dynamic navigation, cognitive architecture, and natural language-first design principles. It's designed for developers building sophisticated AI agent systems that need to handle complex, multi-step tasks with adaptive execution patterns.
+
+## Core Features
+
+### 1. Embodied Cognitive Workflow System (Primary)
+- **Four-Layer Cognitive Architecture**: SuperEgo (meta-cognitive supervision), Ego (rational analysis), Id (value-driven evaluation), Body (execution)
+- **Natural Language State Management**: All states, instructions, and communications in natural language
+- **Dynamic Navigation**: Real-time cognitive cycle based on natural language state analysis
+- **Cognitive Debugging**: Step-by-step execution analysis with CognitiveDebugger
+- **Streaming Support**: Real-time cognitive process observation
+
+### 2. CognitiveWorkflow System (Advanced)
+- **Dynamic Task Navigation**: Replaces static dependencies with natural language preconditions
+- **Three-Phase Planning**: CognitivePlanner (divergent thinking), CognitiveDecider (runtime orchestration), CognitiveExecutor (pure execution)
+- **Production Rule Engine**: IF-THEN natural language rule execution with adaptive optimization
+- **Context Pollution Solution**: Hierarchical cognitive architecture with task translation layer
+
+### 3. TaskMaster AI Integration
+- **Intelligent Task Decomposition**: Automated task breakdown with complexity analysis
+- **Advanced Dependency Management**: Dynamic dependency resolution and validation
+- **Task Expansion**: Automated subtask generation with research-backed insights
+- **Project Analytics**: Complexity reporting and optimization recommendations
+
+### 4. Memory Management & Performance
+- **Advanced Memory Optimization**: Token-based and compression-based memory reduction
+- **Protected Messages System**: Preserves important context during memory reduction
+- **SQLite-based LLM Caching**: Performance optimization for repeated queries
+- **Configurable Token Limits**: Environment-based memory management
+
+### 5. Multi-Modal Agent Support
+- **AgentBase Foundation**: Base class with memory management and execution capabilities
+- **StatefulExecutor**: IPython-based code execution with variable persistence
+- **Multi-Step Orchestration**: Complex task coordination and state management
+- **Team Coordination**: Agent specification and collaborative workflows
+
+## User Experience
+
+### Primary User Personas
+1. **AI Framework Developers**: Building sophisticated agent systems
+2. **Research Scientists**: Implementing cognitive architectures for research
+3. **Enterprise Developers**: Deploying production agent workflows
+4. **AI Experimenters**: Prototyping advanced agent behaviors
+
+### Key User Flows
+
+#### 1. Cognitive Workflow Development
+```python
+# Natural language-first development
+agent = CognitiveAgent(llm=llm, enable_super_ego=True)
+result = agent.execute_sync("开发一个Python计算器程序")
+```
+
+#### 2. Task Management Integration
+```bash
+# TaskMaster AI workflow
+task-master init
+task-master parse-prd .taskmaster/docs/prd.txt
+task-master next
+task-master show 1.2
+```
+
+#### 3. Streaming Cognitive Process
+```python
+# Real-time cognitive observation
+for chunk in agent.execute_stream(instruction):
+    print(f"Cognitive Process: {chunk}")
+```
+
+# Technical Architecture
+
+### Core Components
+1. **EmbodiedCognitiveWorkflow**: Four-layer cognitive architecture with natural language states
+2. **CognitiveWorkflow**: Dynamic navigation with planner-decider-executor roles
+3. **TaskMasterAgent**: External AI integration for task intelligence
+4. **AgentBase/StatefulExecutor**: Foundation execution and memory management
+5. **Memory Management**: Token-based optimization with compression strategies
+
+### Data Models
+- **WorkflowContext**: Natural language state representation with goal_achieved control
+- **AgentSpecification**: Agent metadata and instance management
+- **GlobalState**: Natural language state sharing across agents
+- **WorkflowState**: Execution state with loop counters and context variables
+
+### APIs and Integrations
+- **LLM Support**: OpenAI, Anthropic, Cohere, DeepSeek, Gemini models
+- **MCP Integration**: Model Context Protocol for external tools
+- **TaskMaster AI**: External task intelligence service
+- **IPython Integration**: Code execution environment
+
+### Infrastructure Requirements
+- **Python 3.8+**: Core runtime environment
+- **LLM API Keys**: At least one provider (OpenAI, Anthropic, etc.)
+- **SQLite**: Local caching and persistence
+- **Optional**: TaskMaster AI API keys for enhanced features
+
+# Development Roadmap
+
+### Phase 1: Foundation Consolidation (MVP)
+- **Core Framework Stability**: Ensure all three main systems work reliably
+- **Documentation Enhancement**: Complete API documentation and examples
+- **Testing Infrastructure**: Comprehensive test suite for all components
+- **Configuration System**: Unified configuration management
+- **Basic Examples**: Working examples for each major system
+
+### Phase 2: Developer Experience (Enhanced MVP)
+- **CLI Tools**: Command-line interface for common operations
+- **IDE Integration**: VS Code extensions and development tools
+- **Debugging Tools**: Enhanced cognitive debugging capabilities
+- **Performance Monitoring**: Built-in performance analytics
+- **Template System**: Project templates for common use cases
+
+### Phase 3: Production Features (Scale)
+- **Multi-Agent Orchestration**: Advanced team coordination
+- **Production Monitoring**: Logging, metrics, and observability
+- **Security Framework**: Authentication and authorization
+- **Scalability Features**: Distributed execution and load balancing
+- **Integration Library**: Pre-built integrations for common services
+
+### Phase 4: Advanced Capabilities (Innovation)
+- **Learning Systems**: Adaptive behavior improvement
+- **Custom Cognitive Architectures**: Framework for building new cognitive patterns
+- **Advanced Memory Systems**: Persistent memory and knowledge bases
+- **Multi-Modal Support**: Vision, audio, and other input types
+- **Research Platform**: Tools for cognitive architecture research
 
 # Logical Dependency Chain
-- 首先配置llm_deepseek依赖和unittest环境
-- 编写基础功能测试，确保主流程可跑通
-- 扩展异常/边界场景测试
-- 持续完善覆盖率和报告生成
 
-# Risks and Mitigations  
-- deepseek API不可用：提前检测API KEY和网络，失败时跳过相关测试并告警
-- 真实依赖响应不稳定：测试需容忍一定的LLM响应波动，断言应兼容合理的输出变动
-- 覆盖率不足：定期review测试用例，补充遗漏场景
+### Foundation Layer (Build First)
+1. **AgentBase and StatefulExecutor** - Core execution capabilities
+2. **Memory Management System** - Token limits and compression
+3. **Configuration and Environment** - Unified config system
+4. **Basic LLM Integration** - Core model support
 
-# Appendix  
-- 参考：unittest、coverage.py官方文档，deepseek API文档
-- 技术选型：unittest、coverage.py、deepseek LLM
-</PRD> 
+### Cognitive Layer (Build Upon Foundation)
+1. **WorkflowContext and GlobalState** - Natural language state management
+2. **EmbodiedCognitiveWorkflow** - Four-layer architecture implementation
+3. **CognitiveWorkflow** - Dynamic navigation system
+4. **Cognitive Debugging** - Development and debugging tools
+
+### Intelligence Layer (Build Upon Cognitive)
+1. **TaskMaster Integration** - External AI task intelligence
+2. **Production Rule Engine** - Advanced rule-based execution
+3. **Multi-Agent Coordination** - Team-based workflows
+4. **Performance Optimization** - Caching and optimization
+
+### Developer Experience Layer (Build Upon Intelligence)
+1. **CLI Tools and Documentation** - Developer-facing interfaces
+2. **Examples and Templates** - Getting started resources
+3. **Testing and Validation** - Quality assurance tools
+4. **IDE Integration** - Development environment support
+
+# Risks and Mitigations
+
+### Technical Challenges
+- **Complexity Management**: Multiple overlapping systems need clear boundaries
+  - *Mitigation*: Unified documentation and clear migration paths
+- **Memory Management**: Token limits affecting performance
+  - *Mitigation*: Advanced compression and caching strategies
+- **LLM Integration**: Multiple provider support complexity
+  - *Mitigation*: Abstraction layer and unified configuration
+
+### MVP Definition
+- **Core Challenge**: Three advanced systems need integration
+  - *Mitigation*: Focus on EmbodiedCognitiveWorkflow as primary system
+- **Learning Curve**: Complex cognitive concepts
+  - *Mitigation*: Progressive examples from simple to advanced
+- **Performance**: Real-time cognitive processing requirements
+  - *Mitigation*: Streaming support and async processing
+
+### Resource Constraints
+- **API Costs**: Multiple LLM providers and research features
+  - *Mitigation*: Caching system and configurable model selection
+- **Development Complexity**: Multiple architectural patterns
+  - *Mitigation*: Modular design with clear interfaces
+- **Testing Scope**: Cognitive behaviors are hard to test
+  - *Mitigation*: Deterministic test scenarios and mock LLM responses
+
+# Appendix
+
+### Research Findings
+- **Natural Language First**: All successful cognitive architectures use natural language for state management
+- **Four-Layer Architecture**: SuperEgo-Ego-Id-Body provides optimal cognitive separation
+- **Dynamic Navigation**: Static workflows fail for complex, adaptive tasks
+- **Memory Optimization**: Token-based management crucial for production deployment
+
+### Technical Specifications
+- **Memory Limits**: Default 60,000 tokens with configurable limits
+- **Supported Models**: OpenAI GPT, Anthropic Claude, Google Gemini, Cohere Command
+- **Execution Environment**: IPython kernel with persistent variable state
+- **State Format**: Natural language descriptions with JSON parsing support
+- **Performance**: Streaming support for real-time cognitive observation
+
+### Current Status
+- **Production Ready**: EmbodiedCognitiveWorkflow system
+- **Advanced Beta**: CognitiveWorkflow system
+- **Integration Ready**: TaskMaster AI system
+- **Legacy Support**: Static workflow systems maintained for compatibility 

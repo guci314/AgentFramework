@@ -14,7 +14,7 @@ sys.path.append(str(project_root))
 
 from langchain_openai import ChatOpenAI
 from task_master_agent import TaskMasterAgent, AgentSpecification
-from pythonTask import Agent, llm_deepseek_openrouter
+from python_core import Agent, get_model("deepseek_chat")_openrouter
 from agent_base import Result
 import logging
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def create_sample_agents():
     """创建示例智能体"""
     # 使用 OpenRouter 的 DeepSeek 模型
-    llm = llm_deepseek_openrouter
+    llm = get_model("deepseek_chat")_openrouter
     
     # 创建编程智能体
     coder_agent = Agent(llm=llm, stateful=True)
@@ -67,7 +67,7 @@ def basic_usage_example():
         
         # 3. 初始化 TaskMasterAgent
         print("\n2. 初始化 TaskMasterAgent...")
-        llm = llm_deepseek_openrouter
+        llm = get_model("deepseek_chat")_openrouter
         
         tm_agent = TaskMasterAgent(
             project_root=str(project_dir),
@@ -140,7 +140,7 @@ def mixed_mode_example():
         project_dir.mkdir(exist_ok=True)
         
         agent_specs = create_sample_agents()
-        llm = llm_deepseek_openrouter
+        llm = get_model("deepseek_chat")_openrouter
         
         tm_agent = TaskMasterAgent(
             project_root=str(project_dir),
@@ -212,7 +212,7 @@ def prd_driven_example():
         project_dir.mkdir(exist_ok=True)
         
         agent_specs = create_sample_agents()
-        llm = llm_deepseek_openrouter
+        llm = get_model("deepseek_chat")_openrouter
         
         tm_agent = TaskMasterAgent(
             project_root=str(project_dir),

@@ -16,7 +16,7 @@ sys.path.append(str(project_root))
 
 from langchain_openai import ChatOpenAI
 from task_master_agent import TaskMasterAgent, AgentSpecification
-from pythonTask import Agent
+from python_core import Agent
 import logging
 
 # 设置日志

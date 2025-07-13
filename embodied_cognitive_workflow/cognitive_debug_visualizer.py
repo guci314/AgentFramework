@@ -789,12 +789,13 @@ if __name__ == "__main__":
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
-    from pythonTask import Agent, llm_deepseek
+    from python_core import Agent
+    from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     from cognitive_debug_agent import CognitiveDebugAgent
     
     # 创建测试实例
-    base_agent = Agent(llm=llm_deepseek)
+    base_agent = Agent(llm=get_model("deepseek_chat"))
     ego_agent = base_agent
     id_agent = base_agent
     
@@ -802,12 +803,12 @@ if __name__ == "__main__":
         ego=ego_agent,
         id=id_agent,
         body_agents={"main": base_agent},
-        llm=llm_deepseek
+        llm=get_model("deepseek_chat")
     )
     
     debug_agent = CognitiveDebugAgent(
         cognitive_agent=cognitive_agent,
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         enable_debugging=True
     )
     

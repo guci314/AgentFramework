@@ -11,7 +11,7 @@ from pathlib import Path
 from langchain_openai import ChatOpenAI
 
 # 导入必要的模块
-from pythonTask import Agent
+from python_core import Agent
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3
 
 from dotenv import load_dotenv
@@ -33,7 +33,7 @@ def main():
         return
     
     # 配置DeepSeek模型
-    llm_deepseek = ChatOpenAI(
+    get_model("deepseek_chat") = ChatOpenAI(
         temperature=0,
         model="deepseek-chat",  
         base_url="https://api.deepseek.com",
@@ -46,11 +46,11 @@ def main():
     try:
         # 初始化MultiStepAgent_v3
         print("\n🚀 初始化MultiStepAgent_v3...")
-        agent_v3 = MultiStepAgent_v3(llm=llm_deepseek)
+        agent_v3 = MultiStepAgent_v3(llm=get_model("deepseek_chat"))
         
         # 创建智能体团队
         print("👥 创建智能体团队...")
-        setup_agent_team(agent_v3, llm_deepseek)
+        setup_agent_team(agent_v3, get_model("deepseek_chat"))
         
         # 演示工作流列表
         print("\n📋 可用工作流:")

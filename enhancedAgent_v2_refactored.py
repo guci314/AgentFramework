@@ -2,7 +2,7 @@
 # 主要重构了 execute_multi_step 方法，将其拆分为多个小方法
 
 from agent_base import Result, reduce_memory_decorator
-from pythonTask import StatefulExecutor, Agent
+from python_core import StatefulExecutor, Agent
 from langchain_core.language_models import BaseChatModel
 from typing import Dict, List, Any, Optional, Tuple
 import json

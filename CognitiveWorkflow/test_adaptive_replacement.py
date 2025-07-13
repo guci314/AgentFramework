@@ -18,11 +18,7 @@ from cognitive_workflow_rule_base.services.adaptive_replacement_service import A
 from cognitive_workflow_rule_base.services.language_model_service import LanguageModelService
 from cognitive_workflow_rule_base.domain.entities import ProductionRule, GlobalState
 from cognitive_workflow_rule_base.domain.value_objects import RulePhase, ReplacementStrategyType
-from pythonTask import llm_deepseek
-
-def create_test_rules():
-    """创建测试规则"""
-    existing_rules = [
+from llm_lazy import get_modelng_rules = [
         ProductionRule(
             id="rule_001",
             name="分析需求",
@@ -104,7 +100,7 @@ def test_situation_assessment():
     """测试情境评估功能"""
     print("🔍 测试情境评估功能...")
     
-    llm_service = LanguageModelService(llm_deepseek)
+    llm_service = LanguageModelService(get_model("deepseek_chat"))
     adaptive_service = AdaptiveReplacementService(llm_service)
     
     existing_rules, new_rules = create_test_rules()
@@ -136,7 +132,7 @@ def test_strategy_selection(situation_score):
     """测试策略选择功能"""
     print("\n🎯 测试策略选择功能...")
     
-    llm_service = LanguageModelService(llm_deepseek)
+    llm_service = LanguageModelService(get_model("deepseek_chat"))
     adaptive_service = AdaptiveReplacementService(llm_service)
     
     context = {
@@ -163,7 +159,7 @@ def test_adaptive_replacement():
     """测试完整的自适应替换流程"""
     print("\n🔄 测试完整的自适应替换流程...")
     
-    llm_service = LanguageModelService(llm_deepseek)
+    llm_service = LanguageModelService(get_model("deepseek_chat"))
     adaptive_service = AdaptiveReplacementService(llm_service)
     
     existing_rules, new_rules = create_test_rules()

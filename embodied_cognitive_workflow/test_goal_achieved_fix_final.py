@@ -13,16 +13,17 @@ if project_dir not in sys.path:
 
 from embodied_cognitive_workflow import CognitiveAgent
 from cognitive_debugger import CognitiveDebugger, StepType
-import pythonTask
+from python_core import *
+from llm_lazy import get_model
 
 print("🎯 最终验证：WorkflowContext.goal_achieved 正确判断工作流完成")
 
 # 创建简单的认知智能体
 agent = CognitiveAgent(
-    llm=pythonTask.llm_gemini_2_5_flash_google,
+    llm=\1("gemini_2_5_flash"),
     max_cycles=3,
     verbose=False,
-    enable_super_ego=False,
+    enable_meta_cognition=False,
     evaluation_mode="external"  # 使用外部评估模式，通过JSON返回goal_achieved
 )
 

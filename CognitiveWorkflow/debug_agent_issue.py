@@ -12,7 +12,7 @@ current_dir = Path(__file__).parent
 project_root = current_dir / "CognitiveWorkflow"
 sys.path.append(str(project_root.parent))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base import create_production_rule_system
 from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
@@ -22,10 +22,10 @@ def test_agent_registry_issue():
     print("=== 调试Agent获取问题 ===")
     
     # 1. 创建基础Agent
-    base_coder = Agent(llm=llm_deepseek)
+    base_coder = Agent(llm=get_model("deepseek_chat"))
     base_coder.api_specification = '代码专家，擅长编写和调试代码'
     
-    base_tester = Agent(llm=llm_deepseek)
+    base_tester = Agent(llm=get_model("deepseek_chat"))
     base_tester.api_specification = '测试专家，擅长编写测试用例'
     
     # 2. 创建IntelligentAgentWrapper包装器 - 显式指定名称
@@ -46,7 +46,7 @@ def test_agent_registry_issue():
     # 3. 创建外部workflow_engine
     agents = {"coder": coder, "tester": tester}
     workflow_engine = create_production_rule_system(
-        llm=llm_deepseek,
+        llm=get_model("deepseek_chat"),
         agents=agents,
         enable_auto_recovery=True
     )

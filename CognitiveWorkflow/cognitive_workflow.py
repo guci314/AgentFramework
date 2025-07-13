@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from agent_base import Result
-from pythonTask import Agent, StatefulExecutor
+from python_core import Agent, StatefulExecutor
 
 def safe_get_result_return_value(result):
     """安全获取Result对象的返回值内容，优先获取return_value字段"""

@@ -5,11 +5,11 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 
 # 创建Agent实例
 print("创建Agent实例...")
-agent = Agent(llm=llm_deepseek, stateful=True, max_retries=3, skip_generation=True)
+agent = Agent(llm=get_model("deepseek_chat"), stateful=True, max_retries=3, skip_generation=True)
 
 # 测试命令
 test_commands = [

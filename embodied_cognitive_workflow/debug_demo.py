@@ -26,7 +26,7 @@ agent = CognitiveAgent(
     llm=get_model('gemini_2_5_flash'),  # 使用真正懒加载的Gemini模型
     max_cycles=5,          # 最大循环次数
     verbose=False,         # 关闭详细输出（调试器会提供更好的输出）
-    enable_super_ego=False # 简化示例，关闭超我监督
+    enable_meta_cognition=False # 简化示例，关闭元认知监督
 )
 
 # 创建调试器

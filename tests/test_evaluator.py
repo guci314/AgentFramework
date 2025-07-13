@@ -12,7 +12,8 @@ import json
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pythonTask import Evaluator, Thinker, StatefulExecutor, llm_deepseek
+from python_core import Evaluator, Thinker, StatefulExecutor
+from llm_lazy import get_model
 from agent_base import Result
 from mda.prompts import default_evaluate_message
 
@@ -30,7 +31,7 @@ class TestEvaluatorBasic(unittest.TestCase):
         if not os.getenv('DEEPSEEK_API_KEY'):
             self.skipTest("需要DEEPSEEK_API_KEY环境变量")
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message)
         
         # 验证初始化属性
         self.assertIsNotNone(evaluator.llm)
@@ -43,7 +44,7 @@ class TestEvaluatorBasic(unittest.TestCase):
         if not os.getenv('DEEPSEEK_API_KEY'):
             self.skipTest("需要DEEPSEEK_API_KEY环境变量")
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message)
         
         # 加载知识
         knowledge1 = "Python是一种高级编程语言"
@@ -61,7 +62,7 @@ class TestEvaluatorBasic(unittest.TestCase):
         if not os.getenv('DEEPSEEK_API_KEY'):
             self.skipTest("需要DEEPSEEK_API_KEY环境变量")
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message)
         
         # 测试明显的错误结果
         error_result = Result(
@@ -85,8 +86,8 @@ class TestEvaluatorWithDeepSeek(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device)
-        self.evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message, thinker=self.thinker)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
+        self.evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message, thinker=self.thinker)
     
     def test_successful_task_evaluation(self):
         """测试成功任务的评估"""
@@ -196,7 +197,7 @@ class TestEvaluatorCustomCriteria(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
     
     def test_custom_evaluation_message(self):
         """测试自定义评估消息"""
@@ -219,7 +220,7 @@ class TestEvaluatorCustomCriteria(unittest.TestCase):
         {result}
         '''
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=custom_message, thinker=self.thinker)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=custom_message, thinker=self.thinker)
         
         # 测试符合条件的结果
         good_result = Result(
@@ -255,7 +256,7 @@ class TestEvaluatorCustomCriteria(unittest.TestCase):
         # 代码执行结果：{result}
         '''
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=strict_message, thinker=self.thinker)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=strict_message, thinker=self.thinker)
         
         # 测试不完全符合严格标准的结果
         partial_result = Result(
@@ -284,8 +285,8 @@ class TestEvaluatorWithKnowledge(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device)
-        self.evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message, thinker=self.thinker)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
+        self.evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message, thinker=self.thinker)
     
     def test_evaluation_with_domain_knowledge(self):
         """测试带领域知识的评估"""
@@ -390,7 +391,7 @@ class TestEvaluatorErrorHandling(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.device = StatefulExecutor()
-        self.thinker = Thinker(llm=llm_deepseek, device=self.device)
+        self.thinker = Thinker(llm=get_model("deepseek_v3"), device=self.device)
     
     def test_evaluation_with_malformed_json(self):
         """测试处理格式错误的JSON响应"""
@@ -402,7 +403,7 @@ class TestEvaluatorErrorHandling(unittest.TestCase):
         结果：{result}
         '''
         
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=problematic_message, thinker=self.thinker)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=problematic_message, thinker=self.thinker)
         
         test_result = Result(
             success=True,
@@ -427,7 +428,7 @@ class TestEvaluatorErrorHandling(unittest.TestCase):
     
     def test_evaluation_with_empty_result(self):
         """测试评估空结果"""
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message, thinker=self.thinker)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message, thinker=self.thinker)
         
         empty_result = Result(
             success=True,
@@ -449,7 +450,7 @@ class TestEvaluatorErrorHandling(unittest.TestCase):
     
     def test_evaluation_retry_mechanism(self):
         """测试评估重试机制"""
-        evaluator = Evaluator(llm=llm_deepseek, systemMessage=default_evaluate_message, thinker=self.thinker)
+        evaluator = Evaluator(llm=get_model("deepseek_v3"), systemMessage=default_evaluate_message, thinker=self.thinker)
         
         # 创建一个可能导致解析问题的复杂结果
         complex_result = Result(

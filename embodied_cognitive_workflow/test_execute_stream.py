@@ -18,12 +18,13 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 try:
-    import pythonTask
+    from python_core import *
+from llm_lazy import get_model
     from embodied_cognitive_workflow import CognitiveAgent
     from agent_base import Result
     
     # 使用Gemini模型
-    llm_gemini = pythonTask.llm_gemini_2_5_flash_google
+    llm_gemini = \1("gemini_2_5_flash")
     
     print("✅ 所有模块导入成功！")
     
@@ -40,7 +41,7 @@ def test_execute_stream_basic():
         llm=llm_gemini,
         max_cycles=5,
         verbose=True,
-        enable_super_ego=False,  # 简化测试，关闭超我
+        enable_meta_cognition=False,  # 简化测试，关闭元认知
         evaluation_mode="internal"
     )
     
@@ -73,15 +74,15 @@ def test_execute_stream_basic():
         return False
 
 def test_execute_stream_with_super_ego():
-    """测试带超我监督的流式执行"""
-    print("\n🧪 测试带超我监督的流式执行...")
+    """测试带元认知监督的流式执行"""
+    print("\n🧪 测试带元认知监督的流式执行...")
     
-    # 创建带超我监督的认知智能体
+    # 创建带元认知监督的认知智能体
     agent = CognitiveAgent(
         llm=llm_gemini,
         max_cycles=5,
         verbose=True,
-        enable_super_ego=True,  # 启用超我监督
+        enable_meta_cognition=True,  # 启用元认知监督
         evaluation_mode="internal"
     )
     
@@ -122,7 +123,7 @@ def test_execute_stream_vs_sync():
         llm=llm_gemini,
         max_cycles=5,
         verbose=False,  # 关闭详细输出以便比较
-        enable_super_ego=False,
+        enable_meta_cognition=False,
         evaluation_mode="internal"
     )
     
@@ -164,7 +165,7 @@ def main():
     # 测试1：基本流式执行
     test_results.append(test_execute_stream_basic())
     
-    # 测试2：带超我监督的流式执行
+    # 测试2：带元认知监督的流式执行
     test_results.append(test_execute_stream_with_super_ego())
     
     # 测试3：流式 vs 同步执行比较
@@ -174,7 +175,7 @@ def main():
     print("\n" + "=" * 60)
     print("📊 测试结果汇总:")
     print(f"✅ 基本流式执行: {'通过' if test_results[0] else '失败'}")
-    print(f"✅ 超我监督流式执行: {'通过' if test_results[1] else '失败'}")
+    print(f"✅ 元认知监督流式执行: {'通过' if test_results[1] else '失败'}")
     print(f"✅ 流式vs同步对比: {'通过' if test_results[2] else '失败'}")
     
     success_count = sum(test_results)

@@ -21,13 +21,13 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from embodied_cognitive_workflow.embodied_cognitive_workflow import (
-    EmbodiedCognitiveWorkflow, WorkflowContext, WorkflowStatus,
-    DecisionType, CycleOutcome, create_embodied_cognitive_workflow,
-    execute_embodied_cognitive_task
+    CognitiveAgent, WorkflowContext, WorkflowStatus,
+    DecisionType, CycleOutcome, create_cognitive_agent,
+    execute_cognitive_task
 )
 from embodied_cognitive_workflow.ego_agent import EgoAgent
 from embodied_cognitive_workflow.id_agent import IdAgent
-from pythonTask import Agent
+from python_core import Agent
 from agent_base import Result
 
 
@@ -40,7 +40,7 @@ class TestWorkflowInitialization(unittest.TestCase):
     
     def test_basic_initialization(self):
         """测试基础初始化"""
-        workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm)
+        workflow = CognitiveAgent(llm=self.mock_llm)
         
         self.assertIsNotNone(workflow.body)
         self.assertIsNotNone(workflow.ego)
@@ -56,7 +56,7 @@ class TestWorkflowInitialization(unittest.TestCase):
         ego_config = {"system_message": "test ego message"}
         id_config = {"system_message": "test id message"}
         
-        workflow = EmbodiedCognitiveWorkflow(
+        workflow = CognitiveAgent(
             llm=self.mock_llm,
             body_config=body_config,
             ego_config=ego_config,
@@ -71,7 +71,7 @@ class TestWorkflowInitialization(unittest.TestCase):
     
     def test_knowledge_loading(self):
         """测试知识加载"""
-        workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm, verbose=False)
+        workflow = CognitiveAgent(llm=self.mock_llm, verbose=False)
         
         # 模拟组件的loadKnowledge方法
         workflow.ego.loadKnowledge = Mock()
@@ -88,7 +88,7 @@ class TestWorkflowInitialization(unittest.TestCase):
     
     def test_python_module_loading(self):
         """测试Python模块加载"""
-        workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm, verbose=False)
+        workflow = CognitiveAgent(llm=self.mock_llm, verbose=False)
         
         workflow.body.loadPythonModules = Mock()
         
@@ -157,7 +157,7 @@ class TestCognitiveCycle(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.mock_llm = Mock()
-        self.workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm, verbose=False)
+        self.workflow = CognitiveAgent(llm=self.mock_llm, verbose=False)
         
         # 模拟各个组件的方法
         self.workflow.ego = Mock(spec=EgoAgent)
@@ -280,7 +280,7 @@ class TestDecisionHandling(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.mock_llm = Mock()
-        self.workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm, verbose=False)
+        self.workflow = CognitiveAgent(llm=self.mock_llm, verbose=False)
         
         # 模拟组件
         self.workflow.ego = Mock(spec=EgoAgent)
@@ -420,7 +420,7 @@ class TestWorkflowManagement(unittest.TestCase):
     def setUp(self):
         """测试前准备"""
         self.mock_llm = Mock()
-        self.workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm, verbose=False)
+        self.workflow = CognitiveAgent(llm=self.mock_llm, verbose=False)
     
     def test_workflow_status_tracking(self):
         """测试工作流状态跟踪"""
@@ -484,20 +484,20 @@ class TestUtilityFunctions(unittest.TestCase):
         """测试前准备"""
         self.mock_llm = Mock()
     
-    def test_create_embodied_cognitive_workflow(self):
+    def test_create_cognitive_agent(self):
         """测试工作流创建便利函数"""
-        workflow = create_embodied_cognitive_workflow(
+        workflow = create_cognitive_agent(
             self.mock_llm,
             max_cycles=100,
             verbose=False
         )
         
-        self.assertIsInstance(workflow, EmbodiedCognitiveWorkflow)
+        self.assertIsInstance(workflow, CognitiveAgent)
         self.assertEqual(workflow.max_cycles, 100)
         self.assertFalse(workflow.verbose)
     
-    @patch('embodied_cognitive_workflow.embodied_cognitive_workflow.EmbodiedCognitiveWorkflow')
-    def test_execute_embodied_cognitive_task(self, mock_workflow_class):
+    @patch('embodied_cognitive_workflow.embodied_cognitive_workflow.CognitiveAgent')
+    def test_execute_cognitive_task(self, mock_workflow_class):
         """测试任务执行便利函数"""
         # 模拟工作流实例
         mock_workflow = Mock()
@@ -506,7 +506,7 @@ class TestUtilityFunctions(unittest.TestCase):
         )
         mock_workflow_class.return_value = mock_workflow
         
-        result = execute_embodied_cognitive_task(
+        result = execute_cognitive_task(
             self.mock_llm,
             "测试任务",
             verbose=False
@@ -561,7 +561,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         mock_body.chat_sync.return_value = Result(True, "", "最终状态", None, "")
         
         # 执行工作流
-        workflow = EmbodiedCognitiveWorkflow(llm=self.mock_llm, verbose=False)
+        workflow = CognitiveAgent(llm=self.mock_llm, verbose=False)
         result = workflow.execute_cognitive_cycle("创建计算器")
         
         self.assertTrue(result.success)

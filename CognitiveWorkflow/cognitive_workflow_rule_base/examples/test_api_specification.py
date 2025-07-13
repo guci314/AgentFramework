@@ -18,7 +18,7 @@ cognitive_workflow_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path
 sys.path.append(project_root)
 sys.path.append(cognitive_workflow_dir)
 
-from pythonTask import Agent, llm_deepseek
+from python_core import Agent, get_model("deepseek_chat")
 from cognitive_workflow_rule_base.application.cognitive_workflow_agent_wrapper import IntelligentAgentWrapper
 
 def test_api_specification():
@@ -28,7 +28,7 @@ def test_api_specification():
     
     # 1. 创建基础Agent
     print("📝 步骤1: 创建基础Agent")
-    base_agent = Agent(llm=llm_deepseek)
+    base_agent = Agent(llm=get_model("deepseek_chat"))
     print(f"✅ 基础Agent: {type(base_agent).__name__}")
     
     # 2. 设置base_agent的api_specification
@@ -137,7 +137,7 @@ Python编程专家，精通以下领域：
         def __init__(self, llm):
             self.llm = llm
     
-    simple_agent = SimpleAgent(llm_deepseek)
+    simple_agent = SimpleAgent(get_model("deepseek_chat"))
     cognitive_agent_simple = CognitiveAgent(simple_agent)
     
     simple_api_spec = cognitive_agent_simple.api_specification
@@ -167,7 +167,7 @@ def demo_usage():
     print("-" * 60)
     
     # 创建专门化的Agent
-    base_agent = Agent(llm=llm_deepseek)
+    base_agent = Agent(llm=get_model("deepseek_chat"))
     base_agent.api_specification = """
 数据科学专家Agent，专精于：
 

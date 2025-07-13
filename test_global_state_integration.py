@@ -20,7 +20,7 @@ from static_workflow.workflow_definitions import (
     StepExecutionStatus, WorkflowExecutionContext
 )
 from static_workflow.MultiStepAgent_v3 import MultiStepAgent_v3, RegisteredAgent
-from pythonTask import Agent
+from python_core import Agent
 
 
 def create_mock_llm_with_states():
