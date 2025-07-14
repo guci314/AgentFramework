@@ -484,7 +484,7 @@ class StepExecutor:
             evaluation_json = self.agent.id_agent.evaluate_with_context(
                 evaluation_request, 
                 debug_state.workflow_context.current_state,
-                body_executor=self.agent.body
+                agents=self.agent.agents
             )
         
         # 解析JSON评估结果
@@ -518,11 +518,29 @@ class StepExecutor:
     
     def _execute_body_execution(self, input_data: Any, debug_state: DebugState) -> tuple:
         """身体执行步骤"""
-        # 构建认知步骤的执行指令
-        current_context = debug_state.workflow_context.get_current_context()
-        
-        # 调用真实的身体执行方法
-        execution_result = self.agent.body.execute_sync(current_context)
+        # 检查是否是直接执行模式
+        if isinstance(input_data, bool) and input_data:  # can_handle_directly = True
+            # 直接执行模式
+            instruction = debug_state.workflow_context.instruction
+            quick_prompt = f"""直接完成以下任务：
+{instruction}
+
+请提供清晰、准确的结果。"""
+            execution_result = self.agent._execute_body_operation(quick_prompt)
+        else:
+            # 认知循环模式
+            current_context = debug_state.workflow_context.get_current_context()
+            # 使用默认的第一个Agent执行
+            default_agent = self.agent.agents[0] if self.agent.agents else None
+            if default_agent:
+                execution_result = default_agent.execute_sync(current_context)
+            else:
+                execution_result = Result(
+                    success=False,
+                    code="",
+                    stderr="没有可用的Agent",
+                    return_value=""
+                )
         
         # 记录执行结果到历史中
         if execution_result.success and execution_result.return_value:
@@ -530,13 +548,15 @@ class StepExecutor:
             debug_state.workflow_context.add_cycle_result(debug_state.cycle_count, cycle_data)
         
         debug_info = {
-            "context": current_context,
-            "execution_result": execution_result.to_dict(),
+            "execution_mode": "direct" if (isinstance(input_data, bool) and input_data) else "cognitive_cycle",
+            "execution_result": execution_result.to_dict() if hasattr(execution_result, 'to_dict') else str(execution_result),
             "success": execution_result.success,
-            "agent_method": "body.execute_sync"
+            "agent_method": "_execute_body_operation" if (isinstance(input_data, bool) and input_data) else "agent.execute_sync"
         }
         
-        return execution_result, StepType.CYCLE_END, "Body", debug_info
+        # 直接执行模式应该结束，而不是继续循环
+        next_step = StepType.FINALIZE if (isinstance(input_data, bool) and input_data) else StepType.CYCLE_END
+        return execution_result, next_step, "Body", debug_info
     
     def _execute_cycle_end(self, input_data: Any, debug_state: DebugState) -> tuple:
         """循环结束步骤"""
@@ -1039,7 +1059,7 @@ class CognitiveDebugger:
         agent_layers_status = {
             "ego": {"available": bool(self.wrapped_agent.ego)},
             "id": {"available": bool(self.wrapped_agent.id_agent)},
-            "body": {"available": bool(self.wrapped_agent.body)},
+            "agents": {"available": bool(self.wrapped_agent.agents), "count": len(self.wrapped_agent.agents) if self.wrapped_agent.agents else 0},
             "meta_cognition": {
                 "available": bool(self.wrapped_agent.meta_cognition),
                 "enabled": self.wrapped_agent.enable_meta_cognition
