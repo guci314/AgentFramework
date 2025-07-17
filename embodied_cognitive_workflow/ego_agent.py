@@ -11,7 +11,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent_base import AgentBase, Result
 from langchain_core.language_models import BaseChatModel
-from typing import Literal
+from typing import Literal, Tuple, Optional, List, Dict
+
+try:
+    from .decision_types import Decision, DecisionType
+except ImportError:
+    from decision_types import Decision, DecisionType
 
 
 class EgoAgent(AgentBase):
@@ -75,32 +80,56 @@ class EgoAgent(AgentBase):
         result = self.chat_sync(message)
         return result.return_value
     
-    def decide_next_action(self, state_analysis: str) -> Literal["继续循环", "请求评估", "判断失败"]:
+    def decide_next_action(self, state_analysis: str, available_agents: Optional[List[AgentBase]] = None) -> Decision:
         """
         基于状态分析决定下一步行动方向
         
         Args:
             state_analysis: 当前状态的分析结果
+            available_agents: 可用Agent实例列表
             
         Returns:
-            str: 决策结果 - "继续循环"、"请求评估"或"判断失败"
+            Decision: 包含决策类型、执行者Agent和执行指令的决策对象
         """
+        # 构建Agent信息部分
+        agents_info = ""
+        agent_map = {}  # 用于根据名称查找Agent实例
+        if available_agents:  # 即使只有一个Agent也显示信息
+            agents_info = "\n\n可用的执行者（Agent）：\n"
+            for agent in available_agents:
+                agent_name = getattr(agent, 'name', agent.__class__.__name__)
+                agent_spec = getattr(agent, 'api_specification', '通用执行能力')
+                agents_info += f"- {agent_name}: {agent_spec}\n"
+                agent_map[agent_name] = agent
+            if len(available_agents) == 1:
+                agents_info += f"\n重要：只有一个可用的执行者，请在'执行者'字段使用'{agent_name}'。"
+            else:
+                agents_info += "\n重要：如果选择'执行指令'，必须在'执行者'字段指定上述列表中的一个Agent名称。"
+        
         message = f"""基于以下状态分析，决定下一步行动：
 
 状态分析：
 {state_analysis}
+{agents_info}
 
 请分析情况并选择下一步行动。返回JSON格式：
 
 {{
     "决策": "选择的行动",
+    "指令": "如果决策是执行指令，请提供具体的执行指令",
+    "执行者": "如果决策是执行指令，必须从上述Agent列表中选择一个执行者名称",
     "理由": "简要说明理由"
 }}
 
 可选的行动：
-- "继续循环" - 如果认为可以继续执行下去，还有明确的下一步行动
+- "执行指令" - 如果需要执行具体操作，同时在"指令"字段提供具体的执行指令
 - "请求评估" - 如果认为可能已经达到目标，需要本我进行评估确认  
-- "判断失败" - 如果认为目标无法达成，存在无法解决的问题"""
+- "判断失败" - 如果认为目标无法达成，存在无法解决的问题
+
+注意事项：
+- 执行者必须是上面列出的Agent之一，不能选择"自我智能体"或其他不在列表中的名称
+- 如果只有一个Agent，直接使用那个Agent的名称
+- 如果没有提供Agent列表，执行者字段可以留空"""
 
         result = self.chat_sync(message, response_format={"type": "json_object"})
         
@@ -108,17 +137,36 @@ class EgoAgent(AgentBase):
             import json
             response_data = json.loads(result.return_value.strip())
             decision = response_data.get("决策", "").strip()
+            instruction = response_data.get("指令", "")
+            agent_name = response_data.get("执行者", "")
             
-            # 确保返回值是有效选项之一
-            valid_options = ["继续循环", "请求评估", "判断失败"]
-            if decision in valid_options:
-                return decision
-            else:
-                # 如果返回值不明确，默认请求评估
-                return "请求评估"
+            # 将字符串决策转换为DecisionType枚举
+            decision_mapping = {
+                "请求评估": DecisionType.REQUEST_EVALUATION,
+                "判断失败": DecisionType.JUDGMENT_FAILED,
+                "执行指令": DecisionType.EXECUTE_INSTRUCTION
+            }
+            
+            decision_type = decision_mapping.get(decision, DecisionType.REQUEST_EVALUATION)
+            
+            # 如果是执行指令，查找对应的Agent实例
+            selected_agent = None
+            if decision_type == DecisionType.EXECUTE_INSTRUCTION and available_agents and agent_name:
+                if agent_name in agent_map:
+                    selected_agent = agent_map[agent_name]
+                else:
+                    # 如果选择了无效的Agent，使用第一个可用的Agent
+                    print(f"警告：选择了无效的执行者 '{agent_name}'，使用默认Agent")
+                    selected_agent = available_agents[0] if available_agents else None
+            
+            return Decision(
+                decision_type=decision_type,
+                agent=selected_agent,
+                instruction=instruction if decision_type == DecisionType.EXECUTE_INSTRUCTION else None
+            )
         except (json.JSONDecodeError, KeyError):
             # JSON解析失败，默认请求评估
-            return "请求评估"
+            return Decision(decision_type=DecisionType.REQUEST_EVALUATION)
     
     def request_id_evaluation(self, current_state: str) -> str:
         """

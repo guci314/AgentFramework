@@ -69,7 +69,7 @@ print(f"✅ 执行完成，共 {step_count} 步")
 
 ```python
 # 查看执行状态
-snapshot = debugger.inspect_state()
+snapshot = debugger.capture_debug_snapshot()
 print("📊 执行状态:")
 print(f"  总步骤: {snapshot.total_steps}")
 print(f"  执行时间: {snapshot.execution_time:.2f}s")
@@ -134,7 +134,7 @@ while not debugger.debug_state.is_finished:
         print("用户停止执行")
         break
     elif user_input == 's':
-        snapshot = debugger.inspect_state()
+        snapshot = debugger.capture_debug_snapshot()
         print(f"当前循环: {snapshot.cycle_count}")
         print(f"当前分析: {snapshot.current_state_analysis}")
 ```
@@ -161,7 +161,7 @@ results = debugger.run_until_breakpoint()
 print(f"在断点停止，已执行 {len(results)} 步")
 
 # 检查当前状态
-snapshot = debugger.inspect_state()
+snapshot = debugger.capture_debug_snapshot()
 print(f"停止在: {snapshot.current_step.value}")
 print(f"当前分析: {snapshot.current_state_analysis}")
 

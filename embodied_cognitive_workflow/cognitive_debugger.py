@@ -19,12 +19,15 @@ from typing import List, Dict, Any, Optional, Iterator, Union, Callable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent, WorkflowContext, DecisionType
+    from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent, WorkflowContext
+    from embodied_cognitive_workflow.decision_types import Decision, DecisionType
 except ImportError:
     try:
-        from .embodied_cognitive_workflow import CognitiveAgent, WorkflowContext, DecisionType
+        from .embodied_cognitive_workflow import CognitiveAgent, WorkflowContext
+        from .decision_types import Decision, DecisionType
     except ImportError:
-        from embodied_cognitive_workflow import CognitiveAgent, WorkflowContext, DecisionType
+        from embodied_cognitive_workflow import CognitiveAgent, WorkflowContext
+        from decision_types import Decision, DecisionType
 
 from agent_base import Result
 from langchain_core.messages import BaseMessage
@@ -41,11 +44,11 @@ class StepType(Enum):
     
     # 认知循环阶段
     CYCLE_START = "循环开始"
-    STATE_ANALYSIS = "状态分析"
+    STATE_ANALYSIS = "更新状态"
     DECISION_MAKING = "决策判断"
     ID_EVALUATION = "本我评估"
     BODY_EXECUTION = "身体执行"
-    CYCLE_END = "循环结束"
+    CYCLE_END = "循环决策"
     
     # 结束阶段
     META_COGNITION_POST = "元认知后监督"
@@ -185,6 +188,13 @@ class DebugState:
     
     # 性能统计
     performance_metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics)
+    
+    # 多Agent支持
+    execution_instruction: Optional[str] = None  # 当前执行指令
+    selected_agent: Optional[str] = None  # 选择的Agent名称
+    
+    # 断点状态
+    _at_breakpoint: bool = False  # 标记当前是否在断点处
 
 
 class BreakpointManager:
@@ -444,24 +454,46 @@ class StepExecutor:
         """决策判断步骤"""
         state_analysis = input_data
         
-        # 调用自我的真实决策判断方法
-        next_action = self.agent.ego.decide_next_action(state_analysis)
+        # 获取可用Agent实例
+        available_agents = None
+        if hasattr(self.agent, 'agents') and self.agent.agents:
+            available_agents = self.agent.agents
         
-        # 将字符串决策转换为枚举
-        decision_mapping = {
-            "请求评估": DecisionType.REQUEST_EVALUATION,
-            "判断失败": DecisionType.JUDGMENT_FAILED,
-            "继续循环": DecisionType.CONTINUE_CYCLE
-        }
+        # 调用自我的真实决策判断方法，返回Decision对象
+        decision = self.agent.ego.decide_next_action(state_analysis, available_agents)
         
-        decision_type = decision_mapping.get(next_action, DecisionType.REQUEST_EVALUATION)
+        # 从Decision对象中提取信息
+        decision_type = decision.decision_type
+        instruction = decision.instruction
+        agent_name = decision.agent.name if decision.agent else None
         
+        # 构建调试信息
         debug_info = {
             "state_analysis": state_analysis,
-            "next_action": next_action,
-            "decision_type": decision_type,
+            "decision_type": decision_type.value,
             "agent_method": "ego.decide_next_action"
         }
+        
+        # 如果有指令，添加到调试信息
+        if instruction:
+            debug_info["instruction"] = instruction
+            # 存储指令到调试状态，供后续步骤使用
+            debug_state.execution_instruction = instruction
+        
+        # 如果有Agent选择信息，添加到调试信息
+        if agent_name:
+            debug_info["selected_agent"] = agent_name
+            # 存储Agent选择到调试状态
+            debug_state.selected_agent = agent_name
+            # 存储实际的Agent实例
+            if hasattr(debug_state, 'selected_agent_instance'):
+                debug_state.selected_agent_instance = decision.agent
+            else:
+                setattr(debug_state, 'selected_agent_instance', decision.agent)
+        
+        # 如果有可用Agent列表，也添加到调试信息
+        if available_agents:
+            debug_info["available_agents"] = [getattr(a, 'name', '未命名Agent') for a in available_agents]
         
         return decision_type, self._get_next_step_for_decision(decision_type), "Ego", debug_info
     
@@ -529,14 +561,23 @@ class StepExecutor:
             execution_result = self.agent._execute_body_operation(quick_prompt)
         else:
             # 认知循环模式
-            current_context = debug_state.workflow_context.get_current_context()
-            # 使用默认的第一个Agent执行
-            default_agent = self.agent.agents[0] if self.agent.agents else None
-            if default_agent:
-                execution_result = default_agent.execute_sync(current_context)
+            # 使用存储的执行指令和Agent选择
+            instruction = getattr(debug_state, 'execution_instruction', None)
+            agent_name = getattr(debug_state, 'selected_agent', None)
+            
+            if instruction:
+                # 使用Ego提供的具体指令和Agent选择
+                execution_result = self.agent._execute_body_operation(instruction, agent_name)
             else:
-                execution_result = Result(
-                    success=False,
+                # 回退到旧的行为
+                current_context = debug_state.workflow_context.get_current_context()
+                # 使用默认的第一个Agent执行
+                default_agent = self.agent.agents[0] if self.agent.agents else None
+                if default_agent:
+                    execution_result = default_agent.execute_sync(current_context)
+                else:
+                    execution_result = Result(
+                        success=False,
                     code="",
                     stderr="没有可用的Agent",
                     return_value=""
@@ -546,6 +587,10 @@ class StepExecutor:
         if execution_result.success and execution_result.return_value:
             cycle_data = f"身体执行结果：{execution_result.return_value}"
             debug_state.workflow_context.add_cycle_result(debug_state.cycle_count, cycle_data)
+            
+            # 在直接执行模式下，如果执行成功，设置目标为已达成
+            if isinstance(input_data, bool) and input_data:  # 直接执行模式
+                debug_state.workflow_context.goal_achieved = True
         
         debug_info = {
             "execution_mode": "direct" if (isinstance(input_data, bool) and input_data) else "cognitive_cycle",
@@ -554,12 +599,20 @@ class StepExecutor:
             "agent_method": "_execute_body_operation" if (isinstance(input_data, bool) and input_data) else "agent.execute_sync"
         }
         
+        # 添加Agent选择信息（如果有）
+        if hasattr(debug_state, 'selected_agent') and debug_state.selected_agent:
+            debug_info["selected_agent"] = debug_state.selected_agent
+        
+        # 添加执行指令（如果有）
+        if hasattr(debug_state, 'execution_instruction') and debug_state.execution_instruction:
+            debug_info["instruction"] = debug_state.execution_instruction
+        
         # 直接执行模式应该结束，而不是继续循环
         next_step = StepType.FINALIZE if (isinstance(input_data, bool) and input_data) else StepType.CYCLE_END
         return execution_result, next_step, "Body", debug_info
     
     def _execute_cycle_end(self, input_data: Any, debug_state: DebugState) -> tuple:
-        """循环结束步骤"""
+        """循环决策步骤 - 判断是否继续下一轮循环"""
         execution_result = input_data
         
         # 检查是否应该继续循环
@@ -652,7 +705,7 @@ class StepExecutor:
         decision_mapping = {
             DecisionType.REQUEST_EVALUATION: StepType.ID_EVALUATION,
             DecisionType.JUDGMENT_FAILED: StepType.BODY_EXECUTION,
-            DecisionType.CONTINUE_CYCLE: StepType.CYCLE_END
+            DecisionType.EXECUTE_INSTRUCTION: StepType.BODY_EXECUTION
         }
         return decision_mapping.get(decision_type, StepType.CYCLE_END)
 
@@ -791,6 +844,19 @@ class DebugUtils:
             if step.debug_info.get("decision_type"):
                 decision = step.debug_info["decision_type"]
                 flow_chart.append(f"    └─ 决策: {decision}")
+            
+            # 添加Agent选择信息
+            if step.debug_info.get("selected_agent"):
+                agent = step.debug_info["selected_agent"]
+                flow_chart.append(f"    └─ 执行者: {agent}")
+            
+            # 添加执行指令信息（简短显示）
+            if step.debug_info.get("instruction"):
+                instruction = step.debug_info["instruction"]
+                # 截断长指令
+                if len(instruction) > 50:
+                    instruction = instruction[:47] + "..."
+                flow_chart.append(f"    └─ 指令: {instruction}")
         
         flow_chart.append("=" * 50)
         flow_chart.append(f"总步骤: {len(step_results)}")
@@ -908,9 +974,23 @@ class CognitiveDebugger:
         print(f"🚀 开始调试认知循环")
         print(f"📝 指令: {instruction}")
         print(f"⚙️  智能体配置:")
-        print(f"   - 最大循环数: {self.wrapped_agent.max_cycles}")
-        print(f"   - 元认知启用: {self.wrapped_agent.enable_meta_cognition}")
-        print(f"   - 评估模式: {self.wrapped_agent.evaluation_mode}")
+        
+        # 安全地获取智能体属性
+        if hasattr(self.wrapped_agent, 'max_cycles'):
+            print(f"   - 最大循环数: {self.wrapped_agent.max_cycles}")
+        else:
+            print(f"   - 最大循环数: 未设置")
+            
+        if hasattr(self.wrapped_agent, 'enable_meta_cognition'):
+            print(f"   - 元认知启用: {self.wrapped_agent.enable_meta_cognition}")
+        else:
+            print(f"   - 元认知启用: 未设置")
+            
+        if hasattr(self.wrapped_agent, 'evaluation_mode'):
+            print(f"   - 评估模式: {self.wrapped_agent.evaluation_mode}")
+        else:
+            print(f"   - 评估模式: 未设置")
+            
         print(f"🔧 调试器就绪，使用 run_one_step() 开始单步执行\n")
     
     def run_one_step(self) -> StepResult:
@@ -934,11 +1014,18 @@ class CognitiveDebugger:
             "instruction": self._instruction
         }
         
+        # 安全地添加goal_achieved
+        if self.debug_state.workflow_context:
+            context["goal_achieved"] = self.debug_state.workflow_context.goal_achieved
+        else:
+            context["goal_achieved"] = False
+        
         hit_breakpoint = self.breakpoint_manager.check_breakpoint(current_step, context)
         if hit_breakpoint:
             print(f"🛑 断点触发: {hit_breakpoint.description or hit_breakpoint.step_type}")
             print(f"   断点ID: {hit_breakpoint.id}")
             print(f"   命中次数: {hit_breakpoint.hit_count}")
+            self.debug_state._at_breakpoint = True  # 标记当前在断点处
             return None
         
         # 准备输入数据
@@ -987,33 +1074,74 @@ class CognitiveDebugger:
     def run_until_breakpoint(self) -> List[StepResult]:
         """运行到下一个断点
         
+        如果当前已经在断点处，会先执行一步离开当前断点，然后继续执行直到遇到下一个断点。
+        
         Returns:
             List[StepResult]: 执行过程中的所有步骤结果
         """
         results = []
         
+        # 如果当前在断点处，先强制执行当前步骤以离开断点
+        if hasattr(self.debug_state, '_at_breakpoint') and self.debug_state._at_breakpoint:
+            # 临时禁用断点检查，执行当前步骤
+            current_step = self.debug_state.current_step
+            if current_step and current_step != StepType.COMPLETED:
+                # 准备输入数据
+                input_data = self._prepare_input_data(current_step)
+                
+                # 执行当前步骤
+                step_result = self.step_executor.execute_step(
+                    current_step, 
+                    input_data,
+                    self.debug_state
+                )
+                
+                if step_result:
+                    # 更新调试状态
+                    self.debug_state.step_history.append(step_result)
+                    self.debug_state.current_step = step_result.next_step
+                    
+                    # 更新性能指标
+                    self.debug_state.performance_metrics.step_count += 1
+                    self.debug_state.performance_metrics.execution_time += step_result.execution_time
+                    
+                    # 如果步骤是循环结束，增加循环计数
+                    if step_result.step_type == StepType.CYCLE_END:
+                        self.debug_state.cycle_count += 1
+                    
+                    results.append(step_result)
+                    self.debug_state._at_breakpoint = False
+                    
+                    # 检查是否完成
+                    if step_result.next_step == StepType.COMPLETED:
+                        self.debug_state.is_finished = True
+                        return results
+        
+        # 继续执行直到下一个断点
         while not self.debug_state.is_finished:
-            # 检查断点
-            context = {
-                "cycle_count": self.debug_state.cycle_count,
-                "current_step": self.debug_state.current_step,
-                "instruction": self._instruction
-            }
-            
-            hit_breakpoint = self.breakpoint_manager.check_breakpoint(
-                self.debug_state.current_step, context
-            )
-            if hit_breakpoint:
-                print(f"🛑 在断点处停止: {hit_breakpoint.description or hit_breakpoint.step_type}")
-                break
-            
             step_result = self.run_one_step()
             if step_result:
                 results.append(step_result)
             else:
+                # 遇到断点，停止执行
                 break
         
         return results
+    
+    def continue_execution(self) -> List[StepResult]:
+        """继续执行到下一个断点
+        
+        这是 run_until_breakpoint() 的别名，提供更直观的调试器命令。
+        
+        Returns:
+            List[StepResult]: 执行过程中的所有步骤结果
+            
+        Example:
+            >>> # 在断点处暂停后
+            >>> results = debugger.continue_execution()
+            >>> # 执行会继续直到下一个断点或完成
+        """
+        return self.run_until_breakpoint()
     
     def run_to_completion(self) -> List[StepResult]:
         """运行到结束
@@ -1036,11 +1164,14 @@ class CognitiveDebugger:
         
         return results
     
-    def inspect_state(self) -> StateSnapshot:
-        """检查当前状态
+    def capture_debug_snapshot(self) -> StateSnapshot:
+        """捕获调试快照
+        
+        捕获当前调试会话的综合快照，包括工作流状态、执行进度、
+        性能指标、内存使用情况和智能体层状态等全面信息。
         
         Returns:
-            StateSnapshot: 当前状态快照
+            StateSnapshot: 包含调试会话完整信息的快照对象
         """
         if not self.debug_state.workflow_context:
             print("⚠️  调试会话尚未开始")
@@ -1090,6 +1221,26 @@ class CognitiveDebugger:
         self._print_state_snapshot(snapshot)
         
         return snapshot
+    
+    def inspect_workflow_state(self) -> Optional[WorkflowContext]:
+        """检查工作流状态
+        
+        直接返回WorkflowContext对象，方便访问所有工作流状态信息。
+        
+        Returns:
+            Optional[WorkflowContext]: 工作流上下文对象，如果调试未开始则返回None
+            
+        Example:
+            >>> workflow_context = debugger.inspect_workflow_state()
+            >>> if workflow_context:
+            ...     print(workflow_context.current_state)
+            ...     print(workflow_context.goal_achieved)
+        """
+        if not self.debug_state.workflow_context:
+            print("⚠️  调试会话尚未开始，无法获取工作流状态")
+            return None
+            
+        return self.debug_state.workflow_context
     
     def set_breakpoint(self, step_type: StepType, condition: str = None, description: str = "") -> str:
         """设置断点
@@ -1161,6 +1312,11 @@ class CognitiveDebugger:
                 print(f"      命中次数: {bp.hit_count}")
         
         return breakpoints
+    
+    def clear_breakpoints(self) -> None:
+        """清除所有断点"""
+        self.breakpoint_manager.breakpoints.clear()
+        print("✅ 所有断点已清除")
     
     def get_execution_trace(self) -> List[StepResult]:
         """获取执行轨迹
@@ -1304,13 +1460,58 @@ class CognitiveDebugger:
         print(f"   层级: {step_result.agent_layer}")
         print(f"   耗时: {step_result.execution_time:.3f}s")
         
+        # 如果是决策判断步骤，显示Agent选择信息
+        if step_result.step_type == StepType.DECISION_MAKING and step_result.debug_info:
+            if step_result.debug_info.get("selected_agent"):
+                print(f"   🎯 选择执行者: {step_result.debug_info['selected_agent']}")
+            if step_result.debug_info.get("available_agents"):
+                print(f"   👥 可用执行者: {', '.join(step_result.debug_info['available_agents'])}")
+        
+        # 如果是身体执行步骤，显示执行者信息
+        if step_result.step_type == StepType.BODY_EXECUTION and step_result.debug_info:
+            if step_result.debug_info.get("selected_agent"):
+                print(f"   🏃 执行者: {step_result.debug_info['selected_agent']}")
+        
         if step_result.error:
             print(f"   ❌ 错误: {step_result.error}")
         else:
             print(f"   ✅ 输出: {self._format_output(step_result.output_data)}")
         
         if step_result.debug_info:
-            print(f"   🔍 调试信息: {step_result.debug_info}")
+            # 特殊处理execution_result中的code和return_value字段
+            if 'execution_result' in step_result.debug_info and isinstance(step_result.debug_info['execution_result'], dict):
+                debug_info_copy = step_result.debug_info.copy()
+                exec_result = debug_info_copy['execution_result']
+                
+                # 格式化code字段
+                if 'code' in exec_result and exec_result['code']:
+                    print(f"   🔍 调试信息:")
+                    # 打印其他调试信息
+                    for key, value in debug_info_copy.items():
+                        if key != 'execution_result':
+                            print(f"      {key}: {value}")
+                    
+                    # 打印execution_result的其他字段
+                    print(f"      execution_result:")
+                    for key, value in exec_result.items():
+                        if key == 'code':
+                            print(f"         code:")
+                            # 按行打印代码
+                            code_lines = exec_result['code'].split('\n')
+                            for line in code_lines:
+                                print(f"            {line}")
+                        elif key == 'return_value' and value:
+                            print(f"         return_value:")
+                            # 按行打印返回值
+                            return_lines = str(value).split('\n')
+                            for line in return_lines:
+                                print(f"            {line}")
+                        else:
+                            print(f"         {key}: {value}")
+                else:
+                    print(f"   🔍 调试信息: {step_result.debug_info}")
+            else:
+                print(f"   🔍 调试信息: {step_result.debug_info}")
         
         if step_result.next_step:
             print(f"   ➡️  下一步: {step_result.next_step.value}")
@@ -1332,7 +1533,15 @@ class CognitiveDebugger:
             enabled = ""
             if layer == "meta_cognition":
                 enabled = f" ({'启用' if status.get('enabled') else '禁用'})"
+            elif layer == "agents":
+                count = status.get("count", 0)
+                enabled = f" ({count} 个Agent)"
             print(f"     {layer}: {available}{enabled}")
+        
+        # 显示当前Agent选择信息（如果有）
+        if hasattr(self.debug_state, 'selected_agent') and self.debug_state.selected_agent:
+            print(f"   当前执行者: {self.debug_state.selected_agent}")
+        
         print()
     
     def _format_output(self, output_data: Any) -> str:

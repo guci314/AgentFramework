@@ -30,7 +30,6 @@ try:
     )
     from .meta_cognitive_agent import MetaCognitiveAgent, UltraThinkEngine, CognitiveMonitor, StrategyOptimizer, ReflectionEngine
     from .cognitive_debug_agent import CognitiveDebugAgent, CognitiveDebugger, DebugLevel
-    from .gemini_flash_integration import GeminiFlashClient, create_gemini_client
     from .cognitive_debug_visualizer import CognitiveDebugVisualizer
 except ImportError:
     # 当作为独立模块使用时的降级导入
@@ -49,7 +48,6 @@ except ImportError:
     )
     from meta_cognitive_agent import MetaCognitiveAgent, UltraThinkEngine, CognitiveMonitor, StrategyOptimizer, ReflectionEngine
     from cognitive_debug_agent import CognitiveDebugAgent, CognitiveDebugger, DebugLevel
-    from gemini_flash_integration import GeminiFlashClient, create_gemini_client
     from cognitive_debug_visualizer import CognitiveDebugVisualizer
 
 __version__ = "1.0.0"
@@ -73,7 +71,5 @@ __all__ = [
     "CognitiveDebugAgent",
     "CognitiveDebugger", 
     "DebugLevel",
-    "GeminiFlashClient",
-    "create_gemini_client",
     "CognitiveDebugVisualizer"
 ]

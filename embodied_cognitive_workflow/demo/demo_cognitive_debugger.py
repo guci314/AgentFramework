@@ -216,7 +216,7 @@ def demo_state_inspection():
         print(f"\n--- 第 {i+1} 步后的状态 ---")
         
         # 检查状态
-        snapshot = debugger.inspect_state()
+        snapshot = debugger.capture_debug_snapshot()
         if snapshot:
             print(f"📊 执行进度:")
             print(f"   当前步骤: {snapshot.current_step.value}")

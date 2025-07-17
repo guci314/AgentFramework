@@ -80,7 +80,7 @@ while not debugger.debug_state.is_finished:
         break
 
 # 获取最终结果
-final_snapshot = debugger.inspect_state()
+final_snapshot = debugger.capture_debug_snapshot()
 print(f"\n📊 最终状态:")
 print(f"  - 执行步骤: {step_count}")
 print(f"  - 目标达成: {final_snapshot.goal_achieved}")

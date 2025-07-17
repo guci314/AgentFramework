@@ -24,8 +24,6 @@ try:
         CognitiveDebugAgent,
         CognitiveDebugger,
         DebugLevel,
-        GeminiFlashClient,
-        create_gemini_client,
         CognitiveDebugVisualizer
     )
 except ImportError:
@@ -35,7 +33,6 @@ except ImportError:
         create_cognitive_agent
     )
     from cognitive_debug_agent import CognitiveDebugAgent, CognitiveDebugger, DebugLevel
-    from gemini_flash_integration import GeminiFlashClient, create_gemini_client
     from cognitive_debug_visualizer import CognitiveDebugVisualizer
 
 
@@ -161,7 +158,8 @@ def demo_gemini_integration():
     print("1. 尝试创建Gemini Flash客户端...")
     
     try:
-        gemini_client = create_gemini_client()
+        # gemini_client = create_gemini_client()  # Gemini集成已移除
+        gemini_client = None
         
         if not gemini_client:
             print("⚠️  Gemini Flash客户端创建失败")
@@ -336,7 +334,8 @@ def demo_cognitive_debug_with_gemini():
     
     # 创建Gemini客户端
     print("🔍 尝试启用Gemini Flash智能分析...")
-    gemini_client = create_gemini_client()
+    # gemini_client = create_gemini_client()  # Gemini集成已移除
+    gemini_client = None
     if not gemini_client:
         print("⚠️  Gemini Flash不可用，使用基础调试功能演示")
         print("   （在中国大陆，这是正常情况）")

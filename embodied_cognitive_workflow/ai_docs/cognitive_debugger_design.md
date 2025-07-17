@@ -291,7 +291,7 @@ while not debugger.debug_state.is_finished:
     if cmd == 'q':
         break
     elif cmd == 'i':
-        snapshot = debugger.inspect_state()
+        snapshot = debugger.capture_debug_snapshot()
         print(f"当前状态: {snapshot}")
     elif cmd == 'b':
         debugger.set_breakpoint(StepType.DECISION_MAKING)
@@ -310,7 +310,7 @@ results = debugger.run_until_breakpoint()
 print(f"在断点停止，执行了 {len(results)} 步")
 
 # 检查状态
-state = debugger.inspect_state()
+state = debugger.capture_debug_snapshot()
 print(f"决策类型: {state.debug_info['decision_type']}")
 ```
 

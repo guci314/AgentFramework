@@ -8,6 +8,7 @@
 2. **动态认知循环** - 增量式规划的自适应执行模式
 3. **元认知能力** - UltraThink 高级认知监控和策略优化
 4. **认知调试系统** - CognitiveDebugger 单步调试和性能分析
+5. **多Agent协作** - 支持多个专业Agent的智能选择和协同执行
 
 ## 核心架构 - 四层认知系统
 
@@ -40,6 +41,7 @@
 │   - 执行和感知                          │
 │   - 基于现有Agent系统                    │
 │   - 工具调用和环境交互                   │
+│   - 支持多Agent协作执行                  │
 └─────────────────────────────────────────┘
 ```
 
@@ -50,9 +52,9 @@
 3. **元认知预监督** → MetaCognitive 进行任务约束检查（可选）
 4. **认知循环**：
    - **状态分析** (Ego) → 分析当前状态
-   - **决策判断** (Ego) → 决定下一步行动
+   - **决策判断** (Ego) → 决定下一步行动（包括选择合适的Agent）
    - **目标评估** (Id) → 评估是否达成目标
-   - **身体执行** (Body) → 执行具体操作
+   - **身体执行** (Body) → 由选定的Agent执行具体操作
 5. **元认知后监督** → MetaCognitive 进行结果审查（可选）
 6. **结果返回** → 返回执行结果
 
@@ -84,7 +86,13 @@
   - 性能分析和状态管理
   - 会话导入导出
 
-#### 4. 其他功能
+#### 4. 多Agent协作系统（2025-01-16 新增）
+- **智能Agent选择** - Ego根据任务需求智能选择合适的执行者
+- **多专业Agent支持** - 支持创建多个专业Agent（数学、文件、算法等）
+- **动态Agent信息传递** - 在决策时传递可用Agent信息
+- **调试器Agent显示** - 调试器完整显示Agent选择过程
+
+#### 5. 其他功能
 - **GeminiFlashClient** - Gemini模型集成
 - **CognitiveDebugAgent** - 早期调试实现
 - **CognitiveDebugVisualizer** - 调试可视化
@@ -110,8 +118,16 @@ demo_cognitive_debugger.py        # 调试器功能演示
 ### 🧪 测试文件
 ```
 test_cognitive_debugger.py         # 基础测试
-test_debugger_simple.py           # 简单测试 (已验证通过)
+test_debugger_simple.py           # 简单测试 (已验证通过)  
 test_debugger_comprehensive.py    # 完整测试套件 (500+ 行)
+test_multi_agent_lazy.py          # 多Agent测试 (使用llm_lazy)
+test_multi_agent_complex.py       # 复杂多Agent任务测试
+```
+
+### 🤖 多Agent示例
+```
+multi_agent_demo.py               # 完整的多Agent协作演示
+debug_multi_agent_demo.py         # 使用调试器的多Agent演示
 ```
 
 ### 📖 文档目录
@@ -129,16 +145,19 @@ ai_docs/
 
 ```python
 from embodied_cognitive_workflow import CognitiveAgent
-import pythonTask
+from python_core import Agent
+from llm_lazy import get_model
 
-# 创建认知智能体
+# 获取语言模型（推荐使用llm_lazy而不是pythonTask）
+llm = get_model('gemini_2_5_flash')
+
+# 创建认知智能体（单Agent模式）
 agent = CognitiveAgent(
-    llm=pythonTask.llm_gemini_2_5_flash_google,
+    llm=llm,
     max_cycles=5,                    # 最大认知循环次数
     verbose=True,                    # 显示详细执行过程
-    enable_meta_cognition=True,           # 启用元认知监督
-    evaluation_mode="internal",      # 使用本我内部评估
-    decider_model="ego"             # 使用自我作为决策者
+    enable_meta_cognition=True,      # 启用元认知监督
+    evaluation_mode="internal"       # 使用本我内部评估
 )
 
 # 同步执行
@@ -155,6 +174,49 @@ for chunk in agent.execute_stream("创建一个Python计算器"):
 # 聊天模式
 chat_result = agent.chat_sync("什么是人工智能？")
 print(chat_result.return_value)
+```
+
+### 多Agent协作使用
+
+```python
+from embodied_cognitive_workflow import CognitiveAgent
+from python_core import Agent
+from llm_lazy import get_model
+
+# 获取语言模型
+llm = get_model('gemini_2_5_flash')
+
+# 创建专业Agent
+math_agent = Agent(llm=llm)
+math_agent.name = "数学专家"
+math_agent.api_specification = "专精数学计算、统计分析、数值处理"
+
+file_agent = Agent(llm=llm)
+file_agent.name = "文件专家"
+file_agent.api_specification = "专精文件操作、数据保存、格式转换"
+
+algo_agent = Agent(llm=llm)
+algo_agent.name = "算法工程师"
+algo_agent.api_specification = "专精算法设计、性能优化、复杂度分析"
+
+# 创建认知智能体（多Agent模式）
+cognitive_agent = CognitiveAgent(
+    llm=llm,
+    agents=[math_agent, file_agent, algo_agent],  # 传入多个专业Agent
+    max_cycles=10,
+    verbose=True,
+    enable_meta_cognition=False
+)
+
+# 执行复杂任务 - Ego会智能选择合适的Agent
+result = cognitive_agent.execute_sync("""
+    生成100个随机数，计算统计信息，
+    将结果保存到report.json文件中
+""")
+
+# Ego会根据任务需求选择：
+# - 数学专家：生成随机数和计算统计
+# - 文件专家：保存JSON文件
 ```
 
 ### 四层架构详解
@@ -182,11 +244,18 @@ from embodied_cognitive_workflow import EgoAgent
 
 # Ego 主要功能
 - analyze_current_state()：分析当前状态
-- decide_next_action()：决定下一步行动
+- decide_next_action()：决定下一步行动（2025-01-16升级支持Agent选择）
+  - 参数：state_analysis, available_agents（可选）
+  - 返回：(决策类型, 执行指令, 目标Agent名称)
 - 返回三种决策类型：
   - "请求评估"：需要本我评估是否达成目标
   - "判断失败"：判断任务无法完成
-  - "继续循环"：继续执行认知循环
+  - "执行指令"：执行具体操作（包括选择执行者）
+
+# 多Agent选择机制
+- 如果有多个Agent，Ego会分析任务需求
+- 根据Agent的api_specification选择最合适的执行者
+- 在决策时返回选定的Agent名称
 ```
 
 #### 3. Id - 本我层（价值评估）
@@ -207,6 +276,13 @@ from embodied_cognitive_workflow import IdAgent
 - execute_sync()：同步执行任务
 - execute_stream()：流式执行任务
 - 工具调用和环境交互
+- 多Agent协作执行（2025-01-16新增）
+
+# 多Agent执行机制
+- 可以包含多个专业Agent（数学、文件、算法等）
+- 每个Agent有name和api_specification属性
+- CognitiveAgent的_execute_body_operation支持agent_name参数
+- 根据Ego的选择调用对应的Agent执行任务
 ```
 
 ### 认知循环执行模式
@@ -242,12 +318,16 @@ from embodied_cognitive_workflow import IdAgent
 ### 快速开始
 ```python
 from cognitive_debugger import CognitiveDebugger, StepType
-from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent
-import pythonTask
+from embodied_cognitive_workflow import CognitiveAgent
+from python_core import Agent
+from llm_lazy import get_model
+
+# 获取语言模型
+llm = get_model('gemini_2_5_flash')
 
 # 创建认知智能体
 agent = CognitiveAgent(
-    llm=pythonTask.llm_gemini_2_5_flash_google,
+    llm=llm,
     max_cycles=5,
     verbose=False
 )
@@ -291,7 +371,7 @@ print(f"最慢步骤: {report.slowest_step}")
 #### 3. 状态检查
 ```python
 # 检查当前状态
-snapshot = debugger.inspect_state()
+snapshot = debugger.capture_debug_snapshot()
 print(f"当前步骤: {snapshot.current_step.value}")
 print(f"循环轮数: {snapshot.cycle_count}")
 print(f"目标达成: {snapshot.goal_achieved}")
@@ -316,16 +396,22 @@ print(f"目标达成: {snapshot.goal_achieved}")
 
 ### 层级说明
 - **MetaCognitive** (👥) - 元认知监督和道德约束
-- **Ego** (🧠) - 理性思考和决策
+- **Ego** (🧠) - 理性思考和决策（包括Agent选择）
 - **Id** (💫) - 价值驱动和目标监控
-- **Body** (🏃) - 执行和感知
+- **Body** (🏃) - 执行和感知（支持多Agent）
 
 ### 集成方式
 调试器真实调用各层的核心方法：
 - `ego.analyze_current_state()` - 状态分析
-- `ego.decide_next_action()` - 决策判断
+- `ego.decide_next_action(state, agents)` - 决策判断和Agent选择
 - `id.evaluate_task_completion()` - 目标评估
-- `body.execute_sync()` - 具体执行
+- `body.execute_sync()` - 由选定Agent执行
+
+### 调试器的多Agent支持（2025-01-16新增）
+- 在DECISION_MAKING步骤显示可用Agent列表
+- 显示Ego选择的目标Agent
+- 在BODY_EXECUTION步骤显示实际执行者
+- 可视化流程中包含Agent选择信息
 
 ## 测试验证
 
@@ -349,6 +435,7 @@ python test_debugger_comprehensive.py
 - **性能分析测试** ✅
 - **集成测试** ✅
 - **压力测试** ✅
+- **多Agent协作测试** ✅ (2025-01-16新增)
 
 ## 重要技术特色
 
@@ -358,6 +445,7 @@ python test_debugger_comprehensive.py
 3. **四层架构集成** - 真实调用各认知层的内部方法
 4. **智能断点系统** - 支持Python表达式条件断点
 5. **多维度性能分析** - 按步骤、循环、层级分析性能
+6. **多Agent智能选择** - Ego根据任务需求智能选择执行者（2025-01-16新增）
 
 ### 🔧 技术实现
 - **1,800+ 行核心代码** - 完整的调试器实现
@@ -397,9 +485,14 @@ os.environ["https_proxy"] = "http://127.0.0.1:7890"
 
 ### 模型配置
 ```python
-# 使用Gemini模型
-import pythonTask
-llm = pythonTask.llm_gemini_2_5_flash_google
+# 使用llm_lazy获取模型（推荐）
+from llm_lazy import get_model
+llm = get_model('gemini_2_5_flash')  # Gemini 2.5 Flash
+llm = get_model('gemini_2_5_pro')    # Gemini 2.5 Pro
+llm = get_model('deepseek_v3')       # DeepSeek V3
+llm = get_model('qwen_qwq_32b')      # Qwen QwQ 32B
+
+# 注意：不要使用pythonTask.py，使用llm_lazy.py
 ```
 
 ## 项目价值
@@ -422,10 +515,38 @@ llm = pythonTask.llm_gemini_2_5_flash_google
 3. 参考演示程序了解用法
 4. 查看项目总结了解完整功能
 
+## 最新更新（2025-01-16）
+
+### 多Agent协作功能
+1. **Ego智能选择机制**
+   - `ego.decide_next_action()` 支持接收可用Agent列表
+   - 根据任务需求和Agent能力智能选择执行者
+   - 返回决策类型、执行指令和目标Agent名称
+
+2. **CognitiveAgent升级**
+   - 支持传入多个专业Agent
+   - `_execute_body_operation` 支持agent_name参数
+   - 实现Agent信息收集和传递机制
+
+3. **调试器增强**
+   - 显示可用Agent列表和选择结果
+   - 在执行步骤显示实际执行者
+   - 可视化流程包含Agent选择信息
+
+4. **示例和测试**
+   - `multi_agent_demo.py` - 完整的多Agent演示
+   - `test_multi_agent_lazy.py` - 使用llm_lazy的测试
+   - `debug_multi_agent_demo.py` - 调试器演示
+
+### 使用建议
+- 使用 `llm_lazy.py` 而不是 `pythonTask.py`
+- 使用 `python_core.py` 创建Agent
+- Agent需要设置 `name` 和 `api_specification` 属性
+
 ---
 
 **项目状态**: ✅ 全面完成  
-**最后更新**: 2025-01-08  
+**最后更新**: 2025-01-16  
 **功能完整度**: 100%  
 **文档完整度**: 100%  
 **测试覆盖率**: 95%+

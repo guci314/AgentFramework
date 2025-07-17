@@ -18,13 +18,14 @@ if parent_dir not in sys.path:
 
 try:
     from python_core import *
-from llm_lazy import get_model
-    from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent, WorkflowContext, DecisionType
-    from cognitive_debugger import CognitiveDebugger, StepType
+    from llm_lazy import get_model
+    from embodied_cognitive_workflow.embodied_cognitive_workflow import CognitiveAgent, WorkflowContext
+    from embodied_cognitive_workflow.decision_types import Decision, DecisionType
+    from embodied_cognitive_workflow.cognitive_debugger import CognitiveDebugger, StepType
     from agent_base import Result
     
     # 使用Gemini模型
-    llm_gemini = \1("gemini_2_5_flash")
+    llm_gemini = get_model("gemini_2_5_flash")
     
     print("✅ 所有模块导入成功！")
     
@@ -139,7 +140,7 @@ def test_state_inspection():
     debugger.run_one_step()
     
     # 检查状态
-    snapshot = debugger.inspect_state()
+    snapshot = debugger.capture_debug_snapshot()
     
     if snapshot:
         print(f"   ✅ 状态快照获取成功")

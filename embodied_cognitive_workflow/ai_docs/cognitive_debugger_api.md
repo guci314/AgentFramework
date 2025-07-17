@@ -104,10 +104,14 @@ print(f"执行了 {len(results)} 个步骤")
 
 ##### run_until_breakpoint() -> List[StepResult]
 
-运行直到触发断点。
+运行直到触发断点。如果当前已经在断点处，会先执行当前步骤以离开断点，然后继续执行直到遇到下一个断点。
 
 **返回值:**
 - `List[StepResult]`: 执行过程中的所有步骤结果
+
+**注意:**
+- 如果断点设置在循环中的步骤（如DECISION_MAKING），可能会在同一个循环内多次触发
+- 使用条件断点可以更精确地控制断点触发时机
 
 ##### run_to_completion() -> List[StepResult]
 
@@ -125,7 +129,7 @@ print(f"执行了 {len(results)} 个步骤")
 
 **示例:**
 ```python
-snapshot = debugger.inspect_state()
+snapshot = debugger.capture_debug_snapshot()
 print(f"当前步骤: {snapshot.current_step.value}")
 print(f"循环轮数: {snapshot.cycle_count}")
 print(f"目标达成: {snapshot.goal_achieved}")
@@ -191,6 +195,20 @@ if success:
     print("成功回退3步")
 else:
     print("回退失败")
+```
+
+##### continue_execution() -> List[StepResult]
+
+继续执行到下一个断点。这是 `run_until_breakpoint()` 的别名，提供更直观的调试器命令。
+
+**返回值:**
+- `List[StepResult]`: 执行过程中的所有步骤结果
+
+**示例:**
+```python
+# 在断点处暂停后
+results = debugger.continue_execution()
+# 执行会继续直到下一个断点或完成
 ```
 
 ##### get_performance_report() -> PerformanceReport
@@ -485,7 +503,7 @@ while not debugger.debug_state.is_finished:
     results = debugger.run_until_breakpoint()
     
     # 检查当前状态
-    snapshot = debugger.inspect_state()
+    snapshot = debugger.capture_debug_snapshot()
     print(f"当前循环: {snapshot.cycle_count}")
     print(f"当前状态: {snapshot.current_state_analysis}")
     

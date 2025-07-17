@@ -14,19 +14,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python_core import Agent
 
-# 处理相对导入问题
 try:
     from .ego_agent import EgoAgent
     from .id_agent import IdAgent
     from .meta_cognitive_agent import MetaCognitiveAgent as MetaCognitionAgent
+    from .decision_types import Decision, DecisionType
 except ImportError:
-    # 当作为独立模块运行时，使用绝对导入
     from ego_agent import EgoAgent
     from id_agent import IdAgent
     from meta_cognitive_agent import MetaCognitiveAgent as MetaCognitionAgent
+    from decision_types import Decision, DecisionType
 from agent_base import AgentBase, Result
 from langchain_core.language_models import BaseChatModel
-from typing import List, Optional, Dict, Any, Iterator
+from typing import List, Optional, Dict, Any, Iterator, Tuple
 import logging
 import json
 from enum import Enum
@@ -41,13 +41,6 @@ class WorkflowStatus(Enum):
     FAILED = "失败"
     TIMEOUT = "超时"
     EXCEPTION = "异常"
-
-
-class DecisionType(Enum):
-    """决策类型枚举"""
-    REQUEST_EVALUATION = "请求评估"
-    JUDGMENT_FAILED = "判断失败"
-    CONTINUE_CYCLE = "继续循环"
 
 
 @dataclass
@@ -279,7 +272,8 @@ class CognitiveAgent(AgentBase):
             # 向后兼容：创建默认body Agent
             body_config = body_config or {}
             default_body = Agent(llm=llm, **body_config)
-            default_body.name = "身体"
+            default_body.name = "默认执行器"
+            default_body.api_specification = "通用任务执行，包括代码编写、数据分析、文本处理等各类任务"
             default_body.loadKnowledge('unittest的测试输出在标准错误流而不是标准输出流')
             default_body.loadKnowledge('在Jupyter notebook中模块重载方法：使用importlib.reload()重新加载已修改的模块。具体用法：import importlib; importlib.reload(your_module)。这样可以在不重启notebook的情况下获取模块的最新修改。')
             self.agents = [default_body]
@@ -642,7 +636,9 @@ class CognitiveAgent(AgentBase):
                 
         except Exception as e:
             yield f"[认知循环] 异常：{e}"
-            yield self._handle_workflow_exception(e)
+            error_result = self._handle_workflow_exception(e)
+            yield f"[认知循环] 错误详情：{error_result.stderr}"
+            yield error_result
     
     def _execute_main_loop_stream(self, context: WorkflowContext) -> Iterator[object]:
         """
@@ -655,33 +651,75 @@ class CognitiveAgent(AgentBase):
             Iterator[object]: 流式结果，包含过程信息和最终结果
         """
         while context.current_cycle < self.max_cycles:
-            context.current_cycle += 1
-            self.current_cycle_count = context.current_cycle
-            yield f"[认知循环] 第 {context.current_cycle} 轮开始..."
-            
-            # 流式执行单轮认知循环
-            for chunk in self._execute_single_cycle_stream(context):
-                if isinstance(chunk, CycleOutcome):
-                    outcome = chunk
-                    break
-                else:
-                    yield chunk
-            
-            # 根据循环结果决定下一步
-            if not outcome.continue_workflow:
-                # 工作流结束，返回最终结果
-                yield f"[认知循环] 工作流结束，返回最终结果"
-                yield outcome.final_result
+            # 保存当前循环数，以便在异常时回滚
+            current_cycle_backup = context.current_cycle
+            try:
+                context.current_cycle += 1
+                self.current_cycle_count = context.current_cycle
+                yield f"[认知循环] 第 {context.current_cycle} 轮开始..."
+                
+                # 流式执行单轮认知循环
+                outcome = None
+                remaining_chunks = []
+                cycle_generator = self._execute_single_cycle_stream(context)
+                
+                # 消费生成器直到获得 CycleOutcome
+                for chunk in cycle_generator:
+                    if isinstance(chunk, CycleOutcome):
+                        outcome = chunk
+                        # 继续消费剩余的生成器内容，确保清理代码执行
+                        try:
+                            while True:
+                                remaining_chunk = next(cycle_generator)
+                                remaining_chunks.append(remaining_chunk)
+                        except StopIteration:
+                            pass
+                        break
+                    else:
+                        yield chunk
+                
+                # yield 剩余的内容（如果有）
+                for chunk in remaining_chunks:
+                    if not isinstance(chunk, CycleOutcome):  # 避免重复 yield CycleOutcome
+                        yield chunk
+                
+                # 确保获得了 CycleOutcome
+                if outcome is None:
+                    yield "[认知循环] 错误：未获得循环结果"
+                    error_result = self._handle_workflow_exception(RuntimeError("流式执行未返回 CycleOutcome"))
+                    yield f"[认知循环] 错误详情：{error_result.stderr}"
+                    yield error_result
+                    return
+                
+                # 根据循环结果决定下一步
+                if not outcome.continue_workflow:
+                    # 工作流结束，返回最终结果
+                    yield f"[认知循环] 工作流结束，返回最终结果"
+                    yield outcome.final_result
+                    return
+                
+                # 如果有循环数据，记录到历史中
+                if outcome.cycle_data:
+                    context.add_cycle_result(context.current_cycle, outcome.cycle_data)
+                    yield f"[认知循环] 第 {context.current_cycle} 轮完成：{outcome.cycle_data[:100]}..."
+                    
+            except Exception as e:
+                # 回滚循环计数器，保持状态一致
+                context.current_cycle = current_cycle_backup
+                self.current_cycle_count = context.current_cycle
+                
+                # 处理循环中的异常
+                yield f"[认知循环] 第 {context.current_cycle + 1} 轮执行异常：{str(e)}"
+                error_result = self._handle_workflow_exception(e)
+                yield f"[认知循环] 错误详情：{error_result.stderr}"
+                yield error_result
                 return
-            
-            # 如果有循环数据，记录到历史中
-            if outcome.cycle_data:
-                context.add_cycle_result(context.current_cycle, outcome.cycle_data)
-                yield f"[认知循环] 第 {context.current_cycle} 轮完成：{outcome.cycle_data[:100]}..."
         
         # 超过最大循环次数
         yield f"[认知循环] 达到最大循环次数 {self.max_cycles}"
-        yield self._handle_timeout()
+        timeout_result = self._handle_timeout()
+        yield f"[认知循环] 超时详情：{timeout_result.stderr}"
+        yield timeout_result
     
     def _execute_single_cycle_stream(self, context: WorkflowContext) -> Iterator[object]:
         """
@@ -700,26 +738,29 @@ class CognitiveAgent(AgentBase):
         
         # 自我决策下一步行动
         yield "[自我决策] 开始决策下一步行动..."
+        decision = None
         for chunk in self._make_decision_stream(context.current_state):
             if isinstance(chunk, str):
                 yield chunk
-            else:
+            elif isinstance(chunk, Decision):
                 decision = chunk
                 break
         
         # 根据决策类型执行相应操作
-        if decision == DecisionType.REQUEST_EVALUATION:
+        if decision and decision.decision_type == DecisionType.REQUEST_EVALUATION:
             yield "[认知循环] 请求本我评估..."
             for chunk in self._handle_evaluation_request_stream(context):
                 yield chunk
         
-        elif decision == DecisionType.JUDGMENT_FAILED:
+        elif decision and decision.decision_type == DecisionType.JUDGMENT_FAILED:
             yield "[认知循环] 自我判断失败..."
-            yield self._handle_judgment_failed(context)
+            # _handle_judgment_failed 返回 CycleOutcome，不是生成器
+            outcome = self._handle_judgment_failed(context)
+            yield outcome
         
-        elif decision == DecisionType.CONTINUE_CYCLE:
-            yield "[认知循环] 继续循环执行..."
-            for chunk in self._handle_continue_cycle_stream(context):
+        elif decision and decision.decision_type == DecisionType.EXECUTE_INSTRUCTION:
+            yield "[认知循环] 执行身体指令..."
+            for chunk in self._handle_execute_instruction_stream(context, decision.instruction, decision.agent):
                 yield chunk
         
         else:
@@ -780,21 +821,33 @@ class CognitiveAgent(AgentBase):
             Result: 执行结果
         """
         while context.current_cycle < self.max_cycles:
-            context.current_cycle += 1
-            self.current_cycle_count = context.current_cycle
-            self._log(f"\n=== 认知循环第 {context.current_cycle} 轮 ===")
-            
-            # 执行单轮认知循环
-            outcome = self._execute_single_cycle(context)
-            
-            # 根据循环结果决定下一步
-            if not outcome.continue_workflow:
-                # 工作流结束，返回最终结果
-                return outcome.final_result
-            
-            # 如果有循环数据，记录到历史中
-            if outcome.cycle_data:
-                context.add_cycle_result(context.current_cycle, outcome.cycle_data)
+            # 保存当前循环数，以便在异常时回滚
+            current_cycle_backup = context.current_cycle
+            try:
+                context.current_cycle += 1
+                self.current_cycle_count = context.current_cycle
+                self._log(f"\n=== 认知循环第 {context.current_cycle} 轮 ===")
+                
+                # 执行单轮认知循环
+                outcome = self._execute_single_cycle(context)
+                
+                # 根据循环结果决定下一步
+                if not outcome.continue_workflow:
+                    # 工作流结束，返回最终结果
+                    return outcome.final_result
+                
+                # 如果有循环数据，记录到历史中
+                if outcome.cycle_data:
+                    context.add_cycle_result(context.current_cycle, outcome.cycle_data)
+                    
+            except Exception as e:
+                # 回滚循环计数器，保持状态一致
+                context.current_cycle = current_cycle_backup
+                self.current_cycle_count = context.current_cycle
+                
+                # 处理循环中的异常
+                self._log(f"第 {context.current_cycle + 1} 轮执行异常：{str(e)}")
+                return self._handle_workflow_exception(e)
         
         # 超过最大循环次数
         return self._handle_timeout()
@@ -810,27 +863,27 @@ class CognitiveAgent(AgentBase):
             CycleOutcome: 循环执行结果
         """
         # 自我分析当前状态并更新到上下文
-        self._analyze_current_state(context)
+        self._update_current_state(context)
         
         # 自我决策下一步行动
         decision = self._make_decision(context.current_state)
         
         # 根据决策类型执行相应操作
-        if decision == DecisionType.REQUEST_EVALUATION:
+        if decision.decision_type == DecisionType.REQUEST_EVALUATION:
             return self._handle_evaluation_request(context)
         
-        elif decision == DecisionType.JUDGMENT_FAILED:
+        elif decision.decision_type == DecisionType.JUDGMENT_FAILED:
             return self._handle_judgment_failed(context)
         
-        elif decision == DecisionType.CONTINUE_CYCLE:
-            return self._handle_continue_cycle(context)
+        elif decision.decision_type == DecisionType.EXECUTE_INSTRUCTION:
+            return self._handle_execute_instruction(context, decision.instruction, decision.agent)
         
         else:
             # 默认请求评估
             self._log(f"未知的决策结果：{decision}，默认请求评估")
             return self._handle_evaluation_request(context)
     
-    def _analyze_current_state(self, context: WorkflowContext) -> None:
+    def _update_current_state(self, context: WorkflowContext) -> None:
         """
         分析当前状态并更新到上下文
         
@@ -844,7 +897,7 @@ class CognitiveAgent(AgentBase):
         # 更新到上下文中
         context.update_current_state(state_analysis)
     
-    def _make_decision(self, state_analysis: str) -> DecisionType:
+    def _make_decision(self, state_analysis: str) -> Decision:
         """
         做出决策
         
@@ -852,19 +905,13 @@ class CognitiveAgent(AgentBase):
             state_analysis: 状态分析结果
             
         Returns:
-            DecisionType: 决策类型
+            Decision: 决策对象，包含决策类型、执行者Agent和执行指令
         """
-        next_action = self.ego.decide_next_action(state_analysis)
-        self._log(f"自我决策：{next_action}")
+        decision = self.ego.decide_next_action(state_analysis, self.agents)
+        agent_name = decision.agent.name if decision.agent else None
+        self._log(f"自我决策：{decision.decision_type.value}，指令：{decision.instruction}，执行者：{agent_name}")
         
-        # 将字符串决策转换为枚举
-        decision_mapping = {
-            "请求评估": DecisionType.REQUEST_EVALUATION,
-            "判断失败": DecisionType.JUDGMENT_FAILED,
-            "继续循环": DecisionType.CONTINUE_CYCLE
-        }
-        
-        return decision_mapping.get(next_action, DecisionType.REQUEST_EVALUATION)
+        return decision
     
     def _handle_judgment_failed(self, context: WorkflowContext) -> CycleOutcome:
         """
@@ -888,23 +935,54 @@ class CognitiveAgent(AgentBase):
             decision_type=DecisionType.JUDGMENT_FAILED
         )
     
-    def _handle_continue_cycle(self, context: WorkflowContext) -> CycleOutcome:
+    def _handle_execute_instruction(self, context: WorkflowContext, instruction: str, agent: Optional[AgentBase] = None) -> CycleOutcome:
         """
-        处理继续循环
+        处理执行指令
         
         Args:
             context: 工作流上下文
+            instruction: 要执行的指令
+            agent: 执行者Agent实例（可选）
             
         Returns:
-            CycleOutcome: 包含循环数据的循环结果
+            CycleOutcome: 包含执行结果的循环结果
         """
-        cycle_data = self._execute_cognitive_step(context)
+        # 执行Body操作，支持指定Agent
+        agent_name = agent.name if agent else None
+        if agent_name:
+            self._log(f"执行指令：{instruction} (执行者：{agent_name})")
+        else:
+            self._log(f"执行指令：{instruction}")
+            
+        result = self._execute_body_operation(instruction, agent)
         
-        return CycleOutcome(
-            continue_workflow=True,
-            cycle_data=cycle_data,
-            decision_type=DecisionType.CONTINUE_CYCLE
-        )
+        if result.success:
+            # 将执行结果记录到上下文
+            execution_data = f"执行成功：{result.return_value}"
+            if agent_name:
+                execution_data = f"执行成功（{agent_name}）：{result.return_value}"
+            # 注意：不在这里调用 add_cycle_result，避免重复记录
+            # 主循环会根据 CycleOutcome.cycle_data 统一记录
+            
+            return CycleOutcome(
+                continue_workflow=True,
+                cycle_data=execution_data,
+                decision_type=DecisionType.EXECUTE_INSTRUCTION
+            )
+        else:
+            # 执行失败，让Ego处理错误
+            error_handling = self.ego.handle_execution_error(
+                result.stderr or "执行失败", instruction)
+            
+            error_data = f"执行失败：{error_handling}"
+            if agent_name:
+                error_data = f"执行失败（{agent_name}）：{error_handling}"
+                
+            return CycleOutcome(
+                continue_workflow=True,
+                cycle_data=error_data,
+                decision_type=DecisionType.EXECUTE_INSTRUCTION
+            )
     
     def _handle_timeout(self) -> Result:
         """
@@ -1148,21 +1226,50 @@ class CognitiveAgent(AgentBase):
                 agent.loadPythonModules(module_list)
         self._log(f"已向所有Agent加载模块：{module_list}")
     
-    def _execute_body_operation(self, instruction: str) -> Result:
-        """执行身体层操作，使用默认Agent"""
-        default_agent = self.agents[0] if self.agents else None
-        if default_agent:
-            return default_agent.execute_sync(instruction)
+    def _execute_body_operation(self, instruction: str, agent: Optional[AgentBase] = None) -> Result:
+        """
+        执行身体层操作
+        
+        Args:
+            instruction: 执行指令
+            agent: 执行者Agent实例（可选）。如果未指定，使用默认Agent
+            
+        Returns:
+            Result: 执行结果
+        """
+        # 如果指定了agent，直接使用
+        if agent:
+            return agent.execute_sync(instruction)
         else:
-            return Result(success=False, code="", stderr="没有可用的Agent", return_value="")
+            # 未指定agent，使用默认Agent
+            default_agent = self.agents[0] if self.agents else None
+            
+            if default_agent:
+                return default_agent.execute_sync(instruction)
+            else:
+                return Result(success=False, code="", stderr="没有可用的Agent", return_value="")
 
-    def _execute_body_operation_stream(self, instruction: str) -> Iterator:
-        """流式执行身体层操作"""
-        default_agent = self.agents[0] if self.agents else None
-        if default_agent:
-            yield from default_agent.execute_stream(instruction)
+    def _execute_body_operation_stream(self, instruction: str, agent: Optional[AgentBase] = None) -> Iterator:
+        """
+        流式执行身体层操作
+        
+        Args:
+            instruction: 执行指令
+            agent: 执行者Agent实例（可选）。如果未指定，使用默认Agent
+            
+        Yields:
+            执行过程中的流式输出
+        """
+        # 如果指定了agent，直接使用
+        if agent:
+            yield from agent.execute_stream(instruction)
         else:
-            yield Result(success=False, code="", stderr="没有可用的Agent", return_value="")
+            # 未指定agent，使用默认Agent
+            default_agent = self.agents[0] if self.agents else None
+            if default_agent:
+                yield from default_agent.execute_stream(instruction)
+            else:
+                yield Result(success=False, code="", stderr="没有可用的Agent", return_value="")
 
     def _execute_body_chat(self, message: str) -> Result:
         """执行身体层聊天操作，使用默认Agent"""
@@ -1171,13 +1278,6 @@ class CognitiveAgent(AgentBase):
             return default_agent.chat_sync(message)
         else:
             return Result(success=False, code="", stderr="没有可用的Agent", return_value="")
-
-    def _find_agent_by_name(self, name: str) -> Optional[Agent]:
-        """根据名称查找Agent"""
-        for agent in self.agents:
-            if agent.name == name:
-                return agent
-        return None
 
     def _build_decision_message_with_agents(self, context: WorkflowContext) -> str:
         """构建包含Agent信息的决策消息"""
@@ -1434,7 +1534,7 @@ class CognitiveAgent(AgentBase):
             yield f"元认知执行后监督失败: {e}"
             yield Result(False, "", "", str(e), "监督失败")
     
-    def _analyze_current_state_stream(self, context: WorkflowContext) -> Iterator[object]:
+    def _update_current_state_stream(self, context: WorkflowContext) -> Iterator[object]:
         """流式分析当前状态并更新到上下文"""
         try:
             current_context = context.get_current_context()
@@ -1456,28 +1556,18 @@ class CognitiveAgent(AgentBase):
     def _make_decision_stream(self, state_analysis: str) -> Iterator[object]:
         """流式做出决策"""
         try:
-            # 使用自我的流式决策
-            for chunk in self.ego.chat_stream(f"基于状态分析做出决策：{state_analysis}"):
-                if isinstance(chunk, Result):
-                    next_action = chunk.return_value
-                    yield f"决策完成：{next_action}"
-                    
-                    # 将字符串决策转换为枚举
-                    decision_mapping = {
-                        "请求评估": DecisionType.REQUEST_EVALUATION,
-                        "判断失败": DecisionType.JUDGMENT_FAILED,
-                        "继续循环": DecisionType.CONTINUE_CYCLE
-                    }
-                    
-                    decision = decision_mapping.get(next_action, DecisionType.REQUEST_EVALUATION)
-                    yield decision
-                    break
-                else:
-                    yield chunk
+            # 直接调用非流式版本获取决策、指令和agent_name
+            decision = self._make_decision(state_analysis)
+            yield f"决策完成：{decision.decision_type.value}"
+            if decision.instruction:
+                yield f"执行指令：{decision.instruction}"
+            if decision.agent:
+                yield f"目标执行者：{decision.agent.name}"
+            yield decision
                     
         except Exception as e:
             yield f"决策失败: {e}"
-            yield DecisionType.REQUEST_EVALUATION  # 默认决策
+            yield Decision(decision_type=DecisionType.REQUEST_EVALUATION)  # 默认决策
     
     def _handle_evaluation_request_stream(self, context: WorkflowContext) -> Iterator[object]:
         """流式处理自我的评估请求"""
@@ -1569,33 +1659,61 @@ class CognitiveAgent(AgentBase):
                 decision_type=DecisionType.REQUEST_EVALUATION
             )
     
-    def _handle_continue_cycle_stream(self, context: WorkflowContext) -> Iterator[object]:
-        """流式处理继续循环"""
+    def _handle_execute_instruction_stream(self, context: WorkflowContext, instruction: str, agent: Optional[AgentBase] = None) -> Iterator[object]:
+        """
+        流式处理执行指令
+        
+        Args:
+            context: 工作流上下文
+            instruction: 要执行的指令
+            agent: 执行者Agent实例（可选）
+        """
         try:
-            yield "开始执行认知步骤"
+            agent_name = agent.name if agent else None
+            if agent_name:
+                yield f"开始执行指令：{instruction[:100]}... (执行者：{agent_name})"
+            else:
+                yield f"开始执行指令：{instruction[:100]}..."
             
-            # 流式执行认知步骤
-            for chunk in self._execute_cognitive_step_stream(context):
-                if isinstance(chunk, str):
-                    cycle_data = chunk
+            # 流式执行Body操作，传递agent实例
+            execution_result = None
+            for chunk in self._execute_body_operation_stream(instruction, agent):
+                if isinstance(chunk, Result):
+                    execution_result = chunk
                     break
                 else:
                     yield chunk
             
-            yield f"认知步骤完成：{cycle_data[:100]}..."
-            
-            yield CycleOutcome(
-                continue_workflow=True,
-                cycle_data=cycle_data,
-                decision_type=DecisionType.CONTINUE_CYCLE
-            )
+            if execution_result and execution_result.success:
+                execution_data = f"执行成功：{execution_result.return_value}"
+                if agent_name:
+                    execution_data = f"执行成功（{agent_name}）：{execution_result.return_value}"
+                yield execution_data
+                # 注意：不在这里调用 add_cycle_result，避免重复记录
+                # 主循环会根据 CycleOutcome.cycle_data 统一记录
+                
+                yield CycleOutcome(
+                    continue_workflow=True,
+                    cycle_data=execution_data,
+                    decision_type=DecisionType.EXECUTE_INSTRUCTION
+                )
+            else:
+                error_msg = execution_result.stderr if execution_result else "执行失败"
+                error_handling = self.ego.handle_execution_error(error_msg, instruction)
+                yield f"执行失败，错误处理：{error_handling}"
+                
+                yield CycleOutcome(
+                    continue_workflow=True,
+                    cycle_data=f"执行失败：{error_handling}",
+                    decision_type=DecisionType.EXECUTE_INSTRUCTION
+                )
             
         except Exception as e:
-            yield f"继续循环处理失败: {e}"
+            yield f"执行指令失败: {e}"
             yield CycleOutcome(
                 continue_workflow=False,
-                final_result=Result(False, "", "", None, f"继续循环处理失败：{e}"),
-                decision_type=DecisionType.CONTINUE_CYCLE
+                final_result=Result(False, "", "", None, f"执行指令失败：{e}"),
+                decision_type=DecisionType.EXECUTE_INSTRUCTION
             )
     
     def _execute_cognitive_step_stream(self, context: WorkflowContext) -> Iterator[object]:
