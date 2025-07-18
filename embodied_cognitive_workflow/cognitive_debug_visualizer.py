@@ -795,15 +795,14 @@ if __name__ == "__main__":
     from cognitive_debug_agent import CognitiveDebugAgent
     
     # 创建测试实例
-    base_agent = Agent(llm=get_model("deepseek_chat"))
-    ego_agent = base_agent
-    id_agent = base_agent
+    llm = get_model("deepseek_chat")
     
+    # 创建认知智能体 - 使用新的构造函数
     cognitive_agent = CognitiveAgent(
-        ego=ego_agent,
-        id=id_agent,
-        body_agents={"main": base_agent},
-        llm=get_model("deepseek_chat")
+        llm=llm,
+        max_cycles=5,
+        verbose=True,
+        enable_meta_cognition=False
     )
     
     debug_agent = CognitiveDebugAgent(

@@ -221,8 +221,7 @@ class CognitiveAgent(AgentBase):
                  enable_meta_cognition: bool = True,
                  max_cycles: int = 50,
                  verbose: bool = True,
-                 system_message: Optional[str] = None,
-                 evaluation_mode: str = "external"):
+                 system_message: Optional[str] = None):
         """
         初始化认知智能体
         
@@ -237,7 +236,6 @@ class CognitiveAgent(AgentBase):
             max_cycles: 防止无限循环的最大次数限制
             verbose: 是否输出详细的过程日志
             system_message: 系统消息，如果未提供将使用默认消息
-            evaluation_mode: 本我评估模式 ("internal", "external", "auto")
         """
         # 设置默认系统消息
         default_system_message = """你是认知智能体，基于具身认知理论的四层架构智能体系统，负责协调元认知、自我、本我和身体层的交互。
@@ -261,7 +259,6 @@ class CognitiveAgent(AgentBase):
         super().__init__(llm, system_message or default_system_message)
         self.max_cycles = max_cycles
         self.verbose = verbose
-        self.evaluation_mode = evaluation_mode
         self.enable_meta_cognition = enable_meta_cognition
         
         # 初始化身体层（多Agent支持）
@@ -291,10 +288,8 @@ class CognitiveAgent(AgentBase):
         
         self.ego = EgoAgent(llm=llm, **ego_config)
         
-        # 合并evaluation_mode到id_config
-        id_config_with_mode = id_config.copy() if id_config else {}
-        id_config_with_mode['evaluation_mode'] = evaluation_mode
-        self.id_agent = IdAgent(llm=llm, **id_config_with_mode)
+        # 创建本我智能体
+        self.id_agent = IdAgent(llm=llm, **(id_config or {}))
         
         # 初始化元认知层（元认知监督层）
         self.meta_cognition = None
@@ -1039,20 +1034,12 @@ class CognitiveAgent(AgentBase):
         evaluation_request = self.ego.request_id_evaluation(context.current_state)
         self._log(f"自我评估请求：{evaluation_request}")
         
-        # 本我根据评估模式进行评估
-        if self.id_agent.evaluation_mode == "internal":
-            self._log("使用内观评估模式")
-            evaluation_json = self.id_agent.evaluate_with_context(
-                evaluation_request, 
-                context.current_state
-            )
-        else:
-            self._log("使用外观评估模式")
-            evaluation_json = self.id_agent.evaluate_with_context(
-                evaluation_request, 
-                context.current_state, 
-                agents=self.agents
-            )
+        # 本我基于当前状态进行评估
+        self._log("本我进行评估")
+        evaluation_json = self.id_agent.evaluate_with_context(
+            evaluation_request, 
+            context.current_state
+        )
         
         self._log(f"本我评估结果：{evaluation_json}")
         
@@ -1576,45 +1563,19 @@ class CognitiveAgent(AgentBase):
             evaluation_request = self.ego.request_id_evaluation(context.current_state)
             yield f"评估请求：{evaluation_request[:100]}..."
             
-            # 本我根据评估模式进行评估
-            if self.id_agent.evaluation_mode == "internal":
-                yield "使用内观评估模式"
-                
-                # 使用本我的流式内观评估
-                for chunk in self.id_agent.chat_stream(
-                    f"内观评估：{evaluation_request}\n当前状态：{context.current_state}", 
-                    response_format={"type": "json_object"}
-                ):
-                    if isinstance(chunk, Result):
-                        evaluation_json = chunk.return_value
-                        break
-                    else:
-                        yield chunk
-            else:
-                yield "使用外观评估模式"
-                
-                # 生成评估指令
-                evaluation_instruction = self.id_agent.generate_evaluation_instruction(evaluation_request)
-                yield f"评估指令：{evaluation_instruction[:100]}..."
-                
-                # 身体执行观察
-                for chunk in self._execute_body_operation_stream(evaluation_instruction):
-                    if isinstance(chunk, Result):
-                        observation_result = chunk
-                        break
-                    else:
-                        yield chunk  # 直接输出，不添加前缀
-                
-                # 本我评估结果
-                for chunk in self.id_agent.chat_stream(
-                    f"评估目标达成：{observation_result.return_value}",
-                    response_format={"type": "json_object"}
-                ):
-                    if isinstance(chunk, Result):
-                        evaluation_json = chunk.return_value
-                        break
-                    else:
-                        yield chunk
+            # 本我基于当前状态进行评估
+            yield "本我进行评估"
+            
+            # 使用本我的流式评估
+            for chunk in self.id_agent.chat_stream(
+                f"评估请求：{evaluation_request}\n当前状态：{context.current_state}", 
+                response_format={"type": "json_object"}
+            ):
+                if isinstance(chunk, Result):
+                    evaluation_json = chunk.return_value
+                    break
+                else:
+                    yield chunk
             
             yield f"评估结果：{evaluation_json[:100]}..."
             

@@ -24,7 +24,7 @@ class IdAgent(AgentBase):
     3. 评估目标达成情况，决定工作流继续或终止
     """
     
-    def __init__(self, llm: BaseChatModel, system_message: str = None, evaluation_mode: str = "external"):
+    def __init__(self, llm: BaseChatModel, system_message: str = None):
         default_system = """你是具身认知工作流系统中的本我智能体，负责价值驱动和目标监控。
 
 你的核心职责：
@@ -51,21 +51,6 @@ class IdAgent(AgentBase):
         self.value_standard = ""
         self.goal_description = ""
         self.task_specification = ""  # 任务规格：包含目标、标准、验证方法
-        
-        # 评估模式设置
-        self.evaluation_mode = evaluation_mode  # "internal", "external", "auto"
-        self._validate_evaluation_mode()
-    
-    def _validate_evaluation_mode(self):
-        """验证评估模式设置"""
-        valid_modes = ["internal", "external", "auto"]
-        if self.evaluation_mode not in valid_modes:
-            raise ValueError(f"Invalid evaluation_mode: {self.evaluation_mode}. Must be one of {valid_modes}")
-    
-    def set_evaluation_mode(self, mode: str):
-        """动态设置评估模式"""
-        self.evaluation_mode = mode
-        self._validate_evaluation_mode()
     
     def initialize_value_system(self, instruction: str) -> str:
         """
@@ -209,57 +194,19 @@ class IdAgent(AgentBase):
         result = self.chat_sync(message, response_format={"type": "json_object"})
         return result.return_value
     
-    def evaluate_with_context(self, evaluation_request: str, current_state: str, agents=None) -> str:
+    def evaluate_with_context(self, evaluation_request: str, current_state: str) -> str:
         """
-        根据评估模式进行评估的统一入口
+        基于当前状态进行评估
         
         Args:
             evaluation_request: 自我的评估请求
             current_state: 工作流当前状态
-            agents: 可用的Agent列表（外观评估时需要）
             
         Returns:
             str: JSON格式的评估结果
         """
-        if self._should_use_internal_evaluation(evaluation_request):
-            # 使用内观评估
-            return self._internal_evaluation(current_state, evaluation_request)
-        else:
-            # 使用外观评估（原有流程）
-            if agents is None or len(agents) == 0:
-                return '{"目标是否达成": false, "原因": "外观评估需要Agent但未提供"}'
-            
-            # 生成观察指令（包含Agent选择）
-            evaluation_result = self.generate_evaluation_instruction_with_agent(evaluation_request, agents)
-            
-            # 解析返回的JSON，获取指令和指定的Agent
-            import json
-            try:
-                eval_data = json.loads(evaluation_result)
-                instruction = eval_data.get("指令", "")
-                agent_name = eval_data.get("指定Agent", "")
-            except (json.JSONDecodeError, KeyError):
-                # 如果解析失败，将整个结果作为指令，使用第一个Agent
-                instruction = evaluation_result
-                agent_name = ""
-            
-            # 查找指定的Agent
-            selected_agent = None
-            if agent_name:
-                for agent in agents:
-                    if agent.name == agent_name:
-                        selected_agent = agent
-                        break
-            
-            # 如果没找到指定的Agent，使用第一个
-            if selected_agent is None:
-                selected_agent = agents[0]
-            
-            # 执行观察
-            observation_result = selected_agent.execute_sync(instruction)
-            
-            # 基于观察结果评估
-            return self.evaluate_goal_achievement(observation_result.return_value)
+        # 直接使用内部评估（基于当前状态）
+        return self._internal_evaluation(current_state, evaluation_request)
     
     def evaluate_goal_achievement(self, observation_result: str) -> str:
         """
@@ -363,28 +310,6 @@ class IdAgent(AgentBase):
             # 如果解析失败，构造一个安全的默认响应
             return '{"目标是否达成": false, "原因": "内观评估JSON格式错误"}'
     
-    def _should_use_internal_evaluation(self, evaluation_request: str) -> bool:
-        """
-        判断是否应该使用内观评估模式
-        
-        Args:
-            evaluation_request: 评估请求内容
-            
-        Returns:
-            bool: 是否使用内观评估
-        """
-        if self.evaluation_mode == "internal":
-            return True
-        elif self.evaluation_mode == "external":
-            return False
-        elif self.evaluation_mode == "auto":
-            # auto模式：根据任务类型智能选择
-            # 编程任务优先使用内观评估
-            programming_keywords = ["代码", "程序", "函数", "文件", "python", "计算", "实现"]
-            request_lower = evaluation_request.lower()
-            return any(keyword in request_lower for keyword in programming_keywords)
-        
-        return False  # 默认使用外观评估
     
     def get_current_goal(self) -> str:
         """

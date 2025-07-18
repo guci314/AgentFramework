@@ -504,20 +504,11 @@ class StepExecutor:
         # 先获取自我的评估请求
         evaluation_request = self.agent.ego.request_id_evaluation(debug_state.workflow_context.current_state)
         
-        # 使用内部评估模式还是外部评估模式
-        if self.agent.evaluation_mode == "internal":
-            # 调用本我的内观评估
-            evaluation_json = self.agent.id_agent.evaluate_with_context(
-                evaluation_request, 
-                debug_state.workflow_context.current_state
-            )
-        else:
-            # 外部评估模式，使用身体观察
-            evaluation_json = self.agent.id_agent.evaluate_with_context(
-                evaluation_request, 
-                debug_state.workflow_context.current_state,
-                agents=self.agent.agents
-            )
+        # 调用本我的评估
+        evaluation_json = self.agent.id_agent.evaluate_with_context(
+            evaluation_request, 
+            debug_state.workflow_context.current_state
+        )
         
         # 解析JSON评估结果
         try:
@@ -540,7 +531,6 @@ class StepExecutor:
             "evaluation_json": evaluation_json,
             "evaluation_result": evaluation_result,
             "goal_achieved": goal_achieved,
-            "evaluation_mode": self.agent.evaluation_mode,
             "agent_method": f"id.evaluate_with_context"
         }
         
@@ -567,7 +557,9 @@ class StepExecutor:
             
             if instruction:
                 # 使用Ego提供的具体指令和Agent选择
-                execution_result = self.agent._execute_body_operation(instruction, agent_name)
+                # 获取实际的Agent实例
+                agent_instance = getattr(debug_state, 'selected_agent_instance', None)
+                execution_result = self.agent._execute_body_operation(instruction, agent_instance)
             else:
                 # 回退到旧的行为
                 current_context = debug_state.workflow_context.get_current_context()
